@@ -1,0 +1,154 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
+  /* Force handwritten font on mermaid diagrams */
+  .mermaid, .mermaid *
+  {
+    font-family: 'Caveat', cursive !important;
+  }
+</style>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs";
+  mermaid.registerLayoutLoaders(elkLayouts);
+  // Remove @author entries from documentation
+  function removeAuthorEntries()
+  {
+    // Doxygen renders @author in <tr> with "author" in the heading
+    document.querySelectorAll('tr').forEach(tr =>
+    {
+      if (tr.textContent.includes('Author') && tr.querySelector('td'))
+      {
+        tr.remove();
+      }
+    });
+    // Also check <dl> style (older Doxygen)
+    document.querySelectorAll('dt').forEach(dt =>
+    {
+      if (dt.textContent.trim() === 'Author')
+      {
+        const dd = dt.nextElementSibling;
+        if (dd && dd.tagName === 'DD') dd.remove();
+        dt.remove();
+      }
+    });
+  }
+  removeAuthorEntries();
+  mermaid.initialize(
+  {
+    startOnLoad: false,
+    theme: 'dark',
+    look: 'handDrawn',
+    fontFamily: 'Caveat, cursive',
+    flowchart:
+    {
+      useMaxWidth: true,
+      curve: 'curve',
+      nodeSpacing: 70,
+      rankSpacing: 90
+    },
+    sequence: { useMaxWidth: true },
+    themeVariables:
+    {
+      mainBkg: '#0b0f14',
+      lineColor: '#94a3b8',
+      clusterBkg: '#0f172a',
+      clusterBorder: '#334155',
+      fontSize: '14px',
+      // Node colors
+      primaryColor: '#3b82f6',
+      primaryTextColor: '#f8fafc',
+      primaryBorderColor: '#60a5fa',
+      secondaryColor: '#8b5cf6',
+      secondaryTextColor: '#f8fafc',
+      secondaryBorderColor: '#a78bfa',
+      tertiaryColor: '#10b981',
+      tertiaryTextColor: '#f8fafc',
+      tertiaryBorderColor: '#34d399',
+      // State diagram
+      labelBackgroundColor: '#1e293b',
+      noteBkgColor: '#1e3a5f',
+      noteTextColor: '#e2e8f0',
+      noteBorderColor: '#3b82f6'
+    }
+  });
+  function fixMermaidBlocks()
+  {
+    const pres = document.querySelectorAll('pre.mermaid');
+    const nodes = [];
+    pres.forEach(pre =>
+    {
+      let src = pre.textContent.trim();
+      if (!src) return;
+      const div = document.createElement('div');
+      div.className = 'mermaid';
+      div.textContent = src;
+      pre.replaceWith(div);
+      nodes.push(div);
+    });
+
+    return nodes;
+  }
+  // Robust height measurement: Works even when getBoundingClientRect() is 0 initially
+  function svgHeight(svg)
+  {
+    const r = svg.getBoundingClientRect();
+    if (r.height > 0) return r.height;
+    try
+    {
+      const bb = svg.getBBox();
+      if (bb.height > 0) return bb.height;
+    } catch {}
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (vb && vb.height > 0) return vb.height;
+    const hAttr = parseFloat(svg.getAttribute('height') || '0');
+    return Number.isFinite(hAttr) ? hAttr : 0;
+  }
+  // Equalize each .mermaid-row to the tallest SVG, setting height on svg
+  function equalizeMermaidRows({ maxHeight = 520 } = {})
+  {
+    document.querySelectorAll('.mermaid-row').forEach(row =>
+    {
+      const svgs = Array.from(row.querySelectorAll('.mermaid-cell > .mermaid > svg'));
+      if (svgs.length < 2) return;
+      // reset before measuring
+      svgs.forEach(svg =>
+      {
+        svg.style.height = '';
+        svg.style.width = '';
+        svg.style.maxWidth = '';
+      });
+      let target = Math.max(...svgs.map(svgHeight));
+      if (target <= 0) return;  // layout not ready yet; caller will retry
+      target = Math.min(target, maxHeight);
+      target = Math.floor(target);
+      svgs.forEach(svg =>
+      {
+        svg.style.height = `${target}px`;
+        svg.style.width = 'auto';
+        svg.style.maxWidth = '100%'; // don't overflow column
+      });
+    });
+  }
+  const nodes = fixMermaidBlocks();
+  if (nodes.length)
+  {
+    await mermaid.run({ nodes });
+    // Wait for layout to settle
+    const runEqualizer = () => equalizeMermaidRows({ maxHeight: 520 });
+    requestAnimationFrame(() =>
+    {
+      requestAnimationFrame(() =>
+      {
+        runEqualizer();
+      });
+    });
+    let t;
+    window.addEventListener('resize', () =>
+    {
+      clearTimeout(t);
+      t = setTimeout(runEqualizer, 100);
+    });
+  }
+</script>
+</body>
+</html>

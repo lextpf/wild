@@ -1,0 +1,1218 @@
+#pragma once
+
+#include "Texture.h"
+#include "IRenderer.h"
+#include "CollisionMap.h"
+#include "NavigationMap.h"
+#include "ColumnProxy.h"
+#include "ParticleSystem.h"
+
+#include <vector>
+#include <string>
+#include <iostream>
+#include <cstdint>
+#include <glm/glm.hpp>
+
+// Forward declaration
+class NonPlayerCharacter;
+
+/**
+ * @struct Tile
+ * @brief Represents a single tile's position in the tileset texture.
+ * @author Alex (https://github.com/lextpf)
+ * 
+ * Used for tileset indexing and UV coordinate calculation.
+ */
+struct Tile
+{
+    int tileX;   ///< Column in tileset (0-based)
+    int tileY;   ///< Row in tileset (0-based)
+    int tileID;  ///< Unique identifier (tileY * tilesPerRow + tileX)
+};
+
+/**
+ * @struct TileLayer
+ * @brief Represents a single tile layer with all associated data.
+ * @author Alex (https://github.com/lextpf)
+ *
+ * Each layer contains tile IDs, rotation values, and per-tile flags.
+ * Layers are rendered in order based on their renderOrder value.
+ */
+struct TileLayer
+{
+    std::string name;                  ///< Human-readable layer name
+    std::vector<int> tiles;            ///< Tile IDs in row-major order (-1 or 0 = empty)
+    std::vector<float> rotation;       ///< Rotation in degrees per tile
+    std::vector<bool> noProjection;    ///< Tiles that bypass 3D projection
+    std::vector<bool> ySorted;         ///< Tiles that sort with entities by Y position
+    std::vector<int> animationMap;     ///< Per-tile animation ID (-1 = not animated)
+    int renderOrder;                   ///< Lower = rendered first (background), higher = later (foreground)
+    bool isBackground;                 ///< true = before player/NPCs, false = after
+
+    TileLayer() : renderOrder(0), isBackground(true) {}
+    TileLayer(const std::string& n, int order, bool bg)
+        : name(n), renderOrder(order), isBackground(bg) {}
+
+    void resize(size_t size) {
+        tiles.resize(size, -1);
+        rotation.resize(size, 0.0f);
+        noProjection.resize(size, false);
+        ySorted.resize(size, false);
+        animationMap.resize(size, -1);
+    }
+
+    void clear() {
+        std::fill(tiles.begin(), tiles.end(), -1);
+        std::fill(rotation.begin(), rotation.end(), 0.0f);
+        std::fill(noProjection.begin(), noProjection.end(), false);
+        std::fill(ySorted.begin(), ySorted.end(), false);
+        std::fill(animationMap.begin(), animationMap.end(), -1);
+    }
+};
+
+/**
+ * @struct AnimatedTile
+ * @brief Definition of an animated tile sequence.
+ * @author Alex (https://github.com/lextpf)
+ */
+struct AnimatedTile
+{
+    std::vector<int> frames;    ///< Tile IDs for each frame
+    float frameDuration;        ///< Seconds per frame
+
+    AnimatedTile() : frameDuration(0.2f) {}
+    AnimatedTile(const std::vector<int>& f, float duration = 0.2f)
+        : frames(f), frameDuration(duration) {}
+
+    /// Get the tile ID for the current time
+    int GetFrameAtTime(float time) const {
+        if (frames.empty()) return -1;
+        if (frameDuration <= 0.0f) return frames[0]; // Prevent division by zero
+        int frameIndex = static_cast<int>(time / frameDuration) % static_cast<int>(frames.size());
+        return frames[frameIndex];
+    }
+};
+
+/**
+ * @class Tilemap
+ * @brief Multi-layer tile-based world with collision and navigation.
+ * @author Alex (https://github.com/lextpf)
+ *
+ * The Tilemap class is the primary world representation, managing:
+ * - **8 tile layers** (4 background, 4 foreground) with configurable depth ordering
+ * - **Collision detection** for player movement
+ * - **Navigation mesh** for NPC pathfinding
+ * - **Per-tile rotation** for visual variety
+ * - **JSON serialization** for map editing and persistence
+ *
+ * @par Layer Architecture
+ * The tilemap uses 8 layers rendered around player/NPC entities:
+ *
+ * | Layer | Name            | Purpose                    |
+ * |-------|-----------------|----------------------------|
+ * | 0     | Ground          | Base terrain               |
+ * | 1     | Ground Detail   | Grass, paths, decorations  |
+ * | 2-3   | Objects         | Buildings, rocks, trees    |
+ * | 4-5   | Foreground      | Elements in front of NPCs  |
+ * | 6-7   | Overlay         | UI elements, weather       |
+ *
+ * @par Depth Sorting Visualization
+ * @code
+ *              Layer 7 Overlay2     <- Top (front)
+ *              Layer 6 Overlay
+ *              Layer 5 Foreground2
+ *              Layer 4 Foreground
+ *              ---- Player -------
+ *              ---- NPCs ---------
+ *              Layer 3 Objects2
+ *              Layer 2 Objects
+ *              Layer 1 Ground Detail
+ *              Layer 0 Ground       <- Bottom (back)
+ * @endcode
+ *
+ * This ordering allows characters to walk behind foreground layers (4-7)
+ * while appearing in front of background layers (0-3).
+ * 
+ * @par Tile ID System
+ * Tile IDs map directly to tileset positions:
+ * @f[
+ * tileID = tileY \times tilesPerRow + tileX
+ * @f]
+ * 
+ * Where (tileX, tileY) are the tile's coordinates in the tileset texture.
+ * A tileID of 0 typically represents an empty/transparent tile.
+ * 
+ * @par UV Coordinate Calculation
+ * For a tile at tileset position (tx, ty):
+ * @f[
+ * u_0 = \frac{tx \times tileWidth}{textureWidth}, \quad
+ * v_0 = \frac{ty \times tileHeight}{textureHeight}
+ * @f]
+ * @f[
+ * u_1 = \frac{(tx + 1) \times tileWidth}{textureWidth}, \quad
+ * v_1 = \frac{(ty + 1) \times tileHeight}{textureHeight}
+ * @f]
+ * 
+ * @par Coordinate System
+ * The tilemap uses a top-left origin with Y increasing downward:
+ * @code
+ *   (0,0)-----> +X
+ *     |
+ *     |  Tile (x,y) at world position (x*16, y*16)
+ *     v
+ *    +Y
+ * @endcode
+ *
+ * @par World-to-Tile Conversion
+ * @f[
+ * tile_x = \lfloor \frac{world_x}{tileWidth} \rfloor, \quad
+ * tile_y = \lfloor \frac{world_y}{tileHeight} \rfloor
+ * @f]
+ *
+ * @par Tile-to-World Conversion
+ * @f[
+ * world_x = tile_x \times tileWidth, \quad
+ * world_y = tile_y \times tileHeight
+ * @f]
+ *
+ * @par Memory Layout
+ * Each layer stores tiles in row-major order:
+ * @f[
+ * index = y \times mapWidth + x
+ * @f]
+ *
+ * @par Tileset Combination
+ * Multiple tileset images can be combined vertically into a single texture:
+ * @code
+ *    +------------------+
+ *    |    Tileset 1     |
+ *    |    (256x256)     |
+ *    +------------------+
+ *    |    Tileset 2     |  <- Combined texture
+ *    |    (256x128)     |
+ *    +------------------+
+ *    |    Tileset 3     |
+ *    |    (256x64)      |
+ *    +------------------+
+ * @endcode
+ * 
+ * @par Sparse Storage Format
+ * When serialized to JSON, only non-zero tiles are stored:
+ * @code{.json}
+ * {
+ *   "layer1": {
+ *     "42": 15,    // Tile at index 42 = tile ID 15
+ *     "100": 23    // Tile at index 100 = tile ID 23
+ *   }
+ * }
+ * @endcode
+ * 
+ * This significantly reduces file size for large, sparse maps.
+ * 
+ * @see CollisionMap, NavigationMap, ColumnProxy
+ */
+class Tilemap
+{
+public:
+    /**
+     * @brief Construct an empty Tilemap.
+     * 
+     * Call LoadTileset() and SetTilemapSize() before use.
+     */
+    Tilemap();
+
+    /**
+     * @brief Destructor releases tileset texture resources.
+     */
+    ~Tilemap();
+
+    /**
+     * @brief Load a single tileset image.
+     * 
+     * The tileset is divided into a grid of tiles based on the
+     * specified tile dimensions.
+     * 
+     * @par Tileset Layout
+     * @code
+     *   0   1   2   3   ...  (tile X)
+     * +---+---+---+---+---+
+     * | 0 | 1 | 2 | 3 |...| Row 0 (tile IDs 0-N)
+     * +---+---+---+---+---+
+     * |N+1|...|   |   |   | Row 1
+     * +---+---+---+---+---+
+     * @endcode
+     * 
+     * @param path Path to tileset PNG file.
+     * @param tileWidth Width of each tile in pixels (default: 16).
+     * @param tileHeight Height of each tile in pixels (default: 16).
+     * @return `true` if loaded successfully.
+     */
+    bool LoadTileset(const std::string &path, int tileWidth = 16, int tileHeight = 16);
+
+    /**
+     * @brief Load and combine two tileset images vertically.
+     * 
+     * Creates a single combined texture with the second tileset
+     * appended below the first.
+     * 
+     * @param path1 Path to first (top) tileset.
+     * @param path2 Path to second (bottom) tileset.
+     * @param tileWidth Tile width in pixels.
+     * @param tileHeight Tile height in pixels.
+     * @return `true` if both loaded and combined successfully.
+     */
+    bool LoadCombinedTileset(const std::string &path1, const std::string &path2, int tileWidth = 16, int tileHeight = 16);
+
+    /**
+     * @brief Load and combine three tileset images vertically.
+     * 
+     * @param path1 First (top) tileset path.
+     * @param path2 Second (middle) tileset path.
+     * @param path3 Third (bottom) tileset path.
+     * @param tileWidth Tile width in pixels.
+     * @param tileHeight Tile height in pixels.
+     * @return `true` if all loaded and combined successfully.
+     */
+    bool LoadCombinedTileset3(const std::string &path1, const std::string &path2, const std::string &path3, int tileWidth = 16, int tileHeight = 16);
+
+    /**
+     * @brief Load and combine multiple tileset images vertically.
+     * 
+     * @param paths Vector of tileset paths (combined top-to-bottom).
+     * @param tileWidth Tile width in pixels.
+     * @param tileHeight Tile height in pixels.
+     * @return `true` if all loaded and combined successfully.
+     */
+    bool LoadCombinedTilesets(const std::vector<std::string> &paths, int tileWidth = 16, int tileHeight = 16);
+
+    /**
+     * @brief Set the tilemap dimensions.
+     * 
+     * Allocates storage for all layers, collision, and navigation.
+     * Optionally generates a default map pattern.
+     * 
+     * @par World Size
+     * World dimensions in pixels:
+     * @f[
+     * worldWidth = width \times tileWidth
+     * @f]
+     * @f[
+     * worldHeight = height \times tileHeight
+     * @f]
+     * 
+     * @param width Map width in tiles.
+     * @param height Map height in tiles.
+     * @param generateMap If true, fills with a default pattern.
+     */
+    void SetTilemapSize(int width, int height, bool generateMap = true);
+
+    /**
+     * @name Ground Layer (Index 0)
+     * @brief Primary background layer. Only layer with collision support.
+     * @{
+     */
+    /**
+     * @brief Set a tile on the Ground layer (index 0).
+     * @param x Tile column.
+     * @param y Tile row.
+     * @param tileID Tile ID from tileset (0 = empty).
+     */
+    void SetTile(int x, int y, int tileID);
+
+    /**
+     * @brief Get tile ID from the Ground layer (index 0).
+     * @param x Tile column.
+     * @param y Tile row.
+     * @return Tile ID (0 if empty or out of bounds).
+     */
+    int GetTile(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Ground Detail Layer (Index 1)
+     * @brief Secondary background layer, rendered after Ground.
+     * No collision. Useful for ground details like grass variations.
+     * @{
+     */
+    void SetTile2(int x, int y, int tileID);
+    int GetTile2(int x, int y) const;
+    void SetTileRotation2(int x, int y, float rotation);
+    float GetTileRotation2(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Objects Layer (Index 2)
+     * @brief Background objects layer, rendered before NPCs/player.
+     * Useful for rocks, bushes, and decorative objects.
+     * @{
+     */
+    void SetTile3(int x, int y, int tileID);
+    int GetTile3(int x, int y) const;
+    void SetTileRotation3(int x, int y, float rotation);
+    float GetTileRotation3(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Objects2 Layer (Index 3)
+     * @brief Secondary objects layer, rendered before NPCs/player.
+     * Useful for additional background objects.
+     * @{
+     */
+    void SetTile4(int x, int y, int tileID);
+    int GetTile4(int x, int y) const;
+    void SetTileRotation4(int x, int y, float rotation);
+    float GetTileRotation4(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Foreground Layer (Index 4)
+     * @brief First foreground layer, rendered above NPCs/player.
+     * Useful for tree tops, awnings, and overhangs.
+     * @{
+     */
+    void SetTile5(int x, int y, int tileID);
+    int GetTile5(int x, int y) const;
+    void SetTileRotation5(int x, int y, float rotation);
+    float GetTileRotation5(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Foreground2 Layer (Index 5)
+     * @brief Second foreground layer, rendered above Foreground.
+     * Useful for rooftops and tall structures.
+     * @{
+     */
+    void SetTile6(int x, int y, int tileID);
+    int GetTile6(int x, int y) const;
+    void SetTileRotation6(int x, int y, float rotation);
+    float GetTileRotation6(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Corner Cutting Control
+     * @brief Per-tile flags to disable corner cutting on specific corners.
+     *
+     * Corner cutting allows diagonal movement past collision tile corners.
+     * These flags let you block corner cutting on specific corners.
+     * Each corner is identified by its position: TL=0, TR=1, BL=2, BR=3.
+     * @{
+     */
+
+    /// Corner identifiers for corner cutting control
+    enum Corner : uint8_t {
+        CORNER_TL = 0,  ///< Top-left corner
+        CORNER_TR = 1,  ///< Top-right corner
+        CORNER_BL = 2,  ///< Bottom-left corner
+        CORNER_BR = 3   ///< Bottom-right corner
+    };
+
+    /**
+     * @brief Set whether corner cutting is blocked at a specific corner of a tile.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param corner Which corner (CORNER_TL, CORNER_TR, CORNER_BL, CORNER_BR).
+     * @param blocked true to block corner cutting at this corner.
+     */
+    void SetCornerCutBlocked(int x, int y, Corner corner, bool blocked);
+
+    /**
+     * @brief Check if corner cutting is blocked at a specific corner.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param corner Which corner to check.
+     * @return true if corner cutting is blocked at this corner.
+     */
+    bool IsCornerCutBlocked(int x, int y, Corner corner) const;
+
+    /**
+     * @brief Get the full corner cut mask for a tile (4 bits).
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @return Bitmask where bit 0=TL, 1=TR, 2=BL, 3=BR (1=blocked).
+     */
+    uint8_t GetCornerCutMask(int x, int y) const;
+
+    /**
+     * @brief Set the full corner cut mask for a tile.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param mask Bitmask where bit 0=TL, 1=TR, 2=BL, 3=BR (1=blocked).
+     */
+    void SetCornerCutMask(int x, int y, uint8_t mask);
+    /** @} */
+
+    /**
+     * @name Collision Functions
+     * @brief Per-tile collision flags for player movement.
+     *
+     * Collision only applies to the Ground layer (index 0). Other layers
+     * are purely decorative and don't affect movement.
+     * @{
+     */
+    /**
+     * @brief Set collision flag for a tile.
+     * 
+     * Blocking tiles prevent the player from moving onto them.
+     * 
+     * @param x Tile column.
+     * @param y Tile row.
+     * @param hasCollision `true` to block movement.
+     */
+    void SetTileCollision(int x, int y, bool hasCollision);
+
+    /**
+     * @brief Query collision flag for a tile.
+     * 
+     * @param x Tile column.
+     * @param y Tile row.
+     * @return `true` if tile blocks movement.
+     */
+    bool GetTileCollision(int x, int y) const;
+
+    /**
+     * @brief Get mutable reference to the collision map.
+     * 
+     * For advanced operations like bulk updates or direct indexing.
+     * 
+     * @return Reference to CollisionMap.
+     */
+    CollisionMap<std::vector> &GetCollisionMap() { return m_CollisionMap; }
+
+    /**
+     * @brief Get read-only reference to the collision map.
+     * @return Const reference to CollisionMap.
+     */
+    const CollisionMap<std::vector> &GetCollisionMap() const { return m_CollisionMap; }
+    /** @} */
+
+    /**
+     * @name Navigation Functions
+     * @brief NPC walkability flags for pathfinding.
+     * 
+     * Navigation is independent of collision. NPCs only walk on
+     * tiles marked as walkable, regardless of collision state.
+     * @{
+     */
+    /**
+     * @brief Set navigation flag for a tile.
+     * 
+     * Walkable tiles can be included in NPC patrol routes.
+     * 
+     * @param x Tile column.
+     * @param y Tile row.
+     * @param walkable `true` if NPCs can walk here.
+     */
+    void SetNavigation(int x, int y, bool walkable);
+
+    /**
+     * @brief Query navigation flag for a tile.
+     * 
+     * @param x Tile column.
+     * @param y Tile row.
+     * @return `true` if NPCs can walk here.
+     */
+    bool GetNavigation(int x, int y) const;
+
+    /**
+     * @brief Get mutable reference to the navigation map.
+     * @return Reference to NavigationMap.
+     */
+    NavigationMap<std::vector> &GetNavigationMap() { return m_NavigationMap; }
+
+    /**
+     * @brief Get read-only reference to the navigation map.
+     * @return Const reference to NavigationMap.
+     */
+    const NavigationMap<std::vector> &GetNavigationMap() const { return m_NavigationMap; }
+    /** @} */
+
+    /**
+     * @name Rotation Functions (Ground Layer)
+     * @brief Per-tile rotation for the Ground layer (index 0).
+     *
+     * Rotation is specified in degrees and applied during rendering.
+     * Commonly used values: 0, 90, 180, 270.
+     * @{
+     */
+    void SetTileRotation(int x, int y, float rotation);
+    float GetTileRotation(int x, int y) const;
+    /** @} */
+
+    /**
+     * @name Render Functions
+     * @brief Layer-specific rendering methods.
+     *
+     * Call these in the correct order for proper depth sorting:
+     * 1. Render()       - Ground (index 0)
+     * 2. RenderLayer2() - Ground Detail (index 1)
+     * 3. RenderLayer5() - Objects (index 2)
+     * 4. RenderLayer6() - Objects2 (index 3)
+     * 5. (Render NPCs - Y-sorted)
+     * 6. (Render Player - Y-sorted)
+     * 7. RenderLayer3() - Foreground (index 4)
+     * 8. RenderLayer4() - Foreground2 (index 5)
+     * 9. RenderLayer7() - Overlay (index 6)
+     * 10. RenderLayer8() - Overlay2 (index 7)
+     * @{
+     */
+
+    /**
+     * @brief Render Ground layer (index 0, background with collision).
+     *
+     * Only renders tiles visible on screen for efficiency. Uses separate
+     * camera positions for rendering and culling to support globe projection.
+     *
+     * @par Culling Algorithm
+     * @f[
+     * visible_x \in [\lfloor \frac{cullCam_x}{tileW} \rfloor - 1,
+     *                \lfloor \frac{cullCam_x + cullSize_x}{tileW} \rfloor + 1]
+     * @f]
+     *
+     * @param r Active renderer.
+     * @param renderCam Camera position for tile positioning (world coordinates).
+     * @param renderSize Visible world size for rendering.
+     * @param cullCam Camera position for visibility culling.
+     * @param cullSize Visible area size for culling calculations.
+     */
+    void Render(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer2(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer3(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer4(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer5(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer6(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    /** @} */
+
+    // Render methods for no-projection tiles (call with perspective suspended)
+    void RenderNoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer2NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer3NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer4NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer5NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+    void RenderLayer6NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
+
+    // 3-parameter convenience wrappers (same camera for render and cull)
+    inline void Render(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
+    {
+        Render(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
+    }
+    inline void RenderLayer2(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
+    {
+        RenderLayer2(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
+    }
+    inline void RenderLayer3(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
+    {
+        RenderLayer3(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
+    }
+    inline void RenderLayer4(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
+    {
+        RenderLayer4(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
+    }
+    inline void RenderLayer5(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
+    {
+        RenderLayer5(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
+    }
+    inline void RenderLayer6(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
+    {
+        RenderLayer6(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
+    }
+
+    /**
+     * @name Accessors
+     * @brief Query tilemap properties.
+     * @{
+     */
+    inline int GetTileWidth() const { return m_TileWidth; }                       ///< Tile width in pixels
+    inline int GetTileHeight() const { return m_TileHeight; }                     ///< Tile height in pixels
+    inline int GetMapWidth() const { return m_MapWidth; }                         ///< Map width in tiles
+    inline int GetMapHeight() const { return m_MapHeight; }                       ///< Map height in tiles
+    inline const Texture &GetTilesetTexture() const { return m_TilesetTexture; }  ///< Tileset texture
+    inline int GetTilesPerRow() const { return m_TilesPerRow; }                   ///< Tiles per row in tileset
+    inline int GetTilesetDataWidth() const { return m_TilesetDataWidth; }         ///< Tileset image width
+    inline int GetTilesetDataHeight() const { return m_TilesetDataHeight; }       ///< Tileset image height
+    /** @} */
+
+    /**
+     * @name Dynamic Layer System
+     * @brief Manage N layers dynamically instead of fixed 6 layers.
+     * @{
+     */
+
+    /// Get total number of layers
+    inline size_t GetLayerCount() const { return m_Layers.size(); }
+
+    /// Get layer by index (0-based)
+    TileLayer& GetLayer(size_t index);
+    const TileLayer& GetLayer(size_t index) const;
+
+    /// Add a new layer at the end
+    size_t AddLayer(const std::string& name, int renderOrder, bool isBackground);
+
+    /// Insert a layer at a specific index
+    void InsertLayer(size_t index, const std::string& name, int renderOrder, bool isBackground);
+
+    /// Remove a layer by index
+    void RemoveLayer(size_t index);
+
+    /// Get/set tile ID for any layer (0-based layer index)
+    int GetLayerTile(int x, int y, size_t layer) const;
+    void SetLayerTile(int x, int y, size_t layer, int tileID);
+
+    /// Get/set rotation for any layer
+    float GetLayerRotation(int x, int y, size_t layer) const;
+    void SetLayerRotation(int x, int y, size_t layer, float rotation);
+
+    /// Get/set no-projection flag for any layer
+    bool GetLayerNoProjection(int x, int y, size_t layer) const;
+    void SetLayerNoProjection(int x, int y, size_t layer, bool noProjection);
+
+    /// Get/set Y-sorted flag for any layer
+    bool GetLayerYSorted(int x, int y, size_t layer) const;
+    void SetLayerYSorted(int x, int y, size_t layer, bool ySorted);
+
+    /// Render a specific layer by index
+    void RenderLayerByIndex(IRenderer& renderer, size_t layerIndex,
+                            glm::vec2 renderCam, glm::vec2 renderSize,
+                            glm::vec2 cullCam, glm::vec2 cullSize);
+
+    /// Render no-projection tiles for a specific layer
+    void RenderLayerNoProjection(IRenderer& renderer, size_t layerIndex,
+                                  glm::vec2 renderCam, glm::vec2 renderSize,
+                                  glm::vec2 cullCam, glm::vec2 cullSize);
+
+    /// Render all background layers (isBackground == true) in render order
+    void RenderBackgroundLayers(IRenderer& renderer, glm::vec2 renderCam, glm::vec2 renderSize,
+                                glm::vec2 cullCam, glm::vec2 cullSize);
+
+    /// Render all foreground layers (isBackground == false) in render order
+    void RenderForegroundLayers(IRenderer& renderer, glm::vec2 renderCam, glm::vec2 renderSize,
+                                glm::vec2 cullCam, glm::vec2 cullSize);
+
+    /// Render no-projection tiles from all background layers
+    void RenderBackgroundLayersNoProjection(IRenderer& renderer, glm::vec2 renderCam, glm::vec2 renderSize,
+                                            glm::vec2 cullCam, glm::vec2 cullSize);
+
+    /// Render no-projection tiles from all foreground layers
+    void RenderForegroundLayersNoProjection(IRenderer& renderer, glm::vec2 renderCam, glm::vec2 renderSize,
+                                            glm::vec2 cullCam, glm::vec2 cullSize);
+
+    /// Get sorted indices for rendering (by renderOrder)
+    std::vector<size_t> GetLayerRenderOrder() const;
+    /** @} */
+
+    /**
+     * @name No-Projection System
+     * @brief Per-tile flag to bypass 3D perspective transformation.
+     *
+     * Tiles marked with "no projection" will be rendered without 3D perspective
+     * distortion, similar to how player/NPC sprites are rendered. This creates
+     * the visual effect of objects having height above the ground plane.
+     * @{
+     */
+
+    /**
+     * @brief Get no-projection flag at tile coordinates for a specific layer.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index (0-based, 0 to layer_count-1).
+     * @return true if tile should bypass 3D projection on that layer.
+     */
+    bool GetNoProjection(int x, int y, int layer = 1) const;
+
+    /**
+     * @brief Set no-projection flag at tile coordinates for a specific layer.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param noProjection true to bypass 3D projection.
+     * @param layer Layer index (0-based, 0 to layer_count-1).
+     */
+    void SetNoProjection(int x, int y, bool noProjection, int layer = 1);
+
+    /**
+     * @brief Find the bounding box of the noProjection structure containing the given tile.
+     * @param tileX Tile X coordinate.
+     * @param tileY Tile Y coordinate.
+     * @param outMinX Output: minimum tile X of structure.
+     * @param outMaxX Output: maximum tile X of structure.
+     * @param outMinY Output: minimum tile Y of structure.
+     * @param outMaxY Output: maximum tile Y of structure.
+     * @return true if a noProjection structure was found at this tile.
+     */
+    bool FindNoProjectionStructureBounds(int tileX, int tileY,
+                                         int& outMinX, int& outMaxX,
+                                         int& outMinY, int& outMaxY) const;
+    /** @} */
+
+    /**
+     * @name Elevation System
+     * @brief Height offset for stairs and elevated areas.
+     *
+     * Elevation values are stored per-tile and affect the rendering Y position
+     * of entities standing on that tile. Positive values push entities up.
+     * @{
+     */
+    
+    /**
+     * @brief Get elevation at tile coordinates.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @return Elevation in pixels (0 = ground level, positive = higher).
+     */
+    int GetElevation(int x, int y) const;
+    
+    /**
+     * @brief Set elevation at tile coordinates.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param elevation Elevation in pixels.
+     */
+    void SetElevation(int x, int y, int elevation);
+    
+    /**
+     * @brief Get elevation at world position with interpolation.
+     *
+     * Returns the elevation at a world position, useful for smooth
+     * transitions when walking on stairs.
+     *
+     * @param worldX World X position in pixels.
+     * @param worldY World Y position in pixels.
+     * @return Interpolated elevation in pixels.
+     */
+    float GetElevationAtWorldPos(float worldX, float worldY) const;
+    /** @} */
+
+    /**
+     * @name Y-Sorted Tile System
+     * @brief Per-tile flag for depth-sorted rendering with entities.
+     *
+     * Tiles marked as Y-sorted are rendered in the same pass as player/NPCs,
+     * sorted by Y position. This allows tiles to appear in front of or behind
+     * entities based on their relative positions.
+     * @{
+     */
+
+    /**
+     * @brief Data for a Y-sorted tile to be rendered in sorted order.
+     */
+    struct YSortedTile {
+        int x, y;           ///< Tile coordinates
+        int layer;          ///< Layer index (0-based)
+        float anchorY;      ///< World Y position of tile bottom (for sorting)
+        bool noProjection;  ///< True if tile should render without perspective distortion
+    };
+
+    /**
+     * @brief Get Y-sorted flag at tile coordinates for a specific layer.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index (0-based, 0 to layer_count-1).
+     * @return true if tile should be rendered in Y-sorted pass.
+     */
+    bool GetYSorted(int x, int y, int layer = 1) const;
+
+    /**
+     * @brief Set Y-sorted flag at tile coordinates for a specific layer.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param ySorted true to render in Y-sorted pass.
+     * @param layer Layer index (0-based, 0 to layer_count-1).
+     */
+    void SetYSorted(int x, int y, bool ySorted, int layer = 1);
+
+    /**
+     * @brief Collect all visible Y-sorted tiles for rendering.
+     * @param cullCam Camera position for culling.
+     * @param cullSize Visible area size for culling.
+     * @return Vector of Y-sorted tiles within visible range.
+     */
+    std::vector<YSortedTile> GetVisibleYSortedTiles(glm::vec2 cullCam, glm::vec2 cullSize) const;
+
+    /**
+     * @brief Render a single tile (for Y-sorted rendering).
+     * @param r Active renderer.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index (0-based, 0 to layer_count-1).
+     * @param cameraPos Camera position in world coordinates.
+     */
+    void RenderSingleTile(IRenderer& r, int x, int y, int layer, glm::vec2 cameraPos);
+    /** @} */
+
+    /**
+     * @name Serialization Functions
+     * @brief Map persistence using JSON format.
+     * @{
+     */
+    /**
+     * @brief Save map to JSON file.
+     * 
+     * Saves all layers, collision, navigation, NPCs, and player position
+     * in a compact sparse format.
+     * 
+     * @par JSON Structure
+     * @code{.json}
+     * {
+     *   "version": 2,
+     *   "width": 64,
+     *   "height": 64,
+     *   "layer1": { "index": tileID, ... },
+     *   "layer2": { ... },
+     *   "collision": [index1, index2, ...],
+     *   "navigation": [index1, index2, ...],
+     *   "npcs": [
+     *     { "type": "BW2_NPC1", "x": 10, "y": 5, "dialogue": "Hello!" }
+     *   ],
+     *   "player": { "x": 5, "y": 5 }
+     * }
+     * @endcode
+     * 
+     * @param filename Output JSON file path.
+     * @param npcs Optional NPC list to save.
+     * @param playerTileX Player tile X (-1 to skip).
+     * @param playerTileY Player tile Y (-1 to skip).
+     * @param characterType Player's character type (-1 to skip).
+     * @return `true` if saved successfully.
+     */
+    bool SaveMapToJSON(const std::string &filename, const std::vector<class NonPlayerCharacter> *npcs = nullptr,
+                       int playerTileX = -1, int playerTileY = -1, int characterType = -1) const;
+
+    /**
+     * @brief Load map from JSON file.
+     * 
+     * Loads all map data. If file doesn't exist, generates a default map.
+     * 
+     * @param filename Input JSON file path.
+     * @param npcs Optional output for loaded NPCs.
+     * @param playerTileX Optional output for player X coordinate.
+     * @param playerTileY Optional output for player Y coordinate.
+     * @param characterType Optional output for player's character type.
+     * @return `true` if loaded successfully.
+     */
+    bool LoadMapFromJSON(const std::string &filename, std::vector<class NonPlayerCharacter> *npcs = nullptr,
+                         int *playerTileX = nullptr, int *playerTileY = nullptr, int *characterType = nullptr);
+    /** @} */
+
+    /**
+     * @name Tileset Utilities
+     * @brief Helper functions for tileset operations.
+     * @{
+     */
+    /**
+     * @brief Get list of non-transparent tile IDs.
+     * 
+     * Scans the tileset to find tiles with at least one non-transparent pixel.
+     * Useful for tile picker UI.
+     * 
+     * @return Vector of valid (non-empty) tile IDs.
+     */
+    std::vector<int> GetValidTileIDs() const;
+
+    /**
+     * @brief Check if a tile is fully transparent.
+     *
+     * A tile is transparent if all pixels have alpha = 0.
+     *
+     * @param tileID Tile ID to check.
+     * @return `true` if tile is completely transparent.
+     */
+    bool IsTileTransparent(int tileID) const;
+    /** @} */
+
+    /**
+     * @name Particle Zones
+     * @brief Placeable particle emitter zones for fireflies, rain, snow.
+     * @{
+     */
+
+    /**
+     * @brief Get read-only access to particle zones.
+     * @return Const pointer to the particle zones vector.
+     */
+    const std::vector<ParticleZone>* GetParticleZones() const { return &m_ParticleZones; }
+
+    /**
+     * @brief Get mutable access to particle zones.
+     * @return Pointer to the particle zones vector.
+     */
+    std::vector<ParticleZone>* GetParticleZonesMutable() { return &m_ParticleZones; }
+
+    /**
+     * @brief Add a new particle zone.
+     * @param zone The zone to add.
+     */
+    void AddParticleZone(const ParticleZone& zone) { m_ParticleZones.push_back(zone); }
+
+    /**
+     * @brief Remove a particle zone by index.
+     * @param index The index of the zone to remove.
+     */
+    void RemoveParticleZone(size_t index) {
+        if (index < m_ParticleZones.size()) {
+            m_ParticleZones.erase(m_ParticleZones.begin() + index);
+        }
+    }
+
+    /**
+     * @brief Clear all particle zones.
+     */
+    void ClearParticleZones() { m_ParticleZones.clear(); }
+
+    /**
+     * @brief Get the number of particle zones.
+     * @return Number of zones.
+     */
+    size_t GetParticleZoneCount() const { return m_ParticleZones.size(); }
+    /** @} */
+
+    /** @name Animated Tiles
+     * @brief Methods for managing animated tile definitions.
+     * @{
+     */
+    /**
+     * @brief Add a new animated tile definition.
+     * @param anim The animation definition.
+     * @return The animation ID (index).
+     */
+    int AddAnimatedTile(const AnimatedTile& anim) {
+        m_AnimatedTiles.push_back(anim);
+        int id = static_cast<int>(m_AnimatedTiles.size() - 1);
+        std::cout << "[DEBUG] Added animation #" << id << " with " << anim.frames.size()
+                  << " frames, duration=" << anim.frameDuration << "s" << std::endl;
+        for (size_t i = 0; i < anim.frames.size(); ++i) {
+            std::cout << "  Frame " << i << ": tileID " << anim.frames[i] << std::endl;
+        }
+        return id;
+    }
+
+    /**
+     * @brief Get an animated tile definition.
+     * @param id Animation ID.
+     * @return Pointer to animation, or nullptr if invalid.
+     */
+    const AnimatedTile* GetAnimatedTile(int id) const {
+        if (id < 0 || id >= static_cast<int>(m_AnimatedTiles.size())) return nullptr;
+        return &m_AnimatedTiles[id];
+    }
+
+    /**
+     * @brief Set a tile position to use an animation.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index (0-based).
+     * @param animId Animation ID (-1 to clear).
+     */
+    void SetTileAnimation(int x, int y, int layer, int animId) {
+        if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight) return;
+        if (layer < 0 || layer >= static_cast<int>(m_Layers.size())) return;
+        size_t idx = static_cast<size_t>(y * m_MapWidth + x);
+        if (idx < m_Layers[layer].animationMap.size()) {
+            m_Layers[layer].animationMap[idx] = animId;
+            std::cout << "[DEBUG] SetTileAnimation at (" << x << "," << y << ") layer " << layer
+                      << " idx=" << idx << " animId=" << animId << std::endl;
+
+            // Also set the first frame of the animation on the specified layer
+            // so there's a tile to render (the animation check happens after tile existence check)
+            if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()) &&
+                !m_AnimatedTiles[animId].frames.empty()) {
+                int firstFrame = m_AnimatedTiles[animId].frames[0];
+                m_Layers[layer].tiles[idx] = firstFrame;
+                std::cout << "[DEBUG]   Placed first frame " << firstFrame << " on layer " << layer << std::endl;
+            }
+        } else {
+            std::cout << "[DEBUG] SetTileAnimation FAILED: idx " << idx << " >= layer animationMap size" << std::endl;
+        }
+    }
+
+    /**
+     * @brief Get the animation ID for a tile position.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index (0-based).
+     * @return Animation ID, or -1 if not animated.
+     */
+    int GetTileAnimation(int x, int y, int layer) const {
+        if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight) return -1;
+        if (layer < 0 || layer >= static_cast<int>(m_Layers.size())) return -1;
+        size_t idx = static_cast<size_t>(y * m_MapWidth + x);
+        if (idx >= m_Layers[layer].animationMap.size()) return -1;
+        return m_Layers[layer].animationMap[idx];
+    }
+
+    /**
+     * @brief Update animation timer.
+     * @param deltaTime Time since last update.
+     */
+    void UpdateAnimations(float deltaTime) {
+        m_AnimationTime += deltaTime;
+        // Debug: print animation time every ~2 seconds
+        static float debugTimer = 0.0f;
+        debugTimer += deltaTime;
+        if (debugTimer > 2.0f) {
+            debugTimer = 0.0f;
+            if (!m_AnimatedTiles.empty()) {
+                int count = 0;
+                for (const auto& layer : m_Layers) {
+                    for (int a : layer.animationMap) if (a >= 0) count++;
+                }
+
+                // Show detailed info for first animation
+                const auto& anim = m_AnimatedTiles[0];
+                int currentFrame = anim.GetFrameAtTime(m_AnimationTime);
+                /*std::cout << "[DEBUG] AnimTime=" << m_AnimationTime
+                          << " Anim0: " << anim.frames.size() << " frames, "
+                          << anim.frameDuration << "s/frame, currentTileID=" << currentFrame
+                          << " MapEntries=" << count << std::endl;*/
+            }
+        }
+    }
+
+    /**
+     * @brief Get current animation time.
+     */
+    float GetAnimationTime() const { return m_AnimationTime; }
+
+    /**
+     * @brief Get all animated tile definitions.
+     */
+    const std::vector<AnimatedTile>& GetAnimatedTiles() const { return m_AnimatedTiles; }
+
+    /**
+     * @brief Get count of animated tile definitions.
+     */
+    size_t GetAnimatedTileCount() const { return m_AnimatedTiles.size(); }
+
+    /**
+     * @brief Clear all animated tile definitions.
+     */
+    void ClearAnimatedTiles() {
+        m_AnimatedTiles.clear();
+        for (auto& layer : m_Layers) {
+            std::fill(layer.animationMap.begin(), layer.animationMap.end(), -1);
+        }
+    }
+    /** @} */
+
+    static inline void ComputeTileRange(
+    int mapW, int mapH, int tileW, int tileH,
+    const glm::vec2& cullCam, const glm::vec2& cullSize,
+    int& x0, int& y0, int& x1, int& y1)
+{
+    float minX = cullCam.x;
+    float minY = cullCam.y;
+    float maxX = cullCam.x + cullSize.x;
+    float maxY = cullCam.y + cullSize.y;
+
+    x0 = (int)std::floor(minX / tileW);
+    y0 = (int)std::floor(minY / tileH);
+    x1 = (int)std::floor(maxX / tileW);
+    y1 = (int)std::floor(maxY / tileH);
+
+    // clamp to map
+    x0 = std::max(0, std::min(x0, mapW - 1));
+    y0 = std::max(0, std::min(y0, mapH - 1));
+    x1 = std::max(0, std::min(x1, mapW - 1));
+    y1 = std::max(0, std::min(y1, mapH - 1));
+}
+
+    /**
+     * @name Array Access Operators
+     * @brief 2D array syntax for Ground layer tiles (index 0).
+     *
+     * Provides convenient `tilemap[x][y]` access pattern.
+     * @{
+     */
+    /**
+     * @brief Access Ground layer tiles (mutable).
+     *
+     * @code{.cpp}
+     * tilemap[10][20] = 15;  // Set tile at (10,20) to ID 15
+     * @endcode
+     *
+     * @param x Tile column.
+     * @return ColumnProxy for row access.
+     */
+    ColumnProxy<std::vector<int>, int, -1> operator[](int x)
+    {
+        return ColumnProxy<std::vector<int>, int, -1>(&m_Layers[0].tiles, &m_MapWidth, &m_MapHeight, x);
+    }
+
+    /**
+     * @brief Access Ground layer tiles (const).
+     *
+     * @code{.cpp}
+     * int tileID = tilemap[10][20];
+     * @endcode
+     *
+     * @param x Tile column.
+     * @return ColumnProxy for read-only access.
+     */
+    ColumnProxy<std::vector<int>, int, -1> operator[](int x) const
+    {
+        return ColumnProxy<std::vector<int>, int, -1>(&m_Layers[0].tiles, &m_MapWidth, &m_MapHeight, x);
+    }
+    /** @} */
+
+private:
+    /// @name Tileset
+    /// @{
+    Texture m_TilesetTexture;                     ///< Combined tileset texture
+    int m_TileWidth, m_TileHeight;                ///< Tile dimensions in pixels
+    int m_TilesetWidth, m_TilesetHeight;          ///< Tileset dimensions in tiles
+    int m_TilesPerRow;                            ///< Tiles per row in tileset
+    unsigned char *m_TilesetData;                 ///< Raw image data for transparency checks
+    int m_TilesetDataWidth, m_TilesetDataHeight;  ///< Raw image dimensions
+    int m_TilesetChannels;                        ///< Number of color channels (3=RGB, 4=RGBA)
+    bool m_TilesetDataFromStbi;                   ///< True if allocated by stbi_load, false if by new[]
+    std::vector<bool> m_TileTransparencyCache;    ///< Cached transparency results per tile ID
+    bool m_TransparencyCacheBuilt;                ///< Whether the cache has been built
+    /// @}
+
+    /// @name Map Dimensions
+    /// @{
+    int m_MapWidth, m_MapHeight;   ///< Map dimensions in tiles
+    /// @}
+
+    /// @name Dynamic Layers
+    /// @{
+    std::vector<TileLayer> m_Layers;  ///< All tile layers (8 layers: 4 background, 4 foreground)
+    /// @}
+
+    /// @name Collision and Navigation
+    /// @{
+    CollisionMap<std::vector> m_CollisionMap;      ///< Collision flags
+    NavigationMap<std::vector> m_NavigationMap;    ///< NPC walkability flags
+    std::vector<uint8_t> m_CornerCutBlocked;       ///< Per-tile corner cut disable mask (4 bits per tile)
+    /// @}
+
+    /// @name Elevation Data
+    /// @{
+    std::vector<int> m_Elevation;  ///< Per-tile elevation in pixels (0 = ground)
+    /// @}
+
+    /// @name Particle Zones
+    /// @{
+    std::vector<ParticleZone> m_ParticleZones;  ///< Placeable particle emitter zones
+    /// @}
+
+    /// @name Animated Tiles
+    /// @{
+    std::vector<AnimatedTile> m_AnimatedTiles;  ///< Animation definitions
+    std::vector<int> m_TileAnimationMap;        ///< Per-tile animation ID (-1 = not animated)
+    float m_AnimationTime;                      ///< Global animation timer
+    /// @}
+
+    /**
+     * @brief Generate a default map pattern.
+     *
+     * Creates a simple grass-filled map with border walls.
+     * Called by SetTilemapSize() when generateMap is true.
+     */
+    void GenerateDefaultMap();
+
+    /**
+     * @brief Build the transparency cache for all tiles.
+     *
+     * Pre-computes transparency for every tile ID to avoid expensive
+     * per-pixel checks during rendering. Called on tileset load.
+     */
+    void BuildTransparencyCache();
+};

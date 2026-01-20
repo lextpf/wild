@@ -1,0 +1,28 @@
+.mermaid-row
+{
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.mermaid-cell
+{
+  flex: 0 1 auto;  /* shrink-wrap = no gaps */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mermaid-cell > .mermaid
+{
+  display: inline-block;  /* hug svg width */
+}
+
+.mermaid-cell > .mermaid > svg
+{
+  display: block;
+  width: auto;      /* width follows aspect ratio */
+  max-width: 100%;  /* never overflow cell */
+  height: auto;     /* JS will set px height */
+}
