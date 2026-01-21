@@ -219,6 +219,10 @@ cd wild
 
 ## Controls
 
+<details>
+
+<summary>General Keybinds</summary>
+
 ### Gameplay
 
 | Key         | Action                           |
@@ -287,6 +291,8 @@ cd wild
 | F4      | Toggle 3D globe effect                                 |
 | F5      | Cycle time of day (day/evening/night/morning)          |
 | Up/Down | Adjust 3D globe intensity                              |
+
+</details>
 
 For detailed editor controls, see the [Editor Guide](docs/EDITOR.md).
 
@@ -408,5 +414,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
