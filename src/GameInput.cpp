@@ -612,18 +612,12 @@ void Game::ProcessInput(float deltaTime)
         f1KeyPressed = false;
     }
 
-    // Enables visual debug overlays including:
-    //   - Collision tiles
-    //   - Player collision tolerance zones
-    //   - Navigation tiles
-    //   - NPC information
-    //   - All tile layers visible
+    // Toggles FPS and position information display
     static bool f2KeyPressed = false;
     if (glfwGetKey(m_Window, GLFW_KEY_F2) == GLFW_PRESS && !f2KeyPressed)
     {
-        m_DebugMode = !m_DebugMode;
-        m_ShowNoProjectionAnchors = m_DebugMode; // Include anchor visualization in debug mode
-        std::cout << "Debug mode: " << (m_DebugMode ? "ON" : "OFF") << std::endl;
+        m_ShowDebugInfo = !m_ShowDebugInfo;
+        std::cout << "Debug info display: " << (m_ShowDebugInfo ? "ON" : "OFF") << std::endl;
         f2KeyPressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_F2) == GLFW_RELEASE)
@@ -631,12 +625,18 @@ void Game::ProcessInput(float deltaTime)
         f2KeyPressed = false;
     }
 
-    // Toggles FPS and position information display
+    // Enables visual debug overlays including:
+    //   - Collision tiles
+    //   - Player collision tolerance zones
+    //   - Navigation tiles
+    //   - NPC information
+    //   - All tile layers visible
     static bool f3KeyPressed = false;
     if (glfwGetKey(m_Window, GLFW_KEY_F3) == GLFW_PRESS && !f3KeyPressed)
     {
-        m_ShowDebugInfo = !m_ShowDebugInfo;
-        std::cout << "Debug info display: " << (m_ShowDebugInfo ? "ON" : "OFF") << std::endl;
+        m_DebugMode = !m_DebugMode;
+        m_ShowNoProjectionAnchors = m_DebugMode; // Include anchor visualization in debug mode
+        std::cout << "Debug mode: " << (m_DebugMode ? "ON" : "OFF") << std::endl;
         f3KeyPressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_F3) == GLFW_RELEASE)
@@ -644,22 +644,10 @@ void Game::ProcessInput(float deltaTime)
         f3KeyPressed = false;
     }
 
-    // Toggles the 3D globe effect for an isometric-like view
-    static bool f4KeyPressed = false;
-    if (glfwGetKey(m_Window, GLFW_KEY_F4) == GLFW_PRESS && !f4KeyPressed)
-    {
-        Toggle3DEffect();
-        f4KeyPressed = true;
-    }
-    if (glfwGetKey(m_Window, GLFW_KEY_F4) == GLFW_RELEASE)
-    {
-        f4KeyPressed = false;
-    }
-
     // Cycle through time of day: day -> evening -> night -> morning -> day...
-    static bool f5KeyPressed = false;
+    static bool f4KeyPressed = false;
     static int timeOfDayCycle = 0; // 0=day, 1=evening, 2=night, 3=morning
-    if (glfwGetKey(m_Window, GLFW_KEY_F5) == GLFW_PRESS && !f5KeyPressed)
+    if (glfwGetKey(m_Window, GLFW_KEY_F4) == GLFW_PRESS && !f4KeyPressed)
     {
         timeOfDayCycle = (timeOfDayCycle + 1) % 4;
         const char *periodName = "";
@@ -683,11 +671,44 @@ void Game::ProcessInput(float deltaTime)
             break;
         }
         std::cout << "Time of day: " << periodName << std::endl;
+        f4KeyPressed = true;
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_F4) == GLFW_RELEASE)
+    {
+        f4KeyPressed = false;
+    }
+
+    // Toggles the 3D globe effect for an isometric-like view
+    static bool f5KeyPressed = false;
+    if (glfwGetKey(m_Window, GLFW_KEY_F5) == GLFW_PRESS && !f5KeyPressed)
+    {
+        Toggle3DEffect();
         f5KeyPressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_F5) == GLFW_RELEASE)
     {
         f5KeyPressed = false;
+    }
+
+    // Toggle FPS cap (0 = uncapped, 60 = capped)
+    static bool f6KeyPressed = false;
+    if (glfwGetKey(m_Window, GLFW_KEY_F6) == GLFW_PRESS && !f6KeyPressed)
+    {
+        if (m_TargetFps <= 0.0f)
+        {
+            m_TargetFps = 500.0f;
+            std::cout << "FPS capped at 500" << std::endl;
+        }
+        else
+        {
+            m_TargetFps = 0.0f;
+            std::cout << "FPS uncapped" << std::endl;
+        }
+        f6KeyPressed = true;
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_F6) == GLFW_RELEASE)
+    {
+        f6KeyPressed = false;
     }
 
     // Toggle free camera mode (Space) - camera stops following player

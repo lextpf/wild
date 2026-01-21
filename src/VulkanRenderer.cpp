@@ -1958,6 +1958,180 @@ void VulkanRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
     m_CurrentVertexCount += 6;
 }
 
+void VulkanRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position, glm::vec2 size,
+                                     glm::vec2 uvMin, glm::vec2 uvMax, float rotation,
+                                     glm::vec4 color, bool additive)
+{
+    // Atlas version with custom UV coordinates
+    (void)additive;
+
+    if (m_GraphicsPipeline == VK_NULL_HANDLE || m_DescriptorSetLayout == VK_NULL_HANDLE)
+        return;
+
+    if (m_CommandBuffers.empty() || m_CurrentFrame >= m_CommandBuffers.size())
+        return;
+
+    VkCommandBuffer commandBuffer = m_CommandBuffers[m_CurrentFrame];
+
+    VkImageView imageView = m_WhiteTextureImageView;
+#ifdef USE_VULKAN
+    VkImageView texImageView = texture.GetVulkanImageView();
+    if (texImageView != VK_NULL_HANDLE)
+    {
+        imageView = texImageView;
+    }
+    else
+    {
+        try
+        {
+            UploadTexture(texture);
+            texImageView = texture.GetVulkanImageView();
+            if (texImageView != VK_NULL_HANDLE)
+                imageView = texImageView;
+        }
+        catch (...)
+        {
+        }
+    }
+#endif
+
+    VkDescriptorSet descriptorSet = GetOrCreateDescriptorSet(imageView);
+    if (descriptorSet == VK_NULL_HANDLE)
+        return;
+
+    // Use provided UV coordinates
+    float u0 = uvMin.x, u1 = uvMax.x;
+    float v0 = uvMin.y, v1 = uvMax.y;
+
+    glm::vec2 texCoords[4] = {
+        {u0, v1}, // Top-left
+        {u1, v1}, // Top-right
+        {u1, v0}, // Bottom-right
+        {u0, v0}, // Bottom-left
+    };
+
+    struct Vertex
+    {
+        float pos[2];
+        float tex[2];
+    };
+
+    glm::vec2 corners[4] = {
+        {0.0f, 0.0f},
+        {size.x, 0.0f},
+        {size.x, size.y},
+        {0.0f, size.y}};
+
+    if (std::abs(rotation) > 0.001f)
+    {
+        float radians = glm::radians(rotation);
+        float cosR = std::cos(radians);
+        float sinR = std::sin(radians);
+        glm::vec2 center(size.x * 0.5f, size.y * 0.5f);
+
+        for (int i = 0; i < 4; i++)
+        {
+            glm::vec2 p = corners[i] - center;
+            corners[i] = glm::vec2(
+                p.x * cosR - p.y * sinR + center.x,
+                p.x * sinR + p.y * cosR + center.y);
+        }
+    }
+
+    for (int i = 0; i < 4; i++)
+        corners[i] += position;
+
+    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
+    {
+        float centerX = m_Persp.viewWidth * 0.5f;
+        float centerY = m_Persp.viewHeight * 0.5f;
+
+        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+
+        if (applyGlobe)
+        {
+            float R = m_SphereRadius;
+            for (int i = 0; i < 4; i++)
+            {
+                float dx = corners[i].x - centerX;
+                float dy = corners[i].y - centerY;
+                corners[i].x = centerX + R * std::sin(dx / R);
+                corners[i].y = centerY + R * std::sin(dy / R);
+            }
+        }
+
+        if (applyVanishing)
+        {
+            float vanishX = centerX;
+            for (int i = 0; i < 4; i++)
+            {
+                float y = corners[i].y;
+                float depthNorm = std::max(0.0f, std::min(1.0f, (y - m_HorizonY) / (m_PerspectiveScreenHeight - m_HorizonY)));
+                float scaleFactor = m_HorizonScale + (1.0f - m_HorizonScale) * depthNorm;
+
+                float dx = corners[i].x - vanishX;
+                corners[i].x = vanishX + dx * scaleFactor;
+
+                float dy = y - m_HorizonY;
+                corners[i].y = m_HorizonY + dy * scaleFactor;
+            }
+        }
+    }
+
+    Vertex vertices[6] = {
+        {corners[0].x, corners[0].y, texCoords[0].x, texCoords[0].y},
+        {corners[2].x, corners[2].y, texCoords[2].x, texCoords[2].y},
+        {corners[3].x, corners[3].y, texCoords[3].x, texCoords[3].y},
+        {corners[0].x, corners[0].y, texCoords[0].x, texCoords[0].y},
+        {corners[1].x, corners[1].y, texCoords[1].x, texCoords[1].y},
+        {corners[2].x, corners[2].y, texCoords[2].x, texCoords[2].y}};
+
+    uint32_t maxVertices = static_cast<uint32_t>(m_VertexBufferSize / sizeof(Vertex));
+    if (m_CurrentVertexCount + 6 > maxVertices)
+        return;
+
+    VkDeviceSize vertexDataSize = sizeof(vertices);
+    Vertex *mappedVertices = static_cast<Vertex *>(m_VertexBuffersMapped[m_CurrentFrame]);
+    memcpy(&mappedVertices[m_CurrentVertexCount], vertices, vertexDataSize);
+
+    struct CombinedPushConstants
+    {
+        glm::mat4 projection;
+        glm::mat4 model;
+        glm::vec3 spriteColor;
+        float useColorOnly;
+        glm::vec4 colorOnly;
+        float spriteAlpha;
+        float _padding[3];
+        glm::vec3 ambientColor;
+        float _padding2;
+    } pushConstants;
+
+    pushConstants.projection = m_Projection;
+    pushConstants.model = glm::mat4(1.0f);
+    pushConstants.spriteColor = glm::vec3(color.r, color.g, color.b);
+    pushConstants.useColorOnly = 0.0f;
+    pushConstants.colorOnly = glm::vec4(0.0f);
+    pushConstants.spriteAlpha = color.a;
+    pushConstants.ambientColor = m_AmbientColor;
+
+    vkCmdPushConstants(commandBuffer, m_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, 192, &pushConstants);
+
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout,
+                            0, 1, &descriptorSet, 0, nullptr);
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_VertexBuffers[m_CurrentFrame], offsets);
+
+    vkCmdDraw(commandBuffer, 6, 1, m_CurrentVertexCount, 0);
+    ++m_DrawCallCount;
+    m_CurrentVertexCount += 6;
+}
+
 void VulkanRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::vec4 color, bool additive)
 {
     // Note: additive blending not yet implemented in Vulkan renderer

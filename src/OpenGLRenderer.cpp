@@ -862,6 +862,145 @@ void OpenGLRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
     m_ParticleBatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y, r, g, b, a});
 }
 
+void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position, glm::vec2 size,
+                                     glm::vec2 uvMin, glm::vec2 uvMax, float rotation,
+                                     glm::vec4 color, bool additive)
+{
+    // Atlas version of DrawSpriteAlpha - uses custom UV coordinates instead of full texture
+
+    // Must flush other batch types before adding to particle batch
+    if (!m_BatchVertices.empty())
+        FlushBatch();
+    if (!m_RectBatchVertices.empty())
+        FlushRectBatch();
+
+    unsigned int texID = texture.GetID();
+
+    // Flush particle batch if texture or blend mode changed
+    if (m_CurrentParticleTexture != 0 && (m_CurrentParticleTexture != texID || m_ParticleBatchAdditive != additive))
+    {
+        FlushParticleBatch();
+    }
+
+    // Check batch capacity
+    if (m_ParticleBatchVertices.size() >= MAX_BATCH_SPRITES * VERTICES_PER_SPRITE)
+    {
+        FlushParticleBatch();
+    }
+
+    m_CurrentParticleTexture = texID;
+    m_ParticleBatchAdditive = additive;
+
+    // Use provided UV coordinates
+    float u0 = uvMin.x, u1 = uvMax.x;
+    float v0 = uvMin.y, v1 = uvMax.y;
+
+    // Pre-transform vertices
+    glm::vec2 corners[4] = {
+        {0.0f, 0.0f},
+        {size.x, 0.0f},
+        {size.x, size.y},
+        {0.0f, size.y}};
+
+    // Apply rotation around center if needed
+    if (rotation != 0.0f)
+    {
+        float rad = glm::radians(rotation);
+        float cosR = std::cos(rad);
+        float sinR = std::sin(rad);
+        glm::vec2 center = size * 0.5f;
+
+        for (int i = 0; i < 4; i++)
+        {
+            glm::vec2 p = corners[i] - center;
+            corners[i] = glm::vec2(
+                p.x * cosR - p.y * sinR + center.x,
+                p.x * sinR + p.y * cosR + center.y);
+        }
+    }
+
+    // Translate to world position
+    for (int i = 0; i < 4; i++)
+    {
+        corners[i] += position;
+    }
+
+    // Apply perspective transformation if enabled
+    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
+    {
+        double dCorners[4][2];
+        for (int i = 0; i < 4; i++)
+        {
+            dCorners[i][0] = static_cast<double>(corners[i].x);
+            dCorners[i][1] = static_cast<double>(corners[i].y);
+        }
+
+        double centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        double centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        double horizonY = static_cast<double>(m_HorizonY);
+        double screenHeight = static_cast<double>(m_ScreenHeight);
+        double horizonScale = static_cast<double>(m_HorizonScale);
+
+        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+
+        if (applyGlobe)
+        {
+            double R = static_cast<double>(m_SphereRadius);
+            for (int i = 0; i < 4; i++)
+            {
+                double dx = dCorners[i][0] - centerX;
+                double dy = dCorners[i][1] - centerY;
+                dCorners[i][0] = centerX + R * std::sin(dx / R);
+                dCorners[i][1] = centerY + R * std::sin(dy / R);
+            }
+        }
+
+        if (applyVanishing)
+        {
+            double vanishX = centerX;
+            for (int i = 0; i < 4; i++)
+            {
+                double y = dCorners[i][1];
+                double depthNorm = std::max(0.0, std::min(1.0, (y - horizonY) / (screenHeight - horizonY)));
+                double scaleFactor = horizonScale + (1.0 - horizonScale) * depthNorm;
+
+                double dx = dCorners[i][0] - vanishX;
+                dCorners[i][0] = vanishX + dx * scaleFactor;
+
+                double dy = y - horizonY;
+                dCorners[i][1] = horizonY + dy * scaleFactor;
+            }
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            corners[i].x = static_cast<float>(dCorners[i][0]);
+            corners[i].y = static_cast<float>(dCorners[i][1]);
+        }
+    }
+
+    // UV coordinates (OpenGL Y flipped)
+    glm::vec2 uvs[4] = {
+        {u0, v1}, // Top-left
+        {u1, v1}, // Top-right
+        {u1, v0}, // Bottom-right
+        {u0, v0}  // Bottom-left
+    };
+
+    // Add 6 vertices (2 triangles) with per-vertex color to batch
+    float r = color.r, g = color.g, b = color.b, a = color.a;
+    m_ParticleBatchVertices.push_back({corners[0].x, corners[0].y, uvs[0].x, uvs[0].y, r, g, b, a});
+    m_ParticleBatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y, r, g, b, a});
+    m_ParticleBatchVertices.push_back({corners[3].x, corners[3].y, uvs[3].x, uvs[3].y, r, g, b, a});
+
+    m_ParticleBatchVertices.push_back({corners[0].x, corners[0].y, uvs[0].x, uvs[0].y, r, g, b, a});
+    m_ParticleBatchVertices.push_back({corners[1].x, corners[1].y, uvs[1].x, uvs[1].y, r, g, b, a});
+    m_ParticleBatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y, r, g, b, a});
+}
+
 void OpenGLRenderer::FlushBatch()
 {
     if (m_BatchVertices.empty())

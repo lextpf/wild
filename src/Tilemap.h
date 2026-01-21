@@ -833,8 +833,9 @@ public:
      * @param y Tile Y coordinate.
      * @param layer Layer index (0-based, 0 to layer_count-1).
      * @param cameraPos Camera position in world coordinates.
+     * @param useNoProjection Override: -1=auto (read from layer), 0=force normal, 1=force noProjection.
      */
-    void RenderSingleTile(IRenderer& r, int x, int y, int layer, glm::vec2 cameraPos);
+    void RenderSingleTile(IRenderer& r, int x, int y, int layer, glm::vec2 cameraPos, int useNoProjection = -1);
     /** @} */
 
     /**

@@ -105,7 +105,7 @@ int main()
         // Run the main game loop
         try
         {
-            game.SetTargetFps(1001.0f);
+            game.SetTargetFps(500.0f);
             game.Run();
         }
         catch (const std::exception &e)

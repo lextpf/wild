@@ -1289,7 +1289,7 @@ std::vector<Tilemap::YSortedTile> Tilemap::GetVisibleYSortedTiles(glm::vec2 cull
     return result;
 }
 
-void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm::vec2 cameraPos)
+void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm::vec2 cameraPos, int useNoProjection)
 {
     if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
         return;
@@ -1313,8 +1313,8 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
     if (IsTileTransparent(tileID))
         return;
 
-    // Check if this tile has no-projection flag
-    bool isNoProjection = tileLayer.noProjection[index];
+    // Determine no-projection mode: -1=auto (from layer), 0=force off, 1=force on
+    bool isNoProjection = (useNoProjection == -1) ? tileLayer.noProjection[index] : (useNoProjection == 1);
 
     int dataTilesPerRow = m_TilesetDataWidth / m_TileWidth;
     int tilesetX = (tileID % dataTilesPerRow) * m_TileWidth;
@@ -2729,32 +2729,70 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                                perspState.mode == IRenderer::ProjectionMode::Fisheye);
             float R = perspState.sphereRadius;
 
-            // Calculate vanishing point scale from bottom Y position
+            // Calculate anchor screen position
+            float anchorScreenX = static_cast<float>(leftPixelX) - renderCam.x;
             float bottomScreenY = static_cast<float>(bottomPixelY) - renderCam.y;
+
+            // Calculate expanded 3D viewport bounds
+            float expansion = 1.0f / perspState.horizonScale;
+            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+            float expandedHeight = perspState.viewHeight * expansion;
+            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+            // Calculate distance outside expanded viewport (0 if inside)
+            float distOutsideX = std::max(0.0f, std::max(-anchorScreenX - widthPadding,
+                                                         anchorScreenX - perspState.viewWidth - widthPadding));
+            float distOutsideY = std::max(0.0f, std::max(-bottomScreenY - heightPadding,
+                                                         bottomScreenY - perspState.viewHeight - heightPadding));
+            float distOutside = std::max(distOutsideX, distOutsideY);
+
+            // Blend factor: 1.0 when inside expanded viewport, fades to 0.0 as we move outside
+            float blendDistance = 200.0f;
+            float viewportBlend = 1.0f - std::min(1.0f, distOutside / blendDistance);
+
+            // Calculate normal vanishing scale
             float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
             t = std::max(0.0f, std::min(1.0f, t));
-            float vanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+            float normalVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
 
-            // Project the anchor for Y reference
-            glm::vec2 projectedLeft = renderer.ProjectPoint(
-                glm::vec2(static_cast<float>(leftPixelX) - renderCam.x,
-                          static_cast<float>(bottomPixelY) - renderCam.y));
+            // Blend vanishScale towards 1.0 when outside expanded viewport
+            float vanishScale = normalVanishScale * viewportBlend + 1.0f * (1.0f - viewportBlend);
 
-            // Apply exponential Y offset to fix lifted structure issue (vanishing point)
-            float distanceFactor = 1.0f - vanishScale;
-            float exponent = 2.0f;
-            float multiplier = tileHf * 4.0f;
-            float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier;
-            projectedLeft.y += exponentialYOffset;
+            // Only apply globe effects when mostly inside expanded viewport
+            bool useGlobeEffects = applyGlobe && viewportBlend > 0.5f;
 
-            // Compensate for globe Y curvature displacement
-            if (applyGlobe && R > 0.0f)
+            glm::vec2 projectedLeft;
+            if (viewportBlend > 0.01f)
             {
-                float centerY = perspState.viewHeight * 0.5f;
-                float dy = bottomScreenY - centerY;
-                float globeY = centerY + R * std::sin(dy / R);
-                float globeDisplacement = globeY - bottomScreenY;
-                projectedLeft.y += globeDisplacement;
+                // Use projected position, blended with simple position
+                glm::vec2 projected = renderer.ProjectPoint(glm::vec2(anchorScreenX, bottomScreenY));
+
+                // Apply exponential Y offset to fix lifted structure issue (vanishing point)
+                float distanceFactor = 1.0f - normalVanishScale;
+                float exponent = 2.0f;
+                float multiplier = tileHf * 4.0f;
+                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier * viewportBlend;
+                projected.y += exponentialYOffset;
+
+                // Compensate for globe Y curvature displacement
+                if (useGlobeEffects && R > 0.0f)
+                {
+                    float centerY = perspState.viewHeight * 0.5f;
+                    float dy = bottomScreenY - centerY;
+                    float globeY = centerY + R * std::sin(dy / R);
+                    float globeDisplacement = globeY - bottomScreenY;
+                    projected.y += globeDisplacement * viewportBlend;
+                }
+
+                // Blend between projected and simple screen position
+                glm::vec2 simplePos(anchorScreenX, bottomScreenY);
+                projectedLeft = projected * viewportBlend + simplePos * (1.0f - viewportBlend);
+            }
+            else
+            {
+                // Fully outside - use simple screen position
+                projectedLeft = glm::vec2(anchorScreenX, bottomScreenY);
             }
 
             // Suspend perspective for drawing
@@ -2789,9 +2827,9 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                 // Calculate tile's screen X position (left edge of tile)
                 float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
 
-                // Apply globe X curvature if enabled
+                // Apply globe X curvature only if anchor is in viewport
                 float curvedX = tileScreenX;
-                if (applyGlobe && R > 0.0f)
+                if (useGlobeEffects && R > 0.0f)
                 {
                     float dx = tileScreenX - centerX;
                     curvedX = centerX + R * std::sin(dx / R);
@@ -2809,7 +2847,7 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                 // Calculate scaled tile width for this X position
                 float tileRightX = tileScreenX + tileWf;
                 float curvedRightX = tileRightX;
-                if (applyGlobe && R > 0.0f)
+                if (useGlobeEffects && R > 0.0f)
                 {
                     float dxRight = tileRightX - centerX;
                     curvedRightX = centerX + R * std::sin(dxRight / R);
@@ -3176,32 +3214,69 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                                perspState.mode == IRenderer::ProjectionMode::Fisheye);
             float R = perspState.sphereRadius;
 
-            // Calculate vanishing point scale from bottom Y position
+            // Calculate anchor screen position
+            float anchorScreenX = static_cast<float>(leftPixelX) - renderCam.x;
             float bottomScreenY = static_cast<float>(bottomPixelY) - renderCam.y;
+
+            // Calculate expanded 3D viewport bounds
+            float expansion = 1.0f / perspState.horizonScale;
+            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+            float expandedHeight = perspState.viewHeight * expansion;
+            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+            // Calculate distance outside expanded viewport (0 if inside)
+            float distOutsideX = std::max(0.0f, std::max(-anchorScreenX - widthPadding,
+                                                         anchorScreenX - perspState.viewWidth - widthPadding));
+            float distOutsideY = std::max(0.0f, std::max(-bottomScreenY - heightPadding,
+                                                         bottomScreenY - perspState.viewHeight - heightPadding));
+            float distOutside = std::max(distOutsideX, distOutsideY);
+
+            // Blend factor: 1.0 when inside expanded viewport, fades to 0.0 as we move outside
+            float blendDistance = 200.0f;
+            float viewportBlend = 1.0f - std::min(1.0f, distOutside / blendDistance);
+
+            // Calculate normal vanishing scale
             float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
             t = std::max(0.0f, std::min(1.0f, t));
-            float vanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+            float normalVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
 
-            // Project the anchor for Y reference
-            glm::vec2 projectedLeft = renderer.ProjectPoint(
-                glm::vec2(static_cast<float>(leftPixelX) - renderCam.x,
-                          static_cast<float>(bottomPixelY) - renderCam.y));
+            // Blend vanishScale towards 1.0 when outside expanded viewport
+            float vanishScale = normalVanishScale * viewportBlend + 1.0f * (1.0f - viewportBlend);
 
-            // Apply exponential Y offset to fix lifted structure issue (vanishing point)
-            float distanceFactor = 1.0f - vanishScale;
-            float exponent = 2.0f;
-            float multiplier = tileHf * 4.0f;
-            float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier;
-            projectedLeft.y += exponentialYOffset;
+            // Only apply globe effects when mostly inside expanded viewport
+            bool useGlobeEffects = applyGlobe && viewportBlend > 0.5f;
 
-            // Compensate for globe Y curvature displacement
-            if (applyGlobe && R > 0.0f)
+            glm::vec2 projectedLeft;
+            if (viewportBlend > 0.01f)
             {
-                float centerY = perspState.viewHeight * 0.5f;
-                float dy = bottomScreenY - centerY;
-                float globeY = centerY + R * std::sin(dy / R);
-                float globeDisplacement = globeY - bottomScreenY;
-                projectedLeft.y += globeDisplacement;
+                // Use projected position, blended with simple position
+                glm::vec2 projected = renderer.ProjectPoint(glm::vec2(anchorScreenX, bottomScreenY));
+
+                // Apply exponential Y offset
+                float distanceFactor = 1.0f - normalVanishScale;
+                float exponent = 2.0f;
+                float multiplier = tileHf * 4.0f;
+                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier * viewportBlend;
+                projected.y += exponentialYOffset;
+
+                // Compensate for globe Y curvature displacement
+                if (useGlobeEffects && R > 0.0f)
+                {
+                    float centerY = perspState.viewHeight * 0.5f;
+                    float dy = bottomScreenY - centerY;
+                    float globeY = centerY + R * std::sin(dy / R);
+                    float globeDisplacement = globeY - bottomScreenY;
+                    projected.y += globeDisplacement * viewportBlend;
+                }
+
+                // Blend between projected and simple screen position
+                glm::vec2 simplePos(anchorScreenX, bottomScreenY);
+                projectedLeft = projected * viewportBlend + simplePos * (1.0f - viewportBlend);
+            }
+            else
+            {
+                projectedLeft = glm::vec2(anchorScreenX, bottomScreenY);
             }
 
             renderer.SuspendPerspective(true);
@@ -3237,9 +3312,9 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                     // Calculate tile's screen X position (left edge of tile)
                     float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
 
-                    // Apply globe X curvature if enabled
+                    // Apply globe X curvature only when mostly in viewport
                     float curvedX = tileScreenX;
-                    if (applyGlobe && R > 0.0f)
+                    if (useGlobeEffects && R > 0.0f)
                     {
                         float dx = tileScreenX - centerX;
                         curvedX = centerX + R * std::sin(dx / R);
@@ -3257,7 +3332,7 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                     // Calculate scaled tile width for this X position
                     float tileRightX = tileScreenX + tileWf;
                     float curvedRightX = tileRightX;
-                    if (applyGlobe && R > 0.0f)
+                    if (useGlobeEffects && R > 0.0f)
                     {
                         float dxRight = tileRightX - centerX;
                         curvedRightX = centerX + R * std::sin(dxRight / R);
@@ -3444,32 +3519,69 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                                perspState.mode == IRenderer::ProjectionMode::Fisheye);
             float R = perspState.sphereRadius;
 
-            // Calculate vanishing point scale from bottom Y position
+            // Calculate anchor screen position
+            float anchorScreenX = static_cast<float>(leftPixelX) - renderCam.x;
             float bottomScreenY = static_cast<float>(bottomPixelY) - renderCam.y;
+
+            // Calculate expanded 3D viewport bounds
+            float expansion = 1.0f / perspState.horizonScale;
+            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+            float expandedHeight = perspState.viewHeight * expansion;
+            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+            // Calculate distance outside expanded viewport (0 if inside)
+            float distOutsideX = std::max(0.0f, std::max(-anchorScreenX - widthPadding,
+                                                         anchorScreenX - perspState.viewWidth - widthPadding));
+            float distOutsideY = std::max(0.0f, std::max(-bottomScreenY - heightPadding,
+                                                         bottomScreenY - perspState.viewHeight - heightPadding));
+            float distOutside = std::max(distOutsideX, distOutsideY);
+
+            // Blend factor: 1.0 when inside expanded viewport, fades to 0.0 as we move outside
+            float blendDistance = 200.0f;
+            float viewportBlend = 1.0f - std::min(1.0f, distOutside / blendDistance);
+
+            // Calculate normal vanishing scale
             float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
             t = std::max(0.0f, std::min(1.0f, t));
-            float vanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+            float normalVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
 
-            // Project the anchor for Y reference
-            glm::vec2 projectedLeft = renderer.ProjectPoint(
-                glm::vec2(static_cast<float>(leftPixelX) - renderCam.x,
-                          static_cast<float>(bottomPixelY) - renderCam.y));
+            // Blend vanishScale towards 1.0 when outside expanded viewport
+            float vanishScale = normalVanishScale * viewportBlend + 1.0f * (1.0f - viewportBlend);
 
-            // Apply exponential Y offset to fix lifted structure issue (vanishing point)
-            float distanceFactor = 1.0f - vanishScale;
-            float exponent = 2.0f;
-            float multiplier = tileHf * 4.0f;
-            float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier;
-            projectedLeft.y += exponentialYOffset;
+            // Only apply globe effects when mostly inside expanded viewport
+            bool useGlobeEffects = applyGlobe && viewportBlend > 0.5f;
 
-            // Compensate for globe Y curvature displacement
-            if (applyGlobe && R > 0.0f)
+            glm::vec2 projectedLeft;
+            if (viewportBlend > 0.01f)
             {
-                float centerY = perspState.viewHeight * 0.5f;
-                float dy = bottomScreenY - centerY;
-                float globeY = centerY + R * std::sin(dy / R);
-                float globeDisplacement = globeY - bottomScreenY;
-                projectedLeft.y += globeDisplacement;
+                // Use projected position, blended with simple position
+                glm::vec2 projected = renderer.ProjectPoint(glm::vec2(anchorScreenX, bottomScreenY));
+
+                // Apply exponential Y offset
+                float distanceFactor = 1.0f - normalVanishScale;
+                float exponent = 2.0f;
+                float multiplier = tileHf * 4.0f;
+                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier * viewportBlend;
+                projected.y += exponentialYOffset;
+
+                // Compensate for globe Y curvature displacement
+                if (useGlobeEffects && R > 0.0f)
+                {
+                    float centerY = perspState.viewHeight * 0.5f;
+                    float dy = bottomScreenY - centerY;
+                    float globeY = centerY + R * std::sin(dy / R);
+                    float globeDisplacement = globeY - bottomScreenY;
+                    projected.y += globeDisplacement * viewportBlend;
+                }
+
+                // Blend between projected and simple screen position
+                glm::vec2 simplePos(anchorScreenX, bottomScreenY);
+                projectedLeft = projected * viewportBlend + simplePos * (1.0f - viewportBlend);
+            }
+            else
+            {
+                projectedLeft = glm::vec2(anchorScreenX, bottomScreenY);
             }
 
             renderer.SuspendPerspective(true);
@@ -3505,9 +3617,9 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                     // Calculate tile's screen X position (left edge of tile)
                     float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
 
-                    // Apply globe X curvature if enabled
+                    // Apply globe X curvature only when mostly in viewport
                     float curvedX = tileScreenX;
-                    if (applyGlobe && R > 0.0f)
+                    if (useGlobeEffects && R > 0.0f)
                     {
                         float dx = tileScreenX - centerX;
                         curvedX = centerX + R * std::sin(dx / R);
@@ -3525,7 +3637,7 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                     // Calculate scaled tile width for this X position
                     float tileRightX = tileScreenX + tileWf;
                     float curvedRightX = tileRightX;
-                    if (applyGlobe && R > 0.0f)
+                    if (useGlobeEffects && R > 0.0f)
                     {
                         float dxRight = tileRightX - centerX;
                         curvedRightX = centerX + R * std::sin(dxRight / R);

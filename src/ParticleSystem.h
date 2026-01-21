@@ -324,34 +324,47 @@ private:
 
     /// @}
 
-    /// @name Textures
+    /// @name Texture Atlas
     /// @{
 
-    Texture m_FireflyTexture;   ///< Soft glow sprite.
-    Texture m_RainTexture;      ///< Elongated droplet.
-    Texture m_SnowTexture;      ///< Snowflake sprite.
-    Texture m_FogTexture;       ///< Soft cloud patch.
-    Texture m_SparklesTexture;  ///< Star/sparkle sprite.
-    Texture m_WispTexture;      ///< Magical orb sprite.
-    Texture m_LanternTexture;   ///< Procedural radial glow.
-    Texture m_SunshineTexture;  ///< Procedural sun ray beam.
-    bool m_TexturesLoaded;      ///< Whether LoadTextures() succeeded.
+    /**
+     * @brief UV region for a particle type in the atlas.
+     *
+     * Stores normalized UV coordinates (0-1) for sampling from the atlas.
+     */
+    struct AtlasRegion
+    {
+        glm::vec2 uvMin;  ///< Top-left UV coordinate.
+        glm::vec2 uvMax;  ///< Bottom-right UV coordinate.
+    };
+
+    Texture m_AtlasTexture;                              ///< Combined particle texture atlas.
+    AtlasRegion m_AtlasRegions[8];                       ///< UV regions indexed by ParticleType.
+    bool m_TexturesLoaded;                               ///< Whether LoadTextures() succeeded.
+
+    /**
+     * @brief Build the texture atlas from individual particle textures.
+     *
+     * Loads all particle textures, packs them into a single atlas,
+     * and calculates UV regions for each particle type.
+     */
+    void BuildAtlas();
 
     /**
      * @brief Generate the lantern glow texture procedurally.
-     *
-     * Creates a 256x256 RGBA texture with a soft gaussian-like
-     * radial falloff in warm orange/yellow tones.
+     * @param[out] pixels Output pixel buffer (256x256 RGBA).
+     * @param[out] width  Output width.
+     * @param[out] height Output height.
      */
-    void GenerateLanternTexture();
+    void GenerateLanternPixels(std::vector<unsigned char> &pixels, int &width, int &height);
 
     /**
      * @brief Generate the sunshine ray texture procedurally.
-     *
-     * Creates an elongated beam texture with soft edges and
-     * golden/yellow coloring for sun ray effects.
+     * @param[out] pixels Output pixel buffer (48x192 RGBA).
+     * @param[out] width  Output width.
+     * @param[out] height Output height.
      */
-    void GenerateSunshineTexture();
+    void GenerateSunshinePixels(std::vector<unsigned char> &pixels, int &width, int &height);
 
     /// @}
 };

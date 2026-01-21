@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 #ifndef M_PI
@@ -26,42 +27,7 @@ ParticleSystem::ParticleSystem()
 
 bool ParticleSystem::LoadTextures()
 {
-    // Load each texture independently
-    if (!m_FireflyTexture.LoadFromFile("assets/particles/304502d7-426b-4abc-a608-ff01a185df96.png"))
-    {
-        std::cerr << "Warning: Failed to load firefly particle texture" << std::endl;
-    }
-
-    if (!m_RainTexture.LoadFromFile("assets/particles/9509e404-2fce-4fbf-a082-720f85e7244e.png"))
-    {
-        std::cerr << "Warning: Failed to load rain particle texture" << std::endl;
-    }
-
-    if (!m_SnowTexture.LoadFromFile("assets/particles/6f9d2bcf-8e79-493f-b468-85040a945d06.png"))
-    {
-        std::cerr << "Warning: Failed to load snow particle texture" << std::endl;
-    }
-
-    if (!m_FogTexture.LoadFromFile("assets/particles/14b6ffec-3289-417b-b99c-82d1ed2a9944.png"))
-    {
-        std::cerr << "Warning: Failed to load fog particle texture" << std::endl;
-    }
-
-    if (!m_SparklesTexture.LoadFromFile("assets/particles/536fa219-58a1-4220-9171-a8520d126f44.png"))
-    {
-        std::cerr << "Warning: Failed to load sparkles particle texture" << std::endl;
-    }
-
-    if (!m_WispTexture.LoadFromFile("assets/particles/ead11602-6c24-45dc-b657-03d637e2a543.png"))
-    {
-        std::cerr << "Warning: Failed to load wisp particle texture" << std::endl;
-    }
-
-    // Generate procedural textures
-    GenerateLanternTexture();
-    GenerateSunshineTexture();
-
-    // Always set to true to avoid blocking gameplay
+    BuildAtlas();
     m_TexturesLoaded = true;
     return true;
 }
@@ -71,71 +37,182 @@ void ParticleSystem::UploadTextures(IRenderer &renderer)
     if (!m_TexturesLoaded)
         return;
 
-    renderer.UploadTexture(m_FireflyTexture);
-    renderer.UploadTexture(m_RainTexture);
-    renderer.UploadTexture(m_SnowTexture);
-    renderer.UploadTexture(m_FogTexture);
-    renderer.UploadTexture(m_SparklesTexture);
-    renderer.UploadTexture(m_WispTexture);
-    renderer.UploadTexture(m_LanternTexture);
-    renderer.UploadTexture(m_SunshineTexture);
+    renderer.UploadTexture(m_AtlasTexture);
 }
 
-void ParticleSystem::GenerateLanternTexture()
+void ParticleSystem::BuildAtlas()
 {
-    // Create a very soft radial glow texture for lanterns
-    // Extended range with extremely gradual falloff
-    const int size = 256;
-    std::vector<unsigned char> pixels(size * size * 4);
-    float center = size / 2.0f;
+    // Particle texture sources: 6 files + 2 procedural
+    // We'll pack them in a 512x512 atlas with a simple row layout
 
-    for (int y = 0; y < size; y++)
+    struct TextureSource
     {
-        for (int x = 0; x < size; x++)
+        std::vector<unsigned char> pixels;
+        int width = 0;
+        int height = 0;
+    };
+
+    TextureSource sources[8];
+    const char *filePaths[6] = {
+        "assets/particles/304502d7-426b-4abc-a608-ff01a185df96.png", // Firefly
+        "assets/particles/9509e404-2fce-4fbf-a082-720f85e7244e.png", // Rain
+        "assets/particles/6f9d2bcf-8e79-493f-b468-85040a945d06.png", // Snow
+        "assets/particles/14b6ffec-3289-417b-b99c-82d1ed2a9944.png", // Fog
+        "assets/particles/536fa219-58a1-4220-9171-a8520d126f44.png", // Sparkles
+        "assets/particles/ead11602-6c24-45dc-b657-03d637e2a543.png"  // Wisp
+    };
+
+    // Load file-based textures temporarily to get their pixel data
+    for (int i = 0; i < 6; i++)
+    {
+        Texture temp;
+        if (temp.LoadFromFile(filePaths[i]))
         {
-            int idx = (y * size + x) * 4;
+            sources[i].width = temp.m_Width;
+            sources[i].height = temp.m_Height;
+            size_t dataSize = temp.m_Width * temp.m_Height * temp.m_Channels;
+            sources[i].pixels.resize(dataSize);
+            if (temp.m_ImageData)
+            {
+                memcpy(sources[i].pixels.data(), temp.m_ImageData, dataSize);
+                // Convert to RGBA if needed
+                if (temp.m_Channels == 3)
+                {
+                    std::vector<unsigned char> rgba(temp.m_Width * temp.m_Height * 4);
+                    for (int j = 0; j < temp.m_Width * temp.m_Height; j++)
+                    {
+                        rgba[j * 4 + 0] = sources[i].pixels[j * 3 + 0];
+                        rgba[j * 4 + 1] = sources[i].pixels[j * 3 + 1];
+                        rgba[j * 4 + 2] = sources[i].pixels[j * 3 + 2];
+                        rgba[j * 4 + 3] = 255;
+                    }
+                    sources[i].pixels = std::move(rgba);
+                }
+            }
+        }
+        else
+        {
+            // Fallback: 16x16 white texture
+            sources[i].width = 16;
+            sources[i].height = 16;
+            sources[i].pixels.resize(16 * 16 * 4, 255);
+        }
+    }
+
+    // Generate procedural textures
+    GenerateLanternPixels(sources[6].pixels, sources[6].width, sources[6].height);
+    GenerateSunshinePixels(sources[7].pixels, sources[7].width, sources[7].height);
+
+    // Calculate atlas layout - simple horizontal packing with rows
+    // Atlas size: 512x512 should be plenty
+    const int atlasWidth = 512;
+    const int atlasHeight = 512;
+    std::vector<unsigned char> atlasPixels(atlasWidth * atlasHeight * 4, 0);
+
+    int currentX = 0;
+    int currentY = 0;
+    int rowHeight = 0;
+
+    for (int i = 0; i < 8; i++)
+    {
+        int w = sources[i].width;
+        int h = sources[i].height;
+
+        // Move to next row if needed
+        if (currentX + w > atlasWidth)
+        {
+            currentX = 0;
+            currentY += rowHeight + 1; // 1px padding
+            rowHeight = 0;
+        }
+
+        // Store UV coordinates (normalized)
+        m_AtlasRegions[i].uvMin = glm::vec2(
+            static_cast<float>(currentX) / atlasWidth,
+            static_cast<float>(currentY) / atlasHeight);
+        m_AtlasRegions[i].uvMax = glm::vec2(
+            static_cast<float>(currentX + w) / atlasWidth,
+            static_cast<float>(currentY + h) / atlasHeight);
+
+        // Copy pixels to atlas (source already flipped by stbi for OpenGL)
+        for (int y = 0; y < h; y++)
+        {
+            int srcY = y;
+            int dstY = currentY + y;
+            if (dstY >= atlasHeight)
+                continue;
+
+            for (int x = 0; x < w; x++)
+            {
+                int dstX = currentX + x;
+                if (dstX >= atlasWidth)
+                    continue;
+
+                int srcIdx = (srcY * w + x) * 4;
+                int dstIdx = (dstY * atlasWidth + dstX) * 4;
+
+                if (srcIdx + 3 < static_cast<int>(sources[i].pixels.size()))
+                {
+                    atlasPixels[dstIdx + 0] = sources[i].pixels[srcIdx + 0];
+                    atlasPixels[dstIdx + 1] = sources[i].pixels[srcIdx + 1];
+                    atlasPixels[dstIdx + 2] = sources[i].pixels[srcIdx + 2];
+                    atlasPixels[dstIdx + 3] = sources[i].pixels[srcIdx + 3];
+                }
+            }
+        }
+
+        currentX += w + 1; // 1px padding
+        rowHeight = std::max(rowHeight, h);
+    }
+
+    // Create the atlas texture
+    m_AtlasTexture.LoadFromData(atlasPixels.data(), atlasWidth, atlasHeight, 4, false);
+
+    std::cout << "Particle atlas built: " << atlasWidth << "x" << atlasHeight << std::endl;
+}
+
+void ParticleSystem::GenerateLanternPixels(std::vector<unsigned char> &pixels, int &width, int &height)
+{
+    width = 256;
+    height = 256;
+    pixels.resize(width * height * 4);
+    float center = width / 2.0f;
+
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int idx = (y * width + x) * 4;
 
             float dx = x - center;
             float dy = y - center;
             float dist = std::sqrt(dx * dx + dy * dy) / center;
 
-            // Very gradual gaussian falloff
-            // Lower multiplier = wider, softer glow
             float alpha = std::exp(-dist * dist * 1.2f);
-
-            // Subtle center softening
             float centerReduction = std::exp(-dist * dist * 8.0f) * 0.3f;
             alpha = alpha * (1.0f - centerReduction);
 
-            // Extremely gradual edge fade
-            // This ensures the glow reaches the texture edge at near-zero alpha
             if (dist > 0.6f)
             {
                 float outerFade = 1.0f - (dist - 0.6f) / 0.4f;
                 outerFade = std::max(0.0f, outerFade);
-                outerFade = std::pow(outerFade, 0.4f); // Very gentle curve
+                outerFade = std::pow(outerFade, 0.4f);
                 alpha *= outerFade;
             }
 
-            // Warm orange/yellow color
-            pixels[idx + 0] = 255;                                          // R
-            pixels[idx + 1] = static_cast<unsigned char>(220 + alpha * 35); // G
-            pixels[idx + 2] = static_cast<unsigned char>(160 + alpha * 50); // B
-            pixels[idx + 3] = static_cast<unsigned char>(alpha * 120);      // A
+            pixels[idx + 0] = 255;
+            pixels[idx + 1] = static_cast<unsigned char>(220 + alpha * 35);
+            pixels[idx + 2] = static_cast<unsigned char>(160 + alpha * 50);
+            pixels[idx + 3] = static_cast<unsigned char>(alpha * 120);
         }
     }
-
-    m_LanternTexture.LoadFromData(pixels.data(), size, size, 4, false);
 }
 
-void ParticleSystem::GenerateSunshineTexture()
+void ParticleSystem::GenerateSunshinePixels(std::vector<unsigned char> &pixels, int &width, int &height)
 {
-    // Create an elongated beam texture for sun/moon rays
-    // Very soft feathered edges
-    const int width = 48;
-    const int height = 192;
-    std::vector<unsigned char> pixels(width * height * 4);
-
+    width = 48;
+    height = 192;
+    pixels.resize(width * height * 4);
     float centerX = width / 2.0f;
 
     for (int y = 0; y < height; y++)
@@ -144,52 +221,35 @@ void ParticleSystem::GenerateSunshineTexture()
         {
             int idx = (y * width + x) * 4;
 
-            // Horizontal distance from center
             float dx = std::abs(x - centerX) / centerX;
-
-            // Vertical position normalized, 0 at top, 1 at bottom
             float dy = static_cast<float>(y) / static_cast<float>(height);
 
-            // Beam is narrower at top, wider at bottom
             float beamWidth = 0.2f + dy * 0.55f;
             float horizontalFalloff = 1.0f - std::min(1.0f, dx / beamWidth);
-
-            // Horizontal falloff
             horizontalFalloff = std::pow(horizontalFalloff, 1.2f);
-            horizontalFalloff *= std::exp(-dx * dx * 1.5f); // Extra softness at edges
+            horizontalFalloff *= std::exp(-dx * dx * 1.5f);
 
-            // Long feather at top, fade in from 0% to 30%
             float topFeather = std::min(1.0f, dy / 0.30f);
-            topFeather = std::pow(topFeather, 2.0f); // Slower start
-
-            // Long feather at bottom, fade out from 70% to 100%
+            topFeather = std::pow(topFeather, 2.0f);
             float bottomFeather = std::min(1.0f, (1.0f - dy) / 0.30f);
-            bottomFeather = std::pow(bottomFeather, 2.0f); // Slower end
+            bottomFeather = std::pow(bottomFeather, 2.0f);
 
-            // Vertical intensity, gentle variation
             float verticalIntensity = 0.5f + 0.5f * std::sin(dy * M_PI);
-
-            // Combine falloffs for the main beam
             float beamAlpha = horizontalFalloff * verticalIntensity * topFeather * bottomFeather;
 
-            // Subtle ground glow effect near bottom
             float groundGlowY = 1.0f - std::abs(dy - 0.78f) / 0.15f;
             groundGlowY = std::max(0.0f, groundGlowY);
             float groundGlowX = std::exp(-dx * dx * 1.5f);
             float groundGlow = groundGlowY * groundGlowX * 0.35f * bottomFeather;
 
-            // Combine all effects
             float alpha = std::min(1.0f, beamAlpha + groundGlow);
 
-            // Store as white, color will be applied via tint in rendering
-            pixels[idx + 0] = 255;                                     // R
-            pixels[idx + 1] = 255;                                     // G
-            pixels[idx + 2] = 255;                                     // B
-            pixels[idx + 3] = static_cast<unsigned char>(alpha * 140); // A
+            pixels[idx + 0] = 255;
+            pixels[idx + 1] = 255;
+            pixels[idx + 2] = 255;
+            pixels[idx + 3] = static_cast<unsigned char>(alpha * 140);
         }
     }
-
-    m_SunshineTexture.LoadFromData(pixels.data(), width, height, 4, false);
 }
 
 void ParticleSystem::Update(float deltaTime, glm::vec2 cameraPos, glm::vec2 viewSize)
@@ -319,9 +379,9 @@ void ParticleSystem::Update(float deltaTime, glm::vec2 cameraPos, glm::vec2 view
             float lifeFade = std::min(1.0f, p.lifetime / (p.maxLifetime * 0.4f));
             float fadeIn = std::min(1.0f, (p.maxLifetime - p.lifetime) / 4.0f);
 
-            // More visible during day, less at night to avoid clumping
+            // More visible during day, significantly less at night
             float dayBoost = 1.0f + (1.0f - m_NightFactor) * 0.4f;
-            float nightReduce = 1.0f - m_NightFactor * 0.35f;
+            float nightReduce = 1.0f - m_NightFactor * 0.6f;
             p.color.a = pulse * lifeFade * fadeIn * 0.28f * dayBoost * nightReduce;
             break;
         }
@@ -678,7 +738,7 @@ void ParticleSystem::SpawnWisp(int zoneIndex, const ParticleZone &zone)
     else
         p.color = glm::vec4(0.9f, 0.9f, 1.0f, 0.0f); // White-blue
 
-    p.size = 2.0f + m_Dist01(m_Rng) * 2.0f;     // 2-4 pixels
+    p.size = 3.0f + m_Dist01(m_Rng) * 3.0f;     // 3-6 pixels
     p.lifetime = 4.0f + m_Dist01(m_Rng) * 3.0f; // 4-7 seconds
     p.maxLifetime = p.lifetime;
     p.phase = m_Dist01(m_Rng) * 6.28f;
@@ -876,6 +936,9 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
         // Convert world position to screen position
         data.screenPos = p.position - cameraPos;
 
+        // Get perspective state for viewport checking
+        auto perspState = renderer.GetPerspectiveState();
+
         // NoProjection particles: Use tilemap's actual structure bounds
         if (isNoProjection && m_Tilemap && m_TileWidth > 0 && m_TileHeight > 0)
         {
@@ -892,23 +955,44 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
                 float rightPixelX = static_cast<float>((maxTileX + 1) * m_TileWidth);
                 float bottomPixelY = static_cast<float>((maxTileY + 1) * m_TileHeight);
 
-                // Project bottom-left and bottom-right corners
-                glm::vec2 projectedLeft = renderer.ProjectPoint(
-                    glm::vec2(leftPixelX - cameraPos.x, bottomPixelY - cameraPos.y));
-                glm::vec2 projectedRight = renderer.ProjectPoint(
-                    glm::vec2(rightPixelX - cameraPos.x, bottomPixelY - cameraPos.y));
+                // Calculate anchor screen position
+                float anchorScreenX = leftPixelX - cameraPos.x;
+                float anchorScreenY = bottomPixelY - cameraPos.y;
 
-                // Calculate horizontal scale based on projected width
-                float originalWidth = rightPixelX - leftPixelX;
-                float projectedWidth = projectedRight.x - projectedLeft.x;
-                float scaleX = (originalWidth > 0.0f) ? (projectedWidth / originalWidth) : 1.0f;
+                // Check if anchor is inside expanded 3D viewport - skip projection if outside
+                // to prevent globe wrap-around artifacts
+                float expansion = 1.0f / perspState.horizonScale;
+                float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+                float expandedHeight = perspState.viewHeight * expansion;
+                float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+                float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
 
-                // Apply exponential Y offset
-                float distanceFactor = 1.0f - scaleX;
-                float exponent = 2.0f;
-                float multiplier = static_cast<float>(m_TileHeight) * 4.0f;
-                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier;
-                projectedLeft.y += exponentialYOffset;
+                bool anchorInViewport = perspState.enabled &&
+                    anchorScreenX >= -widthPadding && anchorScreenX <= perspState.viewWidth + widthPadding &&
+                    anchorScreenY >= -heightPadding && anchorScreenY <= perspState.viewHeight + heightPadding;
+
+                float scaleX = 1.0f;
+                glm::vec2 projectedLeft(anchorScreenX, anchorScreenY);
+
+                if (anchorInViewport)
+                {
+                    // Project bottom-left and bottom-right corners
+                    projectedLeft = renderer.ProjectPoint(glm::vec2(anchorScreenX, anchorScreenY));
+                    glm::vec2 projectedRight = renderer.ProjectPoint(
+                        glm::vec2(rightPixelX - cameraPos.x, anchorScreenY));
+
+                    // Calculate horizontal scale based on projected width
+                    float originalWidth = rightPixelX - leftPixelX;
+                    float projectedWidth = projectedRight.x - projectedLeft.x;
+                    scaleX = (originalWidth > 0.0f) ? (projectedWidth / originalWidth) : 1.0f;
+
+                    // Apply exponential Y offset
+                    float distanceFactor = 1.0f - scaleX;
+                    float exponent = 2.0f;
+                    float multiplier = static_cast<float>(m_TileHeight) * 4.0f;
+                    float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier;
+                    projectedLeft.y += exponentialYOffset;
+                }
 
                 // Calculate particle position relative to structure
                 float tileLeftX = static_cast<float>(tileX * m_TileWidth);
@@ -927,9 +1011,22 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
         }
         else if (isNoProjection)
         {
-            // Fallback if no tilemap: Simple projection
-            glm::vec2 projected = renderer.ProjectPoint(data.screenPos);
-            data.screenPos = projected;
+            // Fallback if no tilemap: Simple projection only if inside expanded 3D viewport
+            float expansion = 1.0f / perspState.horizonScale;
+            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+            float expandedHeight = perspState.viewHeight * expansion;
+            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+            bool inViewport = perspState.enabled &&
+                data.screenPos.x >= -widthPadding && data.screenPos.x <= perspState.viewWidth + widthPadding &&
+                data.screenPos.y >= -heightPadding && data.screenPos.y <= perspState.viewHeight + heightPadding;
+
+            if (inViewport)
+            {
+                glm::vec2 projected = renderer.ProjectPoint(data.screenPos);
+                data.screenPos = projected;
+            }
             noProjectionBatch.push_back(data);
         }
         else
@@ -938,51 +1035,29 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
         }
     }
 
-    // Lambda to draw a particle
+    // Lambda to draw a particle using the texture atlas
     auto drawParticle = [&](const ParticleRenderData &data)
     {
-        const Texture *tex = nullptr;
-        if (m_TexturesLoaded)
+        if (m_TexturesLoaded && m_AtlasTexture.GetID() != 0)
         {
-            switch (data.type)
-            {
-            case ParticleType::Firefly:
-                tex = &m_FireflyTexture;
-                break;
-            case ParticleType::Rain:
-                tex = &m_RainTexture;
-                break;
-            case ParticleType::Snow:
-                tex = &m_SnowTexture;
-                break;
-            case ParticleType::Fog:
-                tex = &m_FogTexture;
-                break;
-            case ParticleType::Sparkles:
-                tex = &m_SparklesTexture;
-                break;
-            case ParticleType::Wisp:
-                tex = &m_WispTexture;
-                break;
-            case ParticleType::Lantern:
-                tex = &m_LanternTexture;
-                break;
-            case ParticleType::Sunshine:
-                tex = &m_SunshineTexture;
-                break;
-            }
-        }
+            int typeIndex = static_cast<int>(data.type);
+            const AtlasRegion &region = m_AtlasRegions[typeIndex];
 
-        if (tex && tex->GetID() != 0)
-        {
             glm::vec2 renderSize = data.size;
             // Sunshine uses elongated beam texture (48x192 aspect ratio = 1:4)
             if (data.type == ParticleType::Sunshine)
             {
                 renderSize = glm::vec2(data.size.x, data.size.x * 4.0f);
             }
+            // Rain uses stretched vertical texture
+            else if (data.type == ParticleType::Rain)
+            {
+                renderSize = glm::vec2(data.size.x, data.size.x * 1.6f);
+            }
             glm::vec2 centeredPos = data.screenPos - renderSize * 0.5f;
-            renderer.DrawSpriteAlpha(*tex, centeredPos, renderSize, data.rotation, data.color, data.additive);
+            renderer.DrawSpriteAtlas(m_AtlasTexture, centeredPos, renderSize,
+                                     region.uvMin, region.uvMax,
+                                     data.rotation, data.color, data.additive);
         }
         else
         {
@@ -992,6 +1067,16 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
             renderer.DrawColoredRect(data.screenPos, size, data.color, data.additive);
         }
     };
+
+    // Sort batches by blend mode to minimize draw calls
+    // Non-additive (false) sorts before additive (true)
+    auto sortByBlendMode = [](const ParticleRenderData &a, const ParticleRenderData &b)
+    {
+        return a.additive < b.additive;
+    };
+
+    std::sort(noProjectionBatch.begin(), noProjectionBatch.end(), sortByBlendMode);
+    std::sort(regularBatch.begin(), regularBatch.end(), sortByBlendMode);
 
     // Draw noProjection particles with perspective suspended
     if (!noProjectionBatch.empty())

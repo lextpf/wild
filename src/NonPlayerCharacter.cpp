@@ -426,7 +426,24 @@ void NonPlayerCharacter::Render(IRenderer &renderer, glm::vec2 cameraPos) const
 
     // Convert world position to screen space
     glm::vec2 bottomCenter = m_Position - cameraPos;
-    bottomCenter = renderer.ProjectPoint(bottomCenter);
+
+    // Only use ProjectPoint if inside the expanded 3D viewport (prevents globe wrap-around artifacts)
+    auto perspState = renderer.GetPerspectiveState();
+    if (perspState.enabled)
+    {
+        // Calculate expanded viewport bounds for 3D mode
+        float expansion = 1.0f / perspState.horizonScale;
+        float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+        float expandedHeight = perspState.viewHeight * expansion;
+        float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+        float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+        if (bottomCenter.x >= -widthPadding && bottomCenter.x <= perspState.viewWidth + widthPadding &&
+            bottomCenter.y >= -heightPadding && bottomCenter.y <= perspState.viewHeight + heightPadding)
+        {
+            bottomCenter = renderer.ProjectPoint(bottomCenter);
+        }
+    }
 
     // Position sprite with feet at projected point
     glm::vec2 renderPos = bottomCenter - glm::vec2(spriteWidth / 2.0f, spriteHeight);
@@ -452,7 +469,24 @@ void NonPlayerCharacter::RenderBottomHalf(IRenderer &renderer, glm::vec2 cameraP
     // Apply elevation before projection
     glm::vec2 bottomCenter = m_Position - cameraPos;
     bottomCenter.y -= m_ElevationOffset;
-    bottomCenter = renderer.ProjectPoint(bottomCenter);
+
+    // Only use ProjectPoint if inside the expanded 3D viewport (prevents globe wrap-around artifacts)
+    auto perspState = renderer.GetPerspectiveState();
+    if (perspState.enabled)
+    {
+        // Calculate expanded viewport bounds for 3D mode
+        float expansion = 1.0f / perspState.horizonScale;
+        float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+        float expandedHeight = perspState.viewHeight * expansion;
+        float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+        float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+        if (bottomCenter.x >= -widthPadding && bottomCenter.x <= perspState.viewWidth + widthPadding &&
+            bottomCenter.y >= -heightPadding && bottomCenter.y <= perspState.viewHeight + heightPadding)
+        {
+            bottomCenter = renderer.ProjectPoint(bottomCenter);
+        }
+    }
 
     glm::vec2 renderPos = bottomCenter - glm::vec2(spriteWidth / 2.0f, spriteHeight);
     glm::vec2 spriteCoords = GetSpriteCoords(m_CurrentFrame, m_Direction);
@@ -480,7 +514,24 @@ void NonPlayerCharacter::RenderTopHalf(IRenderer &renderer, glm::vec2 cameraPos)
     // Apply elevation before projection
     glm::vec2 bottomCenter = m_Position - cameraPos;
     bottomCenter.y -= m_ElevationOffset;
-    bottomCenter = renderer.ProjectPoint(bottomCenter);
+
+    // Only use ProjectPoint if inside the expanded 3D viewport (prevents globe wrap-around artifacts)
+    auto perspState = renderer.GetPerspectiveState();
+    if (perspState.enabled)
+    {
+        // Calculate expanded viewport bounds for 3D mode
+        float expansion = 1.0f / perspState.horizonScale;
+        float expandedWidth = perspState.viewWidth * expansion * 1.5f;
+        float expandedHeight = perspState.viewHeight * expansion;
+        float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
+        float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
+
+        if (bottomCenter.x >= -widthPadding && bottomCenter.x <= perspState.viewWidth + widthPadding &&
+            bottomCenter.y >= -heightPadding && bottomCenter.y <= perspState.viewHeight + heightPadding)
+        {
+            bottomCenter = renderer.ProjectPoint(bottomCenter);
+        }
+    }
 
     glm::vec2 renderPos = bottomCenter - glm::vec2(spriteWidth / 2.0f, spriteHeight);
     glm::vec2 spriteCoords = GetSpriteCoords(m_CurrentFrame, m_Direction);

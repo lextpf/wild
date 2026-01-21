@@ -537,12 +537,12 @@ private:
     /// @{
     static constexpr int STAR_COUNT = 600;             ///< Number of foreground stars
     static constexpr int BACKGROUND_STAR_COUNT = 400;  ///< Number of background stars
-    static constexpr int SUN_RAY_COUNT = 9;            ///< Number of sun rays (spread across ~2/3 of screen)
+    static constexpr int SUN_RAY_COUNT = 3;            ///< Number of sun rays (spread across ~2/3 of screen)
     static constexpr int MOON_RAY_COUNT = 3;           ///< Number of moon rays (very subtle)
     static constexpr int DEW_SPARKLE_COUNT = 4;        ///< Number of dew sparkles
     static constexpr float MAX_RAY_LENGTH = 1200.0f;   ///< Maximum ray length in pixels
-    static constexpr float RAY_WIDTH = 140.0f;         ///< Base ray width in pixels
-    static constexpr float SUN_RAY_SPREAD = 110.0f;    ///< Total fan spread angle in degrees (~2/3 screen)
+    static constexpr float RAY_WIDTH = 80.0f;          ///< Base ray width in pixels
+    static constexpr float SUN_RAY_SPREAD = 120.0f;    ///< Total fan spread angle in degrees (~2/3 screen)
     static constexpr float SUN_BAND_WIDTH = 0.35f;     ///< Width of sun origin band (fraction of screen width)
     /// @}
 

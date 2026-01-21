@@ -236,7 +236,9 @@ bool Game::Initialize()
         "assets/overworld/fd3ff88b-f533-4d40-947c-2c7e5e90839c.png",
         "assets/overworld/11941f71-5703-4a5b-b167-9cd53f88e10e.png",
         "assets/overworld/2b0922a6-66f8-4137-89af-45aaabc5434f.png",
-        "assets/overworld/40954708-5e64-4179-8faa-3bd3068de66c.png"
+        "assets/overworld/40954708-5e64-4179-8faa-3bd3068de66c.png",
+        "assets/overworld/1bc8e647-5e22-4456-839a-845991ba4255.png",
+        "assets/overworld/145bb27c-c01d-44fd-b820-2f36f37673f2.png"
     };
 
     // Load tilesets from current directory first, then try parent directory.
@@ -1047,19 +1049,20 @@ void Game::Render()
         case RenderItem::TILE:
             // No-projection tiles render with perspective suspended (upright)
             // Normal tiles render with perspective enabled
+            // Pass explicit flag to avoid RenderSingleTile re-reading from layer
             if (item.tile.noProjection)
             {
                 // Keep perspective suspended for no-projection tiles
                 // RenderSingleTile handles the upright rendering algorithm
                 m_Tilemap.RenderSingleTile(*m_Renderer, item.tile.x, item.tile.y,
-                                           item.tile.layer, m_CameraPosition);
+                                           item.tile.layer, m_CameraPosition, 1);
             }
             else
             {
                 // Resume perspective for normal tile rendering
                 m_Renderer->SuspendPerspective(false);
                 m_Tilemap.RenderSingleTile(*m_Renderer, item.tile.x, item.tile.y,
-                                           item.tile.layer, m_CameraPosition);
+                                           item.tile.layer, m_CameraPosition, 0);
                 // Suspend perspective again for subsequent entities
                 m_Renderer->SuspendPerspective(true);
             }
@@ -1084,6 +1087,11 @@ void Game::Render()
 
     // Render noProjection particles, particle system handles suspend internally
     m_Particles.Render(*m_Renderer, m_CameraPosition, true, false);
+
+    // Resume perspective for normal foreground rendering
+    // (perspective may still be suspended from Y-sorted loop or RenderForegroundLayersNoProjection
+    // if no noProjection structures were processed)
+    m_Renderer->SuspendPerspective(false);
 
     // Render foreground layers, Y-sorted and no-projection tiles are skipped
     m_Tilemap.RenderForegroundLayers(*m_Renderer, renderCam, renderSize, cullCam, cullSize);

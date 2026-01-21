@@ -249,6 +249,25 @@ public:
                                   glm::vec3 color = glm::vec3(1.0f), bool flipY = true) = 0;
 
     /**
+     * @brief Draw a sprite from a texture atlas with per-vertex alpha.
+     *
+     * Renders a region of a texture atlas using normalized UV coordinates.
+     * Supports per-vertex color/alpha and additive blending for particles.
+     *
+     * @param texture  Atlas texture.
+     * @param position World position (top-left corner).
+     * @param size     Output size in pixels.
+     * @param uvMin    Top-left UV coordinates (normalized 0-1).
+     * @param uvMax    Bottom-right UV coordinates (normalized 0-1).
+     * @param rotation Rotation in degrees, clockwise.
+     * @param color    RGBA color tint/modulation.
+     * @param additive Use additive blending for glow effects.
+     */
+    virtual void DrawSpriteAtlas(const Texture &texture, glm::vec2 position, glm::vec2 size,
+                                 glm::vec2 uvMin, glm::vec2 uvMax, float rotation,
+                                 glm::vec4 color, bool additive = false) = 0;
+
+    /**
      * @brief Draw a solid colored rectangle.
      *
      * Renders a filled rectangle with the specified RGBA color.

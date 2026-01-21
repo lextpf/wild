@@ -592,7 +592,7 @@ void SkyRenderer::RenderSunRays(IRenderer &renderer, const TimeManager &time, in
     glm::vec2 sunPos = GetLightSourcePosition(sunArc, screenWidth, screenHeight);
 
     // Subtle intensity for god rays
-    float baseIntensity = 0.025f;
+    float baseIntensity = 0.006f;
 
     // Stronger during golden hour (low sun), softer at midday
     float goldenHourFactor = 1.0f - std::abs(sunArc - 0.5f);
@@ -726,7 +726,7 @@ void SkyRenderer::RenderMoonRays(IRenderer &renderer, const TimeManager &time, i
     phaseFactor = std::max(0.3f, phaseFactor);
 
     // Subtle intensity for moon beams
-    float baseIntensity = 0.015f * phaseFactor;
+    float baseIntensity = 0.004f * phaseFactor;
 
     // Fade near horizon
     if (moonArc < 0.1f)
