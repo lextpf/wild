@@ -18,10 +18,6 @@
 
 A modern 2D game engine built with C++23, featuring dual OpenGL/Vulkan rendering backends, dynamic world simulation, and a built-in level editor. Designed for tile-based RPGs with a focus on performance, flexibility, and visual polish.
 
-<table align="center">
-<tr>
-<td>
-
 > [!IMPORTANT]
 > **Assets Not Included**
 >
@@ -31,10 +27,6 @@ A modern 2D game engine built with C++23, featuring dual OpenGL/Vulkan rendering
 > - Wire them into the engine by adjusting the loading paths (e.g., Game.cpp L233, L273)
 >
 > **The engine will not run without valid assets in place.**
-
-</td>
-</tr>
-</table>
 
 ## Features
 
@@ -378,12 +370,13 @@ wild/
 |   |-- NonPlayerCharacter.*  # NPC entities
 |   +-- ...
 |-- assets/                   # Game assets
-|   |-- sprites/              # Character and tile sprites
-|   |-- fonts/                # TTF fonts
-|   +-- maps/                 # JSON map files
+|   |-- fonts/                # Font files (TTF) for UI and text rendering
+|   |-- non-player/           # NPC and enemy sprite images
+|   |-- overworld/            # World environment, tilesets, and map images
+|   |-- player/               # Player character sprite sheets and animations
+|   +-- particles/            # Small particle effect images (sparks, dust, etc.)
 |-- shaders/                  # GLSL shaders
-|   |-- sprite.vert/frag      # Sprite rendering
-|   +-- text.vert/frag        # Text rendering
+|   +-- sprite.vert/frag      # Sprite rendering
 |-- docs/                     # Documentation
 +-- external/                 # Third-party dependencies
 ```
@@ -415,4 +408,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
