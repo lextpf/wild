@@ -44,7 +44,8 @@ struct TileLayer
     std::vector<int> tiles;            ///< Tile IDs in row-major order (-1 or 0 = empty)
     std::vector<float> rotation;       ///< Rotation in degrees per tile
     std::vector<bool> noProjection;    ///< Tiles that bypass 3D projection
-    std::vector<bool> ySorted;         ///< Tiles that sort with entities by Y position
+    std::vector<bool> ySortPlus;       ///< Tiles that sort with entities by Y position (Y-sort+1: player in front at same Y)
+    std::vector<bool> ySortMinus;      ///< When true, player renders behind tile at same Y (Y-sort-1: tile in front)
     std::vector<int> animationMap;     ///< Per-tile animation ID (-1 = not animated)
     int renderOrder;                   ///< Lower = rendered first (background), higher = later (foreground)
     bool isBackground;                 ///< true = before player/NPCs, false = after
@@ -57,7 +58,8 @@ struct TileLayer
         tiles.resize(size, -1);
         rotation.resize(size, 0.0f);
         noProjection.resize(size, false);
-        ySorted.resize(size, false);
+        ySortPlus.resize(size, false);
+        ySortMinus.resize(size, false);
         animationMap.resize(size, -1);
     }
 
@@ -65,7 +67,8 @@ struct TileLayer
         std::fill(tiles.begin(), tiles.end(), -1);
         std::fill(rotation.begin(), rotation.end(), 0.0f);
         std::fill(noProjection.begin(), noProjection.end(), false);
-        std::fill(ySorted.begin(), ySorted.end(), false);
+        std::fill(ySortPlus.begin(), ySortPlus.end(), false);
+        std::fill(ySortMinus.begin(), ySortMinus.end(), false);
         std::fill(animationMap.begin(), animationMap.end(), -1);
     }
 };
@@ -665,9 +668,13 @@ public:
     bool GetLayerNoProjection(int x, int y, size_t layer) const;
     void SetLayerNoProjection(int x, int y, size_t layer, bool noProjection);
 
-    /// Get/set Y-sorted flag for any layer
-    bool GetLayerYSorted(int x, int y, size_t layer) const;
-    void SetLayerYSorted(int x, int y, size_t layer, bool ySorted);
+    /// Get/set Y-sort-plus flag for any layer
+    bool GetLayerYSortPlus(int x, int y, size_t layer) const;
+    void SetLayerYSortPlus(int x, int y, size_t layer, bool ySortPlus);
+
+    /// Get/set player-behind flag for any layer (affects Y-sort tiebreaker)
+    bool GetLayerYSortMinus(int x, int y, size_t layer) const;
+    void SetLayerYSortMinus(int x, int y, size_t layer, bool ySortMinus);
 
     /// Render a specific layer by index
     void RenderLayerByIndex(IRenderer& renderer, size_t layerIndex,
@@ -791,40 +798,41 @@ public:
      */
 
     /**
-     * @brief Data for a Y-sorted tile to be rendered in sorted order.
+     * @brief Data for a Y-sort-plus tile to be rendered in sorted order.
      */
-    struct YSortedTile {
+    struct YSortPlusTile {
         int x, y;           ///< Tile coordinates
         int layer;          ///< Layer index (0-based)
         float anchorY;      ///< World Y position of tile bottom (for sorting)
         bool noProjection;  ///< True if tile should render without perspective distortion
+        bool ySortMinus;    ///< True if player should render behind this tile at same Y
     };
 
     /**
-     * @brief Get Y-sorted flag at tile coordinates for a specific layer.
+     * @brief Get Y-sort-plus flag at tile coordinates for a specific layer.
      * @param x Tile X coordinate.
      * @param y Tile Y coordinate.
      * @param layer Layer index (0-based, 0 to layer_count-1).
-     * @return true if tile should be rendered in Y-sorted pass.
+     * @return true if tile should be rendered in Y-sort-plus pass.
      */
-    bool GetYSorted(int x, int y, int layer = 1) const;
+    bool GetYSortPlus(int x, int y, int layer = 1) const;
 
     /**
-     * @brief Set Y-sorted flag at tile coordinates for a specific layer.
+     * @brief Set Y-sort-plus flag at tile coordinates for a specific layer.
      * @param x Tile X coordinate.
      * @param y Tile Y coordinate.
-     * @param ySorted true to render in Y-sorted pass.
+     * @param ySortPlus true to render in Y-sort-plus pass.
      * @param layer Layer index (0-based, 0 to layer_count-1).
      */
-    void SetYSorted(int x, int y, bool ySorted, int layer = 1);
+    void SetYSortPlus(int x, int y, bool ySortPlus, int layer = 1);
 
     /**
-     * @brief Collect all visible Y-sorted tiles for rendering.
+     * @brief Collect all visible Y-sort-plus tiles for rendering.
      * @param cullCam Camera position for culling.
      * @param cullSize Visible area size for culling.
-     * @return Vector of Y-sorted tiles within visible range.
+     * @return Vector of Y-sort-plus tiles within visible range.
      */
-    std::vector<YSortedTile> GetVisibleYSortedTiles(glm::vec2 cullCam, glm::vec2 cullSize) const;
+    std::vector<YSortPlusTile> GetVisibleYSortPlusTiles(glm::vec2 cullCam, glm::vec2 cullSize) const;
 
     /**
      * @brief Render a single tile (for Y-sorted rendering).

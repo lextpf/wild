@@ -458,7 +458,7 @@ void Game::RenderNoProjectionAnchors()
     }
 }
 
-void Game::RenderYSortedOverlays()
+void Game::RenderYSortPlusOverlays()
 {
     // Use same world size as main render
     float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
@@ -479,16 +479,16 @@ void Game::RenderYSortedOverlays()
     {
         for (int x = startX; x < endX; ++x)
         {
-            // In Y-sorted edit mode, only show flags for current layer
-            if (m_YSortedEditMode)
+            // In Y-sort-plus edit mode, only show flags for current layer
+            if (m_YSortPlusEditMode)
             {
-                if (!m_Tilemap.GetLayerYSorted(x, y, m_CurrentLayer))
+                if (!m_Tilemap.GetLayerYSortPlus(x, y, m_CurrentLayer))
                     continue;
 
                 glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x,
                                   y * tileHeight - m_CameraPosition.y);
 
-                // Cyan overlay for Y-sorted tiles
+                // Cyan overlay for Y-sort-plus tiles
                 m_Renderer->DrawColoredRect(
                     tilePos,
                     glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
@@ -496,12 +496,12 @@ void Game::RenderYSortedOverlays()
             }
             else
             {
-                // Check tile for all layers for Y-sorted flag
+                // Check tile for all layers for Y-sort-plus flag
                 int count = 0;
                 size_t layerCount = m_Tilemap.GetLayerCount();
                 for (size_t layer = 0; layer < layerCount; ++layer)
                 {
-                    if (m_Tilemap.GetLayerYSorted(x, y, layer))
+                    if (m_Tilemap.GetLayerYSortPlus(x, y, layer))
                         count++;
                 }
 
@@ -514,11 +514,77 @@ void Game::RenderYSortedOverlays()
                 // Alpha based on number of layers with flag
                 float alpha = 0.15f + (static_cast<float>(count) / static_cast<float>(layerCount)) * 0.35f;
 
-                // Cyan overlay for Y-sorted tiles
+                // Cyan overlay for Y-sort-plus tiles
                 m_Renderer->DrawColoredRect(
                     tilePos,
                     glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
                     glm::vec4(0.0f, 0.8f, 0.8f, alpha));
+            }
+        }
+    }
+}
+
+void Game::RenderYSortMinusOverlays()
+{
+    // Use same world size as main render
+    float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
+    float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
+    float worldWidth = baseWorldWidth / m_CameraZoom;
+    float worldHeight = baseWorldHeight / m_CameraZoom;
+    glm::vec2 screenSize(worldWidth, worldHeight);
+
+    int tileWidth = m_Tilemap.GetTileWidth();
+    int tileHeight = m_Tilemap.GetTileHeight();
+
+    int startX = std::max(0, (int)(m_CameraPosition.x / tileWidth) - 1);
+    int endX = std::min(m_Tilemap.GetMapWidth(), (int)((m_CameraPosition.x + screenSize.x) / tileWidth) + 1);
+    int startY = std::max(0, (int)(m_CameraPosition.y / tileHeight) - 1);
+    int endY = std::min(m_Tilemap.GetMapHeight(), (int)((m_CameraPosition.y + screenSize.y) / tileHeight) + 1);
+
+    for (int y = startY; y < endY; ++y)
+    {
+        for (int x = startX; x < endX; ++x)
+        {
+            // In Y-sort-minus edit mode, only show flags for current layer
+            if (m_YSortMinusEditMode)
+            {
+                if (!m_Tilemap.GetLayerYSortMinus(x, y, m_CurrentLayer))
+                    continue;
+
+                glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x,
+                                  y * tileHeight - m_CameraPosition.y);
+
+                // Magenta overlay for Y-sort-minus tiles
+                m_Renderer->DrawColoredRect(
+                    tilePos,
+                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec4(0.9f, 0.2f, 0.9f, 0.5f));
+            }
+            else
+            {
+                // Check tile for all layers for Y-sort-minus flag
+                int count = 0;
+                size_t layerCount = m_Tilemap.GetLayerCount();
+                for (size_t layer = 0; layer < layerCount; ++layer)
+                {
+                    if (m_Tilemap.GetLayerYSortMinus(x, y, layer))
+                        count++;
+                }
+
+                if (count == 0)
+                    continue;
+
+                glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x,
+                                  y * tileHeight - m_CameraPosition.y);
+
+                // Alpha based on number of layers with flag
+                float alpha = 0.15f + (static_cast<float>(count) / static_cast<float>(layerCount)) * 0.35f;
+
+                // Magenta overlay for Y-sort-minus tiles
+                m_Renderer->DrawColoredRect(
+                    tilePos,
+                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec4(0.9f, 0.2f, 0.9f, alpha));
             }
         }
     }

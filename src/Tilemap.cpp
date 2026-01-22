@@ -1191,7 +1191,7 @@ bool Tilemap::FindNoProjectionStructureBounds(int tileX, int tileY,
     return true;
 }
 
-bool Tilemap::GetYSorted(int x, int y, int layer) const
+bool Tilemap::GetYSortPlus(int x, int y, int layer) const
 {
     if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
         return false;
@@ -1202,10 +1202,10 @@ bool Tilemap::GetYSorted(int x, int y, int layer) const
         return false;
 
     size_t index = static_cast<size_t>(y * m_MapWidth + x);
-    return m_Layers[layerIdx].ySorted[index];
+    return m_Layers[layerIdx].ySortPlus[index];
 }
 
-void Tilemap::SetYSorted(int x, int y, bool ySorted, int layer)
+void Tilemap::SetYSortPlus(int x, int y, bool ySortPlus, int layer)
 {
     if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
         return;
@@ -1216,18 +1216,18 @@ void Tilemap::SetYSorted(int x, int y, bool ySorted, int layer)
         return;
 
     size_t index = static_cast<size_t>(y * m_MapWidth + x);
-    m_Layers[layerIdx].ySorted[index] = ySorted;
+    m_Layers[layerIdx].ySortPlus[index] = ySortPlus;
 }
 
-std::vector<Tilemap::YSortedTile> Tilemap::GetVisibleYSortedTiles(glm::vec2 cullCam, glm::vec2 cullSize) const
+std::vector<Tilemap::YSortPlusTile> Tilemap::GetVisibleYSortPlusTiles(glm::vec2 cullCam, glm::vec2 cullSize) const
 {
-    std::vector<YSortedTile> result;
+    std::vector<YSortPlusTile> result;
 
     int x0, y0, x1, y1;
     ComputeTileRange(m_MapWidth, m_MapHeight, m_TileWidth, m_TileHeight, cullCam, cullSize, x0, y0, x1, y1);
 
     // Helper to check if a tile at (x,y,layer) is Y-sorted and non-empty using dynamic layers
-    auto isYSortedTile = [this](int x, int y, size_t layerIdx) -> bool
+    auto isYSortPlusTile = [this](int x, int y, size_t layerIdx) -> bool
     {
         if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
             return false;
@@ -1235,9 +1235,9 @@ std::vector<Tilemap::YSortedTile> Tilemap::GetVisibleYSortedTiles(glm::vec2 cull
             return false;
         size_t index = static_cast<size_t>(y * m_MapWidth + x);
         const TileLayer &layer = m_Layers[layerIdx];
-        if (index >= layer.ySorted.size())
+        if (index >= layer.ySortPlus.size())
             return false;
-        if (!layer.ySorted[index])
+        if (!layer.ySortPlus[index])
             return false;
         if (layer.tiles[index] < 0)
             return false;
@@ -1254,10 +1254,10 @@ std::vector<Tilemap::YSortedTile> Tilemap::GetVisibleYSortedTiles(glm::vec2 cull
             for (int x = x0; x <= x1; ++x)
             {
                 size_t index = static_cast<size_t>(y * m_MapWidth + x);
-                if (index >= layer.ySorted.size())
+                if (index >= layer.ySortPlus.size())
                     continue;
 
-                if (!layer.ySorted[index])
+                if (!layer.ySortPlus[index])
                     continue;
 
                 // Skip empty tiles
@@ -1268,12 +1268,12 @@ std::vector<Tilemap::YSortedTile> Tilemap::GetVisibleYSortedTiles(glm::vec2 cull
                 // Find the bottom-most Y-sorted tile in this column (same x, same layer)
                 // This groups vertically stacked tiles to sort together
                 int bottomY = y;
-                while (isYSortedTile(x, bottomY + 1, layerIdx))
+                while (isYSortPlusTile(x, bottomY + 1, layerIdx))
                 {
                     bottomY++;
                 }
 
-                YSortedTile tile;
+                YSortPlusTile tile;
                 tile.x = x;
                 tile.y = y;
                 tile.layer = static_cast<int>(layerIdx); // Store dynamic layer index
@@ -1281,6 +1281,9 @@ std::vector<Tilemap::YSortedTile> Tilemap::GetVisibleYSortedTiles(glm::vec2 cull
                 tile.anchorY = static_cast<float>((bottomY + 1) * m_TileHeight);
                 // Check if this tile has no-projection flag
                 tile.noProjection = layer.noProjection[index];
+                // Use bottom tile's ySortMinus flag so entire vertical stack sorts consistently
+                size_t bottomIndex = static_cast<size_t>(bottomY * m_MapWidth + x);
+                tile.ySortMinus = layer.ySortMinus[bottomIndex];
                 result.push_back(tile);
             }
         }
@@ -1485,7 +1488,7 @@ void Tilemap::Render(IRenderer &renderer,
     const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
     const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
     const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySorted = layer.ySorted;
+    const std::vector<bool> &ySortPlus = layer.ySortPlus;
 
     // Iterate over visible tiles
     // Debug: track if we render any animated tiles (print once per second)
@@ -1502,7 +1505,8 @@ void Tilemap::Render(IRenderer &renderer,
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
 
         for (int x = x0; x <= x1; ++x)
         {
@@ -1518,7 +1522,7 @@ void Tilemap::Render(IRenderer &renderer,
                 continue;
 
             // Skip Y-sorted tiles (rendered in sorted pass with entities)
-            if (ySorted[idx])
+            if (ySortPlus[idx])
                 continue;
 
             // Check for animated tile (per-layer animation map)
@@ -1544,7 +1548,8 @@ void Tilemap::Render(IRenderer &renderer,
                 continue;
 
             // Calculate screen position
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
 
             // Calculate tileset UV coordinates directly
             const int tilesetX = (tileID % dataTilesPerRow) * tileW;
@@ -1587,7 +1592,7 @@ void Tilemap::RenderLayer2(IRenderer &renderer,
     const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
     const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
     const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySorted = layer.ySorted;
+    const std::vector<bool> &ySortPlus = layer.ySortPlus;
 
     // Debug: check for animated tiles in this layer once per second
     static float layer2Debug = 0.0f;
@@ -1599,7 +1604,8 @@ void Tilemap::RenderLayer2(IRenderer &renderer,
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
         for (int x = x0; x <= x1; ++x)
         {
             const int idx = rowOffset + x;
@@ -1608,7 +1614,7 @@ void Tilemap::RenderLayer2(IRenderer &renderer,
                 continue;
             if (noProjection[idx])
                 continue;
-            if (ySorted[idx])
+            if (ySortPlus[idx])
                 continue;
 
             // Check for animated tile (per-layer animation map)
@@ -1630,7 +1636,8 @@ void Tilemap::RenderLayer2(IRenderer &renderer,
             if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
                 continue;
 
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
             const int tilesetX = (tileID % dataTilesPerRow) * tileW;
             const int tilesetY = (tileID / dataTilesPerRow) * tileH;
             renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(tilePosX, tilePosY), tileSizeRender,
@@ -1665,12 +1672,13 @@ void Tilemap::RenderLayer3(IRenderer &renderer,
     const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
     const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
     const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySorted = layer.ySorted;
+    const std::vector<bool> &ySortPlus = layer.ySortPlus;
 
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
         for (int x = x0; x <= x1; ++x)
         {
             const int idx = rowOffset + x;
@@ -1679,7 +1687,7 @@ void Tilemap::RenderLayer3(IRenderer &renderer,
                 continue;
             if (noProjection[idx])
                 continue;
-            if (ySorted[idx])
+            if (ySortPlus[idx])
                 continue;
 
             // Check for animated tile (per-layer animation map)
@@ -1695,7 +1703,8 @@ void Tilemap::RenderLayer3(IRenderer &renderer,
             if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
                 continue;
 
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
             const int tilesetX = (tileID % dataTilesPerRow) * tileW;
             const int tilesetY = (tileID / dataTilesPerRow) * tileH;
             renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(tilePosX, tilePosY), tileSizeRender,
@@ -1730,12 +1739,13 @@ void Tilemap::RenderLayer4(IRenderer &renderer,
     const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
     const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
     const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySorted = layer.ySorted;
+    const std::vector<bool> &ySortPlus = layer.ySortPlus;
 
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
         for (int x = x0; x <= x1; ++x)
         {
             const int idx = rowOffset + x;
@@ -1744,7 +1754,7 @@ void Tilemap::RenderLayer4(IRenderer &renderer,
                 continue;
             if (noProjection[idx])
                 continue;
-            if (ySorted[idx])
+            if (ySortPlus[idx])
                 continue;
 
             // Check for animated tile (per-layer animation map)
@@ -1760,7 +1770,8 @@ void Tilemap::RenderLayer4(IRenderer &renderer,
             if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
                 continue;
 
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
             const int tilesetX = (tileID % dataTilesPerRow) * tileW;
             const int tilesetY = (tileID / dataTilesPerRow) * tileH;
             renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(tilePosX, tilePosY), tileSizeRender,
@@ -1795,12 +1806,13 @@ void Tilemap::RenderLayer5(IRenderer &renderer,
     const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
     const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
     const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySorted = layer.ySorted;
+    const std::vector<bool> &ySortPlus = layer.ySortPlus;
 
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
         for (int x = x0; x <= x1; ++x)
         {
             const int idx = rowOffset + x;
@@ -1809,7 +1821,7 @@ void Tilemap::RenderLayer5(IRenderer &renderer,
                 continue;
             if (noProjection[idx])
                 continue;
-            if (ySorted[idx])
+            if (ySortPlus[idx])
                 continue;
 
             // Check for animated tile (per-layer animation map)
@@ -1825,7 +1837,8 @@ void Tilemap::RenderLayer5(IRenderer &renderer,
             if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
                 continue;
 
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
             const int tilesetX = (tileID % dataTilesPerRow) * tileW;
             const int tilesetY = (tileID / dataTilesPerRow) * tileH;
             renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(tilePosX, tilePosY), tileSizeRender,
@@ -1860,12 +1873,13 @@ void Tilemap::RenderLayer6(IRenderer &renderer,
     const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
     const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
     const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySorted = layer.ySorted;
+    const std::vector<bool> &ySortPlus = layer.ySortPlus;
 
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
         for (int x = x0; x <= x1; ++x)
         {
             const int idx = rowOffset + x;
@@ -1874,7 +1888,7 @@ void Tilemap::RenderLayer6(IRenderer &renderer,
                 continue;
             if (noProjection[idx])
                 continue;
-            if (ySorted[idx])
+            if (ySortPlus[idx])
                 continue;
 
             // Check for animated tile (per-layer animation map)
@@ -1890,7 +1904,8 @@ void Tilemap::RenderLayer6(IRenderer &renderer,
             if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
                 continue;
 
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
             const int tilesetX = (tileID % dataTilesPerRow) * tileW;
             const int tilesetY = (tileID / dataTilesPerRow) * tileH;
             renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(tilePosX, tilePosY), tileSizeRender,
@@ -2476,18 +2491,32 @@ void Tilemap::SetLayerNoProjection(int x, int y, size_t layer, bool noProjection
     m_Layers[layer].noProjection[static_cast<size_t>(y * m_MapWidth + x)] = noProjection;
 }
 
-bool Tilemap::GetLayerYSorted(int x, int y, size_t layer) const
+bool Tilemap::GetLayerYSortPlus(int x, int y, size_t layer) const
 {
     if (layer >= m_Layers.size() || x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
         return false;
-    return m_Layers[layer].ySorted[static_cast<size_t>(y * m_MapWidth + x)];
+    return m_Layers[layer].ySortPlus[static_cast<size_t>(y * m_MapWidth + x)];
 }
 
-void Tilemap::SetLayerYSorted(int x, int y, size_t layer, bool ySorted)
+void Tilemap::SetLayerYSortPlus(int x, int y, size_t layer, bool ySortPlus)
 {
     if (layer >= m_Layers.size() || x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
         return;
-    m_Layers[layer].ySorted[static_cast<size_t>(y * m_MapWidth + x)] = ySorted;
+    m_Layers[layer].ySortPlus[static_cast<size_t>(y * m_MapWidth + x)] = ySortPlus;
+}
+
+bool Tilemap::GetLayerYSortMinus(int x, int y, size_t layer) const
+{
+    if (layer >= m_Layers.size() || x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
+        return false;
+    return m_Layers[layer].ySortMinus[static_cast<size_t>(y * m_MapWidth + x)];
+}
+
+void Tilemap::SetLayerYSortMinus(int x, int y, size_t layer, bool ySortMinus)
+{
+    if (layer >= m_Layers.size() || x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
+        return;
+    m_Layers[layer].ySortMinus[static_cast<size_t>(y * m_MapWidth + x)] = ySortMinus;
 }
 
 std::vector<size_t> Tilemap::GetLayerRenderOrder() const
@@ -2522,7 +2551,7 @@ void Tilemap::RenderLayerByIndex(IRenderer &renderer, size_t layerIndex,
             size_t idx = static_cast<size_t>(y * m_MapWidth + x);
 
             // Skip if no-projection or Y-sorted (rendered separately)
-            if (layer.noProjection[idx] || layer.ySorted[idx])
+            if (layer.noProjection[idx] || layer.ySortPlus[idx])
                 continue;
 
             int tileID = layer.tiles[idx];
@@ -2545,8 +2574,9 @@ void Tilemap::RenderLayerByIndex(IRenderer &renderer, size_t layerIndex,
             int tilesetX = (tileID % dataTilesPerRow) * m_TileWidth;
             int tilesetY = (tileID / dataTilesPerRow) * m_TileHeight;
 
-            glm::vec2 pos(static_cast<float>(x * m_TileWidth) - renderCam.x,
-                          static_cast<float>(y * m_TileHeight) - renderCam.y);
+            double posXd = static_cast<double>(x) * m_TileWidth - static_cast<double>(renderCam.x);
+            double posYd = static_cast<double>(y) * m_TileHeight - static_cast<double>(renderCam.y);
+            glm::vec2 pos(static_cast<float>(posXd), static_cast<float>(posYd));
             glm::vec2 texCoord(static_cast<float>(tilesetX), static_cast<float>(tilesetY));
             glm::vec2 texSize(static_cast<float>(m_TileWidth), static_cast<float>(m_TileHeight));
 
@@ -2593,7 +2623,7 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                     continue;
 
                 // Skip Y-sorted tiles - they're rendered in the Y-sorted pass
-                if (layer.ySorted[idx])
+                if (layer.ySortPlus[idx])
                     continue;
 
                 int tileID = layer.tiles[idx];
@@ -2643,7 +2673,7 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
         {
             size_t idx = static_cast<size_t>(y * m_MapWidth + x);
 
-            if (!layer.noProjection[idx] || layer.ySorted[idx] || processed[idx])
+            if (!layer.noProjection[idx] || layer.ySortPlus[idx] || processed[idx])
                 continue;
 
             int tileID = layer.tiles[idx];
@@ -2804,7 +2834,7 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                 size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
 
                 // Only render tiles from this layer
-                if (!layer.noProjection[tIdx] || layer.ySorted[tIdx])
+                if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
                     continue;
 
                 int tid = layer.tiles[tIdx];
@@ -2912,12 +2942,14 @@ void Tilemap::RenderBackgroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * m_TileHeight - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
 
         for (int x = x0; x <= x1; ++x)
         {
             const size_t idx = static_cast<size_t>(rowOffset + x);
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * m_TileWidth - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
 
             // Render all background layers at this position (in render order)
             for (size_t layerIdx : bgLayers)
@@ -2925,7 +2957,7 @@ void Tilemap::RenderBackgroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
                 const TileLayer &layer = m_Layers[layerIdx];
 
                 // Skip if no-projection or Y-sorted (rendered separately)
-                if (layer.noProjection[idx] || layer.ySorted[idx])
+                if (layer.noProjection[idx] || layer.ySortPlus[idx])
                     continue;
 
                 int tileID = layer.tiles[idx];
@@ -3002,12 +3034,14 @@ void Tilemap::RenderForegroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
     for (int y = y0; y <= y1; ++y)
     {
         const int rowOffset = y * mapWidth;
-        const float tilePosY = y * tileHf - renderCam.y;
+        const double tilePosYd = static_cast<double>(y) * m_TileHeight - static_cast<double>(renderCam.y);
+        const float tilePosY = static_cast<float>(tilePosYd);
 
         for (int x = x0; x <= x1; ++x)
         {
             const size_t idx = static_cast<size_t>(rowOffset + x);
-            const float tilePosX = x * tileWf - renderCam.x;
+            const double tilePosXd = static_cast<double>(x) * m_TileWidth - static_cast<double>(renderCam.x);
+            const float tilePosX = static_cast<float>(tilePosXd);
 
             // Render all foreground layers at this position (in render order)
             for (size_t layerIdx : fgLayers)
@@ -3015,7 +3049,7 @@ void Tilemap::RenderForegroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
                 const TileLayer &layer = m_Layers[layerIdx];
 
                 // Skip if no-projection or Y-sorted (rendered separately)
-                if (layer.noProjection[idx] || layer.ySorted[idx])
+                if (layer.noProjection[idx] || layer.ySortPlus[idx])
                     continue;
 
                 int tileID = layer.tiles[idx];
@@ -3098,7 +3132,7 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 {
                     const TileLayer &layer = m_Layers[layerIdx];
 
-                    if (!layer.noProjection[idx] || layer.ySorted[idx])
+                    if (!layer.noProjection[idx] || layer.ySortPlus[idx])
                         continue;
 
                     int tileID = layer.tiles[idx];
@@ -3148,7 +3182,7 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
             bool hasNoProj = false;
             for (size_t layerIdx : bgLayers)
             {
-                if (m_Layers[layerIdx].noProjection[idx] && !m_Layers[layerIdx].ySorted[idx])
+                if (m_Layers[layerIdx].noProjection[idx] && !m_Layers[layerIdx].ySortPlus[idx])
                 {
                     hasNoProj = true;
                     break;
@@ -3290,7 +3324,7 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 {
                     const TileLayer &layer = m_Layers[layerIdx];
 
-                    if (!layer.noProjection[tIdx] || layer.ySorted[tIdx])
+                    if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
                         continue;
 
                     int tid = layer.tiles[tIdx];
@@ -3403,7 +3437,7 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 {
                     const TileLayer &layer = m_Layers[layerIdx];
 
-                    if (!layer.noProjection[idx] || layer.ySorted[idx])
+                    if (!layer.noProjection[idx] || layer.ySortPlus[idx])
                         continue;
 
                     int tileID = layer.tiles[idx];
@@ -3453,7 +3487,7 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
             bool hasNoProj = false;
             for (size_t layerIdx : fgLayers)
             {
-                if (m_Layers[layerIdx].noProjection[idx] && !m_Layers[layerIdx].ySorted[idx])
+                if (m_Layers[layerIdx].noProjection[idx] && !m_Layers[layerIdx].ySortPlus[idx])
                 {
                     hasNoProj = true;
                     break;
@@ -3595,7 +3629,7 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 {
                     const TileLayer &layer = m_Layers[layerIdx];
 
-                    if (!layer.noProjection[tIdx] || layer.ySorted[tIdx])
+                    if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
                         continue;
 
                     int tid = layer.tiles[tIdx];
@@ -3973,16 +4007,27 @@ bool Tilemap::SaveMapToJSON(const std::string &filename, const std::vector<NonPl
         }
         layerJson["noProjection"] = noProjArr;
 
-        // YSorted (array of indices)
-        json ySortedArr = json::array();
-        for (size_t i = 0; i < layer.ySorted.size(); ++i)
+        // YSortPlus (array of indices)
+        json ySortPlusArr = json::array();
+        for (size_t i = 0; i < layer.ySortPlus.size(); ++i)
         {
-            if (layer.ySorted[i])
+            if (layer.ySortPlus[i])
             {
-                ySortedArr.push_back(static_cast<int>(i));
+                ySortPlusArr.push_back(static_cast<int>(i));
             }
         }
-        layerJson["ySorted"] = ySortedArr;
+        layerJson["ySortPlus"] = ySortPlusArr;
+
+        // YSortMinus (array of indices for Y-sorted tiles where player renders behind)
+        json ySortMinusArr = json::array();
+        for (size_t i = 0; i < layer.ySortMinus.size(); ++i)
+        {
+            if (layer.ySortMinus[i])
+            {
+                ySortMinusArr.push_back(static_cast<int>(i));
+            }
+        }
+        layerJson["ySortMinus"] = ySortMinusArr;
 
         dynamicLayersArray.push_back(layerJson);
     }
@@ -4353,17 +4398,37 @@ bool Tilemap::LoadMapFromJSON(const std::string &filename, std::vector<NonPlayer
                 }
             }
 
-            // Load ySorted (array of indices)
-            if (layerJson.contains("ySorted") && layerJson["ySorted"].is_array())
+            // Load ySortPlus (array of indices) - also supports legacy "ySorted" key
+            const char* ySortPlusKey = layerJson.contains("ySortPlus") ? "ySortPlus" : "ySorted";
+            if (layerJson.contains(ySortPlusKey) && layerJson[ySortPlusKey].is_array())
             {
-                for (const auto &idx : layerJson["ySorted"])
+                for (const auto &idx : layerJson[ySortPlusKey])
                 {
                     try
                     {
                         size_t index = static_cast<size_t>(idx.get<int>());
                         if (index < mapSize)
                         {
-                            layer.ySorted[index] = true;
+                            layer.ySortPlus[index] = true;
+                        }
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+
+            // Load ySortMinus (array of indices)
+            if (layerJson.contains("ySortMinus") && layerJson["ySortMinus"].is_array())
+            {
+                for (const auto &idx : layerJson["ySortMinus"])
+                {
+                    try
+                    {
+                        size_t index = static_cast<size_t>(idx.get<int>());
+                        if (index < mapSize)
+                        {
+                            layer.ySortMinus[index] = true;
                         }
                     }
                     catch (...)

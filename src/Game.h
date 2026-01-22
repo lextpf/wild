@@ -395,15 +395,22 @@ private:
     void RenderNoProjectionAnchors();
 
     /**
-     * @brief Render Y-sorted tile overlays.
-     * 
-     * Draws cyan indicators for tiles marked as Y-sorted.
+     * @brief Render Y-sort-plus tile overlays.
+     *
+     * Draws cyan indicators for tiles marked as Y-sort-plus.
      */
-    void RenderYSortedOverlays();
+    void RenderYSortPlusOverlays();
+
+    /**
+     * @brief Render Y-sort-minus tile overlays.
+     *
+     * Draws magenta indicators for tiles marked with Y-sort-minus flag.
+     */
+    void RenderYSortMinusOverlays();
 
     /**
      * @brief Render particle zone overlays.
-     * 
+     *
      * Draws indicators for tiles that are particle zones.
      */
     void RenderParticleZoneOverlays();
@@ -572,7 +579,8 @@ private:
     bool m_ElevationEditMode;                      ///< Left-click paints elevation values
     bool m_NPCPlacementMode;                       ///< Left-click places/removes NPCs
     bool m_NoProjectionEditMode;                   ///< Left-click toggles no-projection flag
-    bool m_YSortedEditMode;                        ///< Left-click toggles Y-sorted flag
+    bool m_YSortPlusEditMode;                      ///< Left-click toggles Y-sort-plus flag
+    bool m_YSortMinusEditMode;                     ///< Left-click toggles Y-sort-minus flag
     bool m_ParticleZoneEditMode;                   ///< Left-click places/removes particle zones
     ParticleType m_CurrentParticleType;            ///< Current particle type for zone placement
     bool m_ParticleNoProjection;                   ///< If true, new particle zones use no projection

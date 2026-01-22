@@ -179,7 +179,7 @@ Where:
 
 This sequence:
 1. **S** - Scale the unit quad to sprite size
-2. **T(−c)** - Translate so the center is at the origin
+2. **T(-c)** - Translate so the center is at the origin
 3. **R** - Rotate around the origin
 4. **T(c)** - Translate back
 5. **T(p)** - Translate to final position

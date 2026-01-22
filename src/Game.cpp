@@ -39,7 +39,8 @@ Game::Game()
     , m_EditNavigationMode(false)                   // Whether navigation editing mode is active
     , m_ElevationEditMode(false)                    // Whether elevation editing mode is active
     , m_NoProjectionEditMode(false)                 // Whether no-projection editing mode is active
-    , m_YSortedEditMode(false)                      // Whether Y-sorted editing mode is active
+    , m_YSortPlusEditMode(false)                    // Whether Y-sort-plus editing mode is active
+    , m_YSortMinusEditMode(false)                   // Whether Y-sort-minus editing mode is active
     , m_ParticleZoneEditMode(false)                 // Whether particle zone editing mode is active
     , m_CurrentParticleType(ParticleType::Firefly)  // Current particle type for zone creation
     , m_ParticleNoProjection(false)                 // Whether new particle zones use no projection
@@ -238,7 +239,8 @@ bool Game::Initialize()
         "assets/overworld/2b0922a6-66f8-4137-89af-45aaabc5434f.png",
         "assets/overworld/40954708-5e64-4179-8faa-3bd3068de66c.png",
         "assets/overworld/1bc8e647-5e22-4456-839a-845991ba4255.png",
-        "assets/overworld/145bb27c-c01d-44fd-b820-2f36f37673f2.png"
+        "assets/overworld/145bb27c-c01d-44fd-b820-2f36f37673f2.png",
+        "assets/overworld/6a913092-f773-4d2f-a5d7-09a8d9fbb401.png",
     };
 
     // Load tilesets from current directory first, then try parent directory.
@@ -906,15 +908,28 @@ void Game::Render()
     glm::mat4 projection = GetOrthoProjection(zoomedWidth, zoomedHeight);
     m_Renderer->SetProjection(projection);
 
-    // Calculate cull rectangle for tile visibility testing
-    // When 3D effect is enabled, we need to load more tiles because the perspective widens the view
-    // IMPORTANT: renderCam stays at m_CameraPosition (same as player/NPCs use)
-    //            cullCam/cullSize expand symmetrically to load extra tiles for the widened view
-    glm::vec2 renderCam = m_CameraPosition;
+    // Snap camera to pixel grid for rendering to avoid per-frame jitter seams (OpenGL only)
+    const glm::vec2 originalCamera = m_CameraPosition;
+    glm::vec2 renderCam = originalCamera;
     glm::vec2 renderSize(zoomedWidth, zoomedHeight);
-    glm::vec2 cullCam = m_CameraPosition;
+    glm::vec2 cullCam = originalCamera; // use unsnapped camera for visibility tests
     glm::vec2 cullSize(zoomedWidth, zoomedHeight);
+    if (m_RendererAPI == RendererAPI::OpenGL)
+    {
+        const float pixelStepX = zoomedWidth / static_cast<float>(m_ScreenWidth);
+        const float pixelStepY = zoomedHeight / static_cast<float>(m_ScreenHeight);
+        auto snapToPixel = [](float value, float step)
+        {
+            return (step > 0.0f) ? std::round(value / step) * step : value;
+        };
+        renderCam.x = snapToPixel(originalCamera.x, pixelStepX);
+        renderCam.y = snapToPixel(originalCamera.y, pixelStepY);
+    }
 
+    // Calculate cull rectangle for tile visibility testing
+    // When 3D effect is enabled, we need to load more tiles because the perspective widens the view.
+    // renderCam may be pixel-snapped (OpenGL) for drawing; cullCam/cullSize use the unsnapped
+    // camera to keep conservative tile visibility when the snap shifts by sub-pixels.
     if (m_Enable3DEffect)
     {
         // With perspective enabled, the horizon shows more world area than the
@@ -928,9 +943,12 @@ void Game::Render()
 
         // Center the expanded cull rect on the camera position
         float widthDiff = (expandedWidth - zoomedWidth) * 0.5f;
-        cullCam.x = m_CameraPosition.x - widthDiff;
+        cullCam.x = originalCamera.x - widthDiff;
         cullSize = glm::vec2(expandedWidth, expandedHeight);
     }
+
+    // Use snapped camera for rendering when OpenGL (restore at end of function)
+    m_CameraPosition = renderCam;
 
     // Render layers in order with Y-sorted tiles:
     // 1. Background layers (Ground, Ground Detail, Objects, Objects2)
@@ -947,7 +965,7 @@ void Game::Render()
     m_Tilemap.RenderBackgroundLayersNoProjection(*m_Renderer, renderCam, renderSize, cullCam, cullSize);
 
     // Collect Y-sorted tiles from all layers
-    auto ySortedTiles = m_Tilemap.GetVisibleYSortedTiles(cullCam, cullSize);
+    auto ySortPlusTiles = m_Tilemap.GetVisibleYSortPlusTiles(cullCam, cullSize);
 
     // Build unified render list for Y-sorted tiles and entities.
     // Items are sorted by Y coordinate so objects lower on screen (higher Y)
@@ -966,14 +984,14 @@ void Game::Render()
             TILE = 4           // Tiles render last/in front at same Y
         } type;
         float sortY;                       // Y coordinate for depth sorting
-        Tilemap::YSortedTile tile;         // Valid when type == TILE
+        Tilemap::YSortPlusTile tile;         // Valid when type == TILE
         const NonPlayerCharacter *npc;     // Valid when type == NPC_*
     };
     std::vector<RenderItem> renderList;
-    renderList.reserve(ySortedTiles.size() + m_NPCs.size() * 2 + 2);
+    renderList.reserve(ySortPlusTiles.size() + m_NPCs.size() * 2 + 2);
 
     // Add Y-sorted tiles (sort by bottom edge of tile)
-    for (const auto &tile : ySortedTiles)
+    for (const auto &tile : ySortPlusTiles)
     {
         RenderItem item;
         item.type = RenderItem::TILE;
@@ -1007,13 +1025,10 @@ void Game::Render()
     }
 
     // Add player.
-    // Both halves use anchor position for sorting
-    // At same Y as tile, tiebreaker puts player behind (correct for standing at base)
-    // When anchor Y > tile anchorY, player renders in front (correct for having passed tile)
+    // Both halves use anchor position for sorting.
     if (!m_EditorMode)
     {
         float playerAnchorY = m_Player.GetPosition().y; // Bottom-center point
-        // Both halves sort at anchor position
         RenderItem playerBottomItem;
         playerBottomItem.type = RenderItem::PLAYER_BOTTOM;
         playerBottomItem.sortY = playerAnchorY;
@@ -1029,15 +1044,40 @@ void Game::Render()
     }
 
     // Sort by Y coordinate ascending (lower Y = further from camera = render first).
-    // When Y values are within 1 pixel (epsilon), use type as tiebreaker:
-    // entities (player/NPC) render before tiles at the same Y, so a character
-    // standing at a tile's base appears behind it rather than clipping through.
-    std::sort(renderList.begin(), renderList.end(),
+    // - Normal tiles (Y-sort+1): use epsilon tiebreaker (tile behind, player in front at same Y)
+    // - Y-sort-1 tiles: use Y offset so tile renders in front at same Y, no tiebreaker
+    // Use stable_sort to maintain consistent ordering for equal elements
+    std::stable_sort(renderList.begin(), renderList.end(),
               [](const RenderItem &a, const RenderItem &b)
               {
+                  bool aIsYSortMinusTile = (a.type == RenderItem::TILE && a.tile.ySortMinus);
+                  bool bIsYSortMinusTile = (b.type == RenderItem::TILE && b.tile.ySortMinus);
+
+                  // If comparing a Y-sort-1 tile with an entity, use offset-based comparison
+                  // The offset makes the tile sort as if slightly lower, so it renders in front
+                  // when at the same actual Y, but behind when player has walked past
+                  bool aIsEntity = (a.type <= RenderItem::NPC_BOTTOM);
+                  bool bIsEntity = (b.type <= RenderItem::NPC_BOTTOM);
+
+                  if ((aIsYSortMinusTile && bIsEntity) || (bIsYSortMinusTile && aIsEntity))
+                  {
+                      // 2px offset below tile anchor where player still renders behind
+                      float aSortY = a.sortY + (aIsYSortMinusTile ? 2.0f : 0.0f);
+                      float bSortY = b.sortY + (bIsYSortMinusTile ? 2.0f : 0.0f);
+                      // Use epsilon for float comparison to avoid flickering
+                      if (std::abs(aSortY - bSortY) > 0.1f)
+                          return aSortY < bSortY;
+                      // Within epsilon: entity first (behind), tile second (in front)
+                      return a.type < b.type;
+                  }
+
+                  // Normal comparison with epsilon tiebreaker
                   const float epsilon = 1.0f;
                   if (std::abs(a.sortY - b.sortY) > epsilon)
                       return a.sortY < b.sortY;
+
+                  // Tiebreaker: higher type comes first (renders behind)
+                  // TILE(4) before PLAYER(0/1) = TILE renders first = TILE behind, PLAYER in front
                   return a.type > b.type;
               });
 
@@ -1128,8 +1168,10 @@ void Game::Render()
         RenderNavigationOverlays();
         // No-projection overlay (shows tiles that bypass 3D projection)
         RenderNoProjectionOverlays();
-        // Y-sorted overlay (shows tiles that sort with entities by Y position)
-        RenderYSortedOverlays();
+        // Y-sort-plus overlay (shows tiles that sort with entities by Y position)
+        RenderYSortPlusOverlays();
+        // Y-sort-minus overlay (shows Y-sort-plus tiles where player renders behind)
+        RenderYSortMinusOverlays();
     }
 
     // Render layer overlays when respective layer is selected in editor mode
@@ -1185,8 +1227,10 @@ void Game::Render()
         RenderElevationOverlays();
         // Show no-projection overlays (Orange)
         RenderNoProjectionOverlays();
-        // Show Y-sorted overlays (Cyan)
-        RenderYSortedOverlays();
+        // Show Y-sort-plus overlays (Cyan)
+        RenderYSortPlusOverlays();
+        // Show Y-sort-minus overlays (Magenta)
+        RenderYSortMinusOverlays();
         // Show particle zone overlays
         RenderParticleZoneOverlays();
         // Show NPC debug info (hitboxes, paths, targets)
@@ -1351,6 +1395,9 @@ void Game::Render()
     m_Renderer->SuspendPerspective(false);
 
     m_Renderer->EndFrame();
+
+    // Restore unsnapped camera for game state updates
+    m_CameraPosition = originalCamera;
 
     // Accumulate draw calls for averaging (calculated in Update())
     m_DrawCallAccumulator += m_Renderer->GetDrawCallCount();

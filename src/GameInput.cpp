@@ -202,7 +202,8 @@ void Game::ProcessInput(float deltaTime)
             m_NPCPlacementMode = false; // Mutually exclusive modes
             m_ElevationEditMode = false;
             m_NoProjectionEditMode = false;
-            m_YSortedEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
         }
         std::cout << "Navigation edit mode: " << (m_EditNavigationMode ? "ON" : "OFF") << std::endl;
@@ -226,7 +227,8 @@ void Game::ProcessInput(float deltaTime)
             m_EditNavigationMode = false; // Mutually exclusive modes
             m_ElevationEditMode = false;
             m_NoProjectionEditMode = false;
-            m_YSortedEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
             if (!m_AvailableNPCTypes.empty())
             {
@@ -258,7 +260,8 @@ void Game::ProcessInput(float deltaTime)
             m_EditNavigationMode = false; // Mutually exclusive modes
             m_NPCPlacementMode = false;
             m_NoProjectionEditMode = false;
-            m_YSortedEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
             std::cout << "Elevation edit mode: ON - Current elevation: " << m_CurrentElevation << " pixels" << std::endl;
             std::cout << "Use scroll wheel to adjust elevation value" << std::endl;
@@ -287,7 +290,8 @@ void Game::ProcessInput(float deltaTime)
             m_EditNavigationMode = false; // Mutually exclusive modes
             m_NPCPlacementMode = false;
             m_ElevationEditMode = false;
-            m_YSortedEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
             std::cout << "No-projection edit mode: ON (Layer " << m_CurrentLayer << ") - Click to mark tiles that bypass 3D projection" << std::endl;
             std::cout << "Use 1-6 keys to change layer" << std::endl;
@@ -303,33 +307,67 @@ void Game::ProcessInput(float deltaTime)
         bKeyPressedNoProj = false;
     }
 
-    // Toggles Y-sorted editing mode. When active:
-    //   - Left-click sets Y-sorted flag (tile sorts with entities by Y position)
-    //   - Right-click clears Y-sorted flag
+    // Toggles Y-sort-plus editing mode. When active:
+    //   - Left-click sets Y-sort-plus flag (tile sorts with entities by Y position)
+    //   - Right-click clears Y-sort-plus flag
     //   - Used for tiles that should appear in front/behind player based on Y
     static bool yKeyPressedYSort = false;
     if (m_EditorMode && glfwGetKey(m_Window, GLFW_KEY_Y) == GLFW_PRESS && !yKeyPressedYSort)
     {
-        m_YSortedEditMode = !m_YSortedEditMode;
-        if (m_YSortedEditMode)
+        m_YSortPlusEditMode = !m_YSortPlusEditMode;
+        if (m_YSortPlusEditMode)
         {
             m_EditNavigationMode = false; // Mutually exclusive modes
             m_NPCPlacementMode = false;
             m_ElevationEditMode = false;
             m_NoProjectionEditMode = false;
+            m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
-            std::cout << "Y-sorted edit mode: ON (Layer " << m_CurrentLayer << ") - Click to mark tiles for Y-sorting with entities" << std::endl;
+            std::cout << "Y-sort+1 edit mode: ON (Layer " << m_CurrentLayer << ") - Click to mark tiles for Y-sorting with entities" << std::endl;
             std::cout << "Use 1-6 keys to change layer" << std::endl;
         }
         else
         {
-            std::cout << "Y-sorted edit mode: OFF" << std::endl;
+            std::cout << "Y-sort-plus edit mode: OFF" << std::endl;
         }
         yKeyPressedYSort = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_Y) == GLFW_RELEASE)
     {
         yKeyPressedYSort = false;
+    }
+
+    // Toggles Y-sort-minus editing mode. When active:
+    //   - Left-click sets Y-sort-minus flag (tile renders in front of player at same Y)
+    //   - Right-click clears Y-sort-minus flag
+    //   - Only affects tiles that are already Y-sort-plus
+    static bool oKeyPressedYSortMinus = false;
+    if (m_EditorMode && glfwGetKey(m_Window, GLFW_KEY_O) == GLFW_PRESS && !oKeyPressedYSortMinus)
+    {
+        m_YSortMinusEditMode = !m_YSortMinusEditMode;
+        if (m_YSortMinusEditMode)
+        {
+            m_EditNavigationMode = false; // Mutually exclusive modes
+            m_NPCPlacementMode = false;
+            m_ElevationEditMode = false;
+            m_NoProjectionEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_ParticleZoneEditMode = false;
+            std::cout << "========================================" << std::endl;
+            std::cout << "Y-SORT-1 EDIT MODE: ON (Layer " << m_CurrentLayer << ")" << std::endl;
+            std::cout << "Click the BOTTOM tile of a structure to mark it" << std::endl;
+            std::cout << "(All tiles above will inherit the setting)" << std::endl;
+            std::cout << "========================================" << std::endl;
+        }
+        else
+        {
+            std::cout << "Y-sort-minus edit mode: OFF" << std::endl;
+        }
+        oKeyPressedYSortMinus = true;
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_O) == GLFW_RELEASE)
+    {
+        oKeyPressedYSortMinus = false;
     }
 
     // Toggles particle zone editing mode. When active:
@@ -346,7 +384,8 @@ void Game::ProcessInput(float deltaTime)
             m_NPCPlacementMode = false;
             m_ElevationEditMode = false;
             m_NoProjectionEditMode = false;
-            m_YSortedEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
             const char *typeNames[] = {"Firefly", "Rain", "Snow", "Fog", "Sparkles", "Wisp", "Lantern", "Sunshine"};
             std::cout << "Particle zone edit mode: ON - Type: " << typeNames[static_cast<int>(m_CurrentParticleType)] << std::endl;
             std::cout << "Click and drag to place zones, use , and . to change type" << std::endl;
@@ -420,7 +459,8 @@ void Game::ProcessInput(float deltaTime)
             m_NPCPlacementMode = false;
             m_ElevationEditMode = false;
             m_NoProjectionEditMode = false;
-            m_YSortedEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
             m_AnimationFrames.clear();
             std::cout << "Animation edit mode: ON" << std::endl;
@@ -1884,9 +1924,9 @@ void Game::ProcessMouseInput()
                 }
                 m_RightMousePressed = true;
             }
-            // Y-sorted edit mode, right-click clears Y-sorted flag for current layer
+            // Y-sort-plus edit mode, right-click clears Y-sort-plus flag for current layer
             // Shift+right-click, flood-fill to clear all connected tiles
-            else if (m_YSortedEditMode)
+            else if (m_YSortPlusEditMode)
             {
                 bool shiftHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
                                   glfwGetKey(m_Window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
@@ -1912,12 +1952,12 @@ void Game::ProcessMouseInput()
                         if (visited[idx])
                             continue;
 
-                        // Check if tile has Y-sorted flag in current layer
-                        if (!m_Tilemap.GetLayerYSorted(cx, cy, m_CurrentLayer))
+                        // Check if tile has Y-sort-plus flag in current layer
+                        if (!m_Tilemap.GetLayerYSortPlus(cx, cy, m_CurrentLayer))
                             continue;
 
                         visited[idx] = true;
-                        m_Tilemap.SetLayerYSorted(cx, cy, m_CurrentLayer, false);
+                        m_Tilemap.SetLayerYSortPlus(cx, cy, m_CurrentLayer, false);
                         count++;
 
                         stack.push_back({cx - 1, cy});
@@ -1925,12 +1965,62 @@ void Game::ProcessMouseInput()
                         stack.push_back({cx, cy - 1});
                         stack.push_back({cx, cy + 1});
                     }
-                    std::cout << "Cleared Y-sorted on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    std::cout << "Cleared Y-sort-plus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
                 }
                 else
                 {
-                    m_Tilemap.SetLayerYSorted(tileX, tileY, m_CurrentLayer, false);
-                    std::cout << "Cleared Y-sorted at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+                    m_Tilemap.SetLayerYSortPlus(tileX, tileY, m_CurrentLayer, false);
+                    std::cout << "Cleared Y-sort-plus at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+                }
+                m_RightMousePressed = true;
+            }
+            // Y-sort-minus edit mode, right-click clears Y-sort-minus flag for current layer
+            // Shift+right-click, flood-fill to clear all connected tiles
+            else if (m_YSortMinusEditMode)
+            {
+                bool shiftHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                                  glfwGetKey(m_Window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+
+                if (shiftHeld)
+                {
+                    int mapWidth = m_Tilemap.GetMapWidth();
+                    int mapHeight = m_Tilemap.GetMapHeight();
+                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
+                    std::vector<std::pair<int, int>> stack;
+                    stack.push_back({tileX, tileY});
+                    int count = 0;
+
+                    while (!stack.empty())
+                    {
+                        auto [cx, cy] = stack.back();
+                        stack.pop_back();
+
+                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
+                            continue;
+
+                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
+                        if (visited[idx])
+                            continue;
+
+                        // Check if tile has Y-sort-minus flag in current layer
+                        if (!m_Tilemap.GetLayerYSortMinus(cx, cy, m_CurrentLayer))
+                            continue;
+
+                        visited[idx] = true;
+                        m_Tilemap.SetLayerYSortMinus(cx, cy, m_CurrentLayer, false);
+                        count++;
+
+                        stack.push_back({cx - 1, cy});
+                        stack.push_back({cx + 1, cy});
+                        stack.push_back({cx, cy - 1});
+                        stack.push_back({cx, cy + 1});
+                    }
+                    std::cout << "Cleared Y-sort-minus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                }
+                else
+                {
+                    m_Tilemap.SetLayerYSortMinus(tileX, tileY, m_CurrentLayer, false);
+                    std::cout << "Cleared Y-sort-minus at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
                 }
                 m_RightMousePressed = true;
             }
@@ -2397,9 +2487,9 @@ void Game::ProcessMouseInput()
             return;
         }
 
-        // Y-sorted editing mode, set Y-sorted flag for current layer
+        // Y-sort-plus editing mode, set Y-sort-plus flag for current layer
         // Shift+click, flood-fill to mark all connected tiles in the shape
-        if (m_EditorMode && m_YSortedEditMode)
+        if (m_EditorMode && m_YSortPlusEditMode)
         {
             if (tileX >= 0 && tileX < m_Tilemap.GetMapWidth() &&
                 tileY >= 0 && tileY < m_Tilemap.GetMapHeight())
@@ -2435,7 +2525,7 @@ void Game::ProcessMouseInput()
                             continue;
 
                         visited[idx] = true;
-                        m_Tilemap.SetLayerYSorted(cx, cy, m_CurrentLayer, true);
+                        m_Tilemap.SetLayerYSortPlus(cx, cy, m_CurrentLayer, true);
                         count++;
 
                         // 4-way connectivity
@@ -2444,12 +2534,72 @@ void Game::ProcessMouseInput()
                         stack.push_back({cx, cy - 1});
                         stack.push_back({cx, cy + 1});
                     }
-                    std::cout << "Set Y-sorted on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    std::cout << "Set Y-sort-plus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
                 }
                 else
                 {
-                    m_Tilemap.SetLayerYSorted(tileX, tileY, m_CurrentLayer, true);
-                    std::cout << "Set Y-sorted at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+                    m_Tilemap.SetLayerYSortPlus(tileX, tileY, m_CurrentLayer, true);
+                    std::cout << "Set Y-sort-plus at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+                }
+            }
+            return;
+        }
+
+        // Y-sort-minus editing mode, set Y-sort-minus flag for current layer
+        // Shift+click, flood-fill to mark all connected tiles in the shape
+        if (m_EditorMode && m_YSortMinusEditMode)
+        {
+            if (tileX >= 0 && tileX < m_Tilemap.GetMapWidth() &&
+                tileY >= 0 && tileY < m_Tilemap.GetMapHeight())
+            {
+                bool shiftHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                                  glfwGetKey(m_Window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+
+                if (shiftHeld)
+                {
+                    // Flood-fill to find connected tiles with valid tile IDs
+                    int mapWidth = m_Tilemap.GetMapWidth();
+                    int mapHeight = m_Tilemap.GetMapHeight();
+                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
+                    std::vector<std::pair<int, int>> stack;
+                    stack.push_back({tileX, tileY});
+                    int count = 0;
+
+                    while (!stack.empty())
+                    {
+                        auto [cx, cy] = stack.back();
+                        stack.pop_back();
+
+                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
+                            continue;
+
+                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
+                        if (visited[idx])
+                            continue;
+
+                        // Check if tile has a valid tile ID in current layer
+                        int tid = m_Tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
+                        if (tid < 0)
+                            continue;
+
+                        visited[idx] = true;
+                        m_Tilemap.SetLayerYSortMinus(cx, cy, m_CurrentLayer, true);
+                        count++;
+
+                        // 4-way connectivity
+                        stack.push_back({cx - 1, cy});
+                        stack.push_back({cx + 1, cy});
+                        stack.push_back({cx, cy - 1});
+                        stack.push_back({cx, cy + 1});
+                    }
+                    std::cout << "Set Y-sort-minus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                }
+                else
+                {
+                    m_Tilemap.SetLayerYSortMinus(tileX, tileY, m_CurrentLayer, true);
+                    bool isYSortPlus = m_Tilemap.GetLayerYSortPlus(tileX, tileY, m_CurrentLayer);
+                    std::cout << "Set Y-sort-minus at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1);
+                    std::cout << " (Y-sort-plus: " << (isYSortPlus ? "YES" : "NO - tile must also be Y-sort-plus!") << ")" << std::endl;
                 }
             }
             return;
