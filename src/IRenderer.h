@@ -1,10 +1,16 @@
 #pragma once
 
+#include "Texture.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
 #include <string>
 #include <cmath>
-#include "Texture.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 /**
  * @class IRenderer
@@ -443,6 +449,38 @@ public:
         }
 
         return glm::vec2(static_cast<float>(resultX), static_cast<float>(resultY));
+    }
+
+    /**
+     * @brief Check if a screen-space point is behind the visible sphere edge.
+     *
+     * When globe/fisheye projection is enabled, points beyond the sphere's
+     * visible edge (90 degrees from center) are on the "back" of the sphere
+     * and should not be rendered.
+     *
+     * @param p Screen-space position (world position minus camera).
+     * @return true if the point is behind the sphere and should be culled.
+     */
+    bool IsPointBehindSphere(const glm::vec2& p) const
+    {
+        PerspectiveState s = GetPerspectiveState();
+        if (!s.enabled) return false;
+
+        bool hasGlobe = (s.mode == ProjectionMode::Globe || s.mode == ProjectionMode::Fisheye);
+        if (!hasGlobe) return false;
+
+        double centerX = static_cast<double>(s.viewWidth) * 0.5;
+        double centerY = static_cast<double>(s.viewHeight) * 0.5;
+        double R = static_cast<double>(s.sphereRadius);
+
+        double dx = static_cast<double>(p.x) - centerX;
+        double dy = static_cast<double>(p.y) - centerY;
+        double d = std::sqrt(dx * dx + dy * dy);
+
+        // Visible edge of sphere is at d = R * pi/2 (90 degrees from center)
+        // Points beyond this are on the back of the sphere
+        constexpr double halfPi = M_PI * 0.5;
+        return d > R * halfPi;
     }
 
     /**

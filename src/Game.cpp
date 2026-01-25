@@ -953,7 +953,9 @@ void Game::Render()
 
         // Center the expanded cull rect on the camera position
         float widthDiff = (expandedWidth - zoomedWidth) * 0.5f;
+        float heightDiff = (expandedHeight - zoomedHeight) * 0.5f;
         cullCam.x = originalCamera.x - widthDiff;
+        cullCam.y = originalCamera.y - heightDiff;
         cullSize = glm::vec2(expandedWidth, expandedHeight);
     }
 
@@ -997,12 +999,25 @@ void Game::Render()
         Tilemap::YSortPlusTile tile;         // Valid when type == TILE
         const NonPlayerCharacter *npc;     // Valid when type == NPC_*
     };
-    std::vector<RenderItem> renderList;
-    renderList.reserve(ySortPlusTiles.size() + m_NPCs.size() * 2 + 2);
+    // Reuse static vector to avoid allocation every frame
+    static std::vector<RenderItem> renderList;
+    renderList.clear();
+    size_t estimatedSize = ySortPlusTiles.size() + m_NPCs.size() * 2 + 2;
+    if (renderList.capacity() < estimatedSize)
+        renderList.reserve(estimatedSize);
 
     // Add Y-sorted tiles (sort by bottom edge of tile)
+    // Skip tiles behind the sphere when full globe is visible
+    int tileW = m_Tilemap.GetTileWidth();
+    int tileH = m_Tilemap.GetTileHeight();
     for (const auto &tile : ySortPlusTiles)
     {
+        // Check if tile center is behind the sphere
+        float screenX = static_cast<float>(tile.x * tileW) - renderCam.x + tileW * 0.5f;
+        float screenY = static_cast<float>(tile.y * tileH) - renderCam.y + tileH * 0.5f;
+        if (m_Renderer->IsPointBehindSphere(glm::vec2(screenX, screenY)))
+            continue;
+
         RenderItem item;
         item.type = RenderItem::TILE;
         item.sortY = tile.anchorY;
@@ -1015,9 +1030,16 @@ void Game::Render()
     // The bottom half sorts at the character's anchor (feet) position.
     // The top half sorts slightly higher so it can appear behind tiles
     // that the character is walking past.
+    // Skip NPCs behind the sphere when full globe is visible.
     for (const auto &npc : m_NPCs)
     {
-        float anchorY = npc.GetPosition().y;
+        glm::vec2 npcPos = npc.GetPosition();
+        float screenX = npcPos.x - renderCam.x;
+        float screenY = npcPos.y - renderCam.y;
+        if (m_Renderer->IsPointBehindSphere(glm::vec2(screenX, screenY)))
+            continue;
+
+        float anchorY = npcPos.y;
         // Bottom half renders at anchor position
         RenderItem bottomItem;
         bottomItem.type = RenderItem::NPC_BOTTOM;
@@ -1036,21 +1058,28 @@ void Game::Render()
 
     // Add player.
     // Both halves use anchor position for sorting.
+    // Skip player if behind the sphere (edge case when zoomed way out).
     if (!m_EditorMode)
     {
-        float playerAnchorY = m_Player.GetPosition().y; // Bottom-center point
-        RenderItem playerBottomItem;
-        playerBottomItem.type = RenderItem::PLAYER_BOTTOM;
-        playerBottomItem.sortY = playerAnchorY;
-        playerBottomItem.tile = {};
-        playerBottomItem.npc = nullptr;
-        renderList.push_back(playerBottomItem);
-        RenderItem playerTopItem;
-        playerTopItem.type = RenderItem::PLAYER_TOP;
-        playerTopItem.sortY = playerAnchorY;
-        playerTopItem.tile = {};
-        playerTopItem.npc = nullptr;
-        renderList.push_back(playerTopItem);
+        glm::vec2 playerPos = m_Player.GetPosition();
+        float playerScreenX = playerPos.x - renderCam.x;
+        float playerScreenY = playerPos.y - renderCam.y;
+        if (!m_Renderer->IsPointBehindSphere(glm::vec2(playerScreenX, playerScreenY)))
+        {
+            float playerAnchorY = playerPos.y; // Bottom-center point
+            RenderItem playerBottomItem;
+            playerBottomItem.type = RenderItem::PLAYER_BOTTOM;
+            playerBottomItem.sortY = playerAnchorY;
+            playerBottomItem.tile = {};
+            playerBottomItem.npc = nullptr;
+            renderList.push_back(playerBottomItem);
+            RenderItem playerTopItem;
+            playerTopItem.type = RenderItem::PLAYER_TOP;
+            playerTopItem.sortY = playerAnchorY;
+            playerTopItem.tile = {};
+            playerTopItem.npc = nullptr;
+            renderList.push_back(playerTopItem);
+        }
     }
 
     // Sort by Y coordinate ascending (lower Y = further from camera = render first).

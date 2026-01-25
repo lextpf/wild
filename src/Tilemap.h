@@ -924,7 +924,7 @@ public:
      * @param cullSize Visible area size for culling.
      * @return Vector of Y-sort-plus tiles within visible range.
      */
-    std::vector<YSortPlusTile> GetVisibleYSortPlusTiles(glm::vec2 cullCam, glm::vec2 cullSize) const;
+    const std::vector<YSortPlusTile>& GetVisibleYSortPlusTiles(glm::vec2 cullCam, glm::vec2 cullSize) const;
 
     /**
      * @brief Render a single tile (for Y-sorted rendering).
@@ -1304,6 +1304,13 @@ private:
     /// @name No-Projection Structures
     /// @{
     std::vector<NoProjectionStructure> m_NoProjectionStructures;  ///< Manually defined structures with anchors
+    /// @}
+
+    /// @name Render Cache (reused each frame to avoid allocations)
+    /// @{
+    mutable std::vector<YSortPlusTile> m_YSortPlusTilesCache;  ///< Cached Y-sort tiles (reused each frame)
+    mutable std::vector<bool> m_ProcessedCache;                ///< Cached processed flags (reused each frame)
+    mutable std::vector<bool> m_RenderedStructuresCache;       ///< Cached structure flags (reused each frame)
     /// @}
 
     /**

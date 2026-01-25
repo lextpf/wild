@@ -1315,9 +1315,9 @@ void Tilemap::SetYSortPlus(int x, int y, bool ySortPlus, int layer)
     m_Layers[layerIdx].ySortPlus[index] = ySortPlus;
 }
 
-std::vector<Tilemap::YSortPlusTile> Tilemap::GetVisibleYSortPlusTiles(glm::vec2 cullCam, glm::vec2 cullSize) const
+const std::vector<Tilemap::YSortPlusTile>& Tilemap::GetVisibleYSortPlusTiles(glm::vec2 cullCam, glm::vec2 cullSize) const
 {
-    std::vector<YSortPlusTile> result;
+    m_YSortPlusTilesCache.clear();
 
     int x0, y0, x1, y1;
     ComputeTileRange(m_MapWidth, m_MapHeight, m_TileWidth, m_TileHeight, cullCam, cullSize, x0, y0, x1, y1);
@@ -1398,12 +1398,12 @@ std::vector<Tilemap::YSortPlusTile> Tilemap::GetVisibleYSortPlusTiles(glm::vec2 
                 // Use bottom tile's ySortMinus flag so entire vertical stack sorts consistently
                 size_t bottomIndex = static_cast<size_t>(bottomY * m_MapWidth + x);
                 tile.ySortMinus = layer.ySortMinus[bottomIndex];
-                result.push_back(tile);
+                m_YSortPlusTilesCache.push_back(tile);
             }
         }
     }
 
-    return result;
+    return m_YSortPlusTilesCache;
 }
 
 void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm::vec2 cameraPos, int useNoProjection)
@@ -1475,6 +1475,12 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
             {
                 // Use structure-based rendering (same as RenderLayerNoProjection)
                 const NoProjectionStructure& structDef = m_NoProjectionStructures[structId];
+
+                // Check if structure anchor is behind the sphere
+                float anchorCenterX = (structDef.leftAnchor.x + structDef.rightAnchor.x) * 0.5f - cameraPos.x;
+                float anchorCenterY = std::max(structDef.leftAnchor.y, structDef.rightAnchor.y) - cameraPos.y;
+                if (renderer.IsPointBehindSphere(glm::vec2(anchorCenterX, anchorCenterY)))
+                    return;
 
                 // Find structure bounds by scanning for tiles with same structId
                 int minX = x, maxX = x, minY = y, maxY = y;
@@ -2796,11 +2802,14 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
     // Only tiles with structureId >= 0 are rendered (using defined structure anchors)
     // Tiles with structureId == -1 are skipped (must be assigned to a structure)
 
-    // Track which tiles have been processed
-    std::vector<bool> processed(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
+    // Track which tiles have been processed (reuse member vector to avoid allocation)
+    size_t mapSize = static_cast<size_t>(m_MapWidth * m_MapHeight);
+    m_ProcessedCache.assign(mapSize, false);
+    auto& processed = m_ProcessedCache;
 
-    // Track which defined structures have been rendered
-    std::vector<bool> renderedStructures(m_NoProjectionStructures.size(), false);
+    // Track which defined structures have been rendered (reuse member vector)
+    m_RenderedStructuresCache.assign(m_NoProjectionStructures.size(), false);
+    auto& renderedStructures = m_RenderedStructuresCache;
 
     // Tile size
     float tileWf = static_cast<float>(m_TileWidth);
@@ -2838,6 +2847,15 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
 
                 // Use defined structure with manual anchors
                 const NoProjectionStructure& structDef = m_NoProjectionStructures[structId];
+
+                // Check if structure anchor is behind the sphere
+                float anchorCenterX = (structDef.leftAnchor.x + structDef.rightAnchor.x) * 0.5f - renderCam.x;
+                float anchorCenterY = std::max(structDef.leftAnchor.y, structDef.rightAnchor.y) - renderCam.y;
+                if (renderer.IsPointBehindSphere(glm::vec2(anchorCenterX, anchorCenterY)))
+                {
+                    processed[idx] = true;
+                    continue;
+                }
 
                 // Collect all tiles belonging to this structure (across all layers at this layer index)
                 std::vector<std::pair<int, int>> structureTiles;
@@ -3041,6 +3059,11 @@ void Tilemap::RenderBackgroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
             const double tilePosXd = static_cast<double>(x) * m_TileWidth - static_cast<double>(renderCam.x);
             const float tilePosX = static_cast<float>(tilePosXd);
 
+            // Skip tiles behind the sphere (when full globe is visible)
+            glm::vec2 tileCenter(tilePosX + tileWf * 0.5f, tilePosY + tileHf * 0.5f);
+            if (renderer.IsPointBehindSphere(tileCenter))
+                continue;
+
             // Render all background layers at this position (in render order)
             for (size_t layerIdx : bgLayers)
             {
@@ -3136,6 +3159,11 @@ void Tilemap::RenderForegroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
             const size_t idx = static_cast<size_t>(rowOffset + x);
             const double tilePosXd = static_cast<double>(x) * m_TileWidth - static_cast<double>(renderCam.x);
             const float tilePosX = static_cast<float>(tilePosXd);
+
+            // Skip tiles behind the sphere (when full globe is visible)
+            glm::vec2 tileCenter(tilePosX + tileWf * 0.5f, tilePosY + tileHf * 0.5f);
+            if (renderer.IsPointBehindSphere(tileCenter))
+                continue;
 
             // Render all foreground layers at this position (in render order)
             for (size_t layerIdx : fgLayers)
@@ -3267,8 +3295,12 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
     }
 
     // 3D mode: structure-based rendering with shared processed array
-    std::vector<bool> processed(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
-    std::vector<bool> renderedStructures(m_NoProjectionStructures.size(), false);
+    // Reuse member vectors to avoid allocation
+    size_t mapSize = static_cast<size_t>(m_MapWidth * m_MapHeight);
+    m_ProcessedCache.assign(mapSize, false);
+    auto& processed = m_ProcessedCache;
+    m_RenderedStructuresCache.assign(m_NoProjectionStructures.size(), false);
+    auto& renderedStructures = m_RenderedStructuresCache;
 
     for (int y = y0; y <= y1; ++y)
     {
@@ -3310,6 +3342,15 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
                 // Use defined structure with manual anchors
                 const NoProjectionStructure& structDef = m_NoProjectionStructures[foundStructId];
+
+                // Check if structure anchor is behind the sphere
+                float anchorCenterX = (structDef.leftAnchor.x + structDef.rightAnchor.x) * 0.5f - renderCam.x;
+                float anchorCenterY = std::max(structDef.leftAnchor.y, structDef.rightAnchor.y) - renderCam.y;
+                if (renderer.IsPointBehindSphere(glm::vec2(anchorCenterX, anchorCenterY)))
+                {
+                    processed[idx] = true;
+                    continue;
+                }
 
                 // Collect all tiles belonging to this structure
                 std::vector<std::pair<int, int>> structureTiles;
@@ -3551,8 +3592,12 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
     }
 
     // 3D mode: structure-based rendering with shared processed array
-    std::vector<bool> processed(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
-    std::vector<bool> renderedStructures(m_NoProjectionStructures.size(), false);
+    // Reuse member vectors to avoid allocation
+    size_t mapSize = static_cast<size_t>(m_MapWidth * m_MapHeight);
+    m_ProcessedCache.assign(mapSize, false);
+    auto& processed = m_ProcessedCache;
+    m_RenderedStructuresCache.assign(m_NoProjectionStructures.size(), false);
+    auto& renderedStructures = m_RenderedStructuresCache;
 
     for (int y = y0; y <= y1; ++y)
     {
@@ -3591,6 +3636,15 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 renderedStructures[foundStructId] = true;
 
                 const NoProjectionStructure& structDef = m_NoProjectionStructures[foundStructId];
+
+                // Check if structure anchor is behind the sphere
+                float anchorCenterX = (structDef.leftAnchor.x + structDef.rightAnchor.x) * 0.5f - renderCam.x;
+                float anchorCenterY = std::max(structDef.leftAnchor.y, structDef.rightAnchor.y) - renderCam.y;
+                if (renderer.IsPointBehindSphere(glm::vec2(anchorCenterX, anchorCenterY)))
+                {
+                    processed[idx] = true;
+                    continue;
+                }
 
                 std::vector<std::pair<int, int>> structureTiles;
                 int minX = INT_MAX, maxX = INT_MIN, minY = INT_MAX, maxY = INT_MIN;
