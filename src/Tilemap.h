@@ -31,6 +31,27 @@ struct Tile
 };
 
 /**
+ * @struct NoProjectionStructure
+ * @brief Defines a no-projection structure with manually placed anchors.
+ * @author Alex (https://github.com/lextpf)
+ *
+ * Structures are groups of tiles that bypass 3D projection. Instead of
+ * automatic flood-fill detection, structures are manually defined with
+ * explicit anchor positions for precise alignment control.
+ */
+struct NoProjectionStructure
+{
+    int id;                      ///< Unique structure ID (0+)
+    std::string name;            ///< Optional name for editor display
+    glm::vec2 leftAnchor;        ///< Left anchor world position (click corner of tile)
+    glm::vec2 rightAnchor;       ///< Right anchor world position (click corner of tile)
+
+    NoProjectionStructure() : id(-1), leftAnchor(-1.0f, -1.0f), rightAnchor(-1.0f, -1.0f) {}
+    NoProjectionStructure(int structId, glm::vec2 left, glm::vec2 right, const std::string& n = "")
+        : id(structId), name(n), leftAnchor(left), rightAnchor(right) {}
+};
+
+/**
  * @struct TileLayer
  * @brief Represents a single tile layer with all associated data.
  * @author Alex (https://github.com/lextpf)
@@ -44,6 +65,7 @@ struct TileLayer
     std::vector<int> tiles;            ///< Tile IDs in row-major order (-1 or 0 = empty)
     std::vector<float> rotation;       ///< Rotation in degrees per tile
     std::vector<bool> noProjection;    ///< Tiles that bypass 3D projection
+    std::vector<int> structureId;      ///< Per-tile structure ID (-1 = auto flood-fill, 0+ = belongs to structure)
     std::vector<bool> ySortPlus;       ///< Tiles that sort with entities by Y position (Y-sort+1: player in front at same Y)
     std::vector<bool> ySortMinus;      ///< When true, player renders behind tile at same Y (Y-sort-1: tile in front)
     std::vector<int> animationMap;     ///< Per-tile animation ID (-1 = not animated)
@@ -58,6 +80,7 @@ struct TileLayer
         tiles.resize(size, -1);
         rotation.resize(size, 0.0f);
         noProjection.resize(size, false);
+        structureId.resize(size, -1);
         ySortPlus.resize(size, false);
         ySortMinus.resize(size, false);
         animationMap.resize(size, -1);
@@ -67,6 +90,7 @@ struct TileLayer
         std::fill(tiles.begin(), tiles.end(), -1);
         std::fill(rotation.begin(), rotation.end(), 0.0f);
         std::fill(noProjection.begin(), noProjection.end(), false);
+        std::fill(structureId.begin(), structureId.end(), -1);
         std::fill(ySortPlus.begin(), ySortPlus.end(), false);
         std::fill(ySortMinus.begin(), ySortMinus.end(), false);
         std::fill(animationMap.begin(), animationMap.end(), -1);
@@ -133,8 +157,8 @@ struct AnimatedTile
  *              Layer 0 Ground       <- Bottom (back)
  * @endcode
  *
- * This ordering allows characters to walk behind foreground layers (4-7)
- * while appearing in front of background layers (0-3).
+ * This ordering allows characters to walk behind foreground layers (5-9)
+ * while appearing in front of background layers (0-4).
  * 
  * @par Tile ID System
  * Tile IDs map directly to tileset positions:
@@ -368,7 +392,7 @@ public:
     /** @} */
 
     /**
-     * @name Foreground Layer (Index 4)
+     * @name Foreground Layer (Index 5)
      * @brief First foreground layer, rendered above NPCs/player.
      * Useful for tree tops, awnings, and overhangs.
      * @{
@@ -380,7 +404,7 @@ public:
     /** @} */
 
     /**
-     * @name Foreground2 Layer (Index 5)
+     * @name Foreground2 Layer (Index 6)
      * @brief Second foreground layer, rendered above Foreground.
      * Useful for rooftops and tall structures.
      * @{
@@ -747,6 +771,74 @@ public:
     bool FindNoProjectionStructureBounds(int tileX, int tileY,
                                          int& outMinX, int& outMaxX,
                                          int& outMinY, int& outMaxY) const;
+
+    /**
+     * @brief Add a new no-projection structure definition.
+     * @param leftAnchor Left anchor world position (corner of tile).
+     * @param rightAnchor Right anchor world position (corner of tile).
+     * @param name Optional name for editor display.
+     * @return The structure ID.
+     */
+    int AddNoProjectionStructure(glm::vec2 leftAnchor, glm::vec2 rightAnchor, const std::string& name = "");
+
+    /**
+     * @brief Get a no-projection structure by ID.
+     * @param id Structure ID.
+     * @return Pointer to structure, or nullptr if invalid ID.
+     */
+    const NoProjectionStructure* GetNoProjectionStructure(int id) const;
+
+    /**
+     * @brief Get mutable no-projection structure by ID.
+     * @param id Structure ID.
+     * @return Pointer to structure, or nullptr if invalid ID.
+     */
+    NoProjectionStructure* GetNoProjectionStructureMutable(int id);
+
+    /**
+     * @brief Get all no-projection structures.
+     * @return Const reference to structures vector.
+     */
+    const std::vector<NoProjectionStructure>& GetNoProjectionStructures() const { return m_NoProjectionStructures; }
+
+    /**
+     * @brief Remove a no-projection structure by ID.
+     *
+     * Also clears structureId from all tiles that referenced this structure.
+     * @param id Structure ID to remove.
+     */
+    void RemoveNoProjectionStructure(int id);
+
+    /**
+     * @brief Clear all no-projection structures.
+     *
+     * Also clears all structureId assignments from tiles.
+     */
+    void ClearNoProjectionStructures();
+
+    /**
+     * @brief Get the structure ID assigned to a tile.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index.
+     * @return Structure ID (-1 = auto flood-fill, 0+ = belongs to structure).
+     */
+    int GetTileStructureId(int x, int y, int layer) const;
+
+    /**
+     * @brief Assign a tile to a structure.
+     * @param x Tile X coordinate.
+     * @param y Tile Y coordinate.
+     * @param layer Layer index.
+     * @param structId Structure ID (-1 = auto flood-fill, 0+ = belongs to structure).
+     */
+    void SetTileStructureId(int x, int y, int layer, int structId);
+
+    /**
+     * @brief Get the number of no-projection structures.
+     * @return Number of structures.
+     */
+    size_t GetNoProjectionStructureCount() const { return m_NoProjectionStructures.size(); }
     /** @} */
 
     /**
@@ -1207,6 +1299,11 @@ private:
     std::vector<AnimatedTile> m_AnimatedTiles;  ///< Animation definitions
     std::vector<int> m_TileAnimationMap;        ///< Per-tile animation ID (-1 = not animated)
     float m_AnimationTime;                      ///< Global animation timer
+    /// @}
+
+    /// @name No-Projection Structures
+    /// @{
+    std::vector<NoProjectionStructure> m_NoProjectionStructures;  ///< Manually defined structures with anchors
     /// @}
 
     /**

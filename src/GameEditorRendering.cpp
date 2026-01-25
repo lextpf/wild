@@ -456,6 +456,163 @@ void Game::RenderNoProjectionAnchors()
                 anchorColor);
         }
     }
+
+    // Draw manually defined structure anchors (cyan to distinguish from auto-detected green)
+    const auto& structures = m_Tilemap.GetNoProjectionStructures();
+    float defMarkerSize = 6.0f;
+    glm::vec4 definedAnchorColor(0.0f, 1.0f, 1.0f, 1.0f);  // Cyan
+    for (const auto& s : structures)
+    {
+        // Screen-space positions from world coordinates
+        glm::vec2 screenLeft(s.leftAnchor.x - m_CameraPosition.x,
+                             s.leftAnchor.y - m_CameraPosition.y);
+        glm::vec2 screenRight(s.rightAnchor.x - m_CameraPosition.x,
+                              s.rightAnchor.y - m_CameraPosition.y);
+
+        // In 3D mode, project through perspective
+        glm::vec2 anchorLeft = is3DMode ? m_Renderer->ProjectPoint(screenLeft) : screenLeft;
+        glm::vec2 anchorRight = is3DMode ? m_Renderer->ProjectPoint(screenRight) : screenRight;
+
+        // Left anchor cross
+        m_Renderer->DrawColoredRect(
+            glm::vec2(anchorLeft.x - defMarkerSize, anchorLeft.y - 1.0f),
+            glm::vec2(defMarkerSize * 2.0f, 2.0f),
+            definedAnchorColor);
+        m_Renderer->DrawColoredRect(
+            glm::vec2(anchorLeft.x - 1.0f, anchorLeft.y - defMarkerSize),
+            glm::vec2(2.0f, defMarkerSize * 2.0f),
+            definedAnchorColor);
+
+        // Right anchor cross
+        m_Renderer->DrawColoredRect(
+            glm::vec2(anchorRight.x - defMarkerSize, anchorRight.y - 1.0f),
+            glm::vec2(defMarkerSize * 2.0f, 2.0f),
+            definedAnchorColor);
+        m_Renderer->DrawColoredRect(
+            glm::vec2(anchorRight.x - 1.0f, anchorRight.y - defMarkerSize),
+            glm::vec2(2.0f, defMarkerSize * 2.0f),
+            definedAnchorColor);
+
+        // Connecting line between anchors
+        float lineY = (anchorLeft.y + anchorRight.y) * 0.5f;
+        m_Renderer->DrawColoredRect(
+            glm::vec2(anchorLeft.x, lineY - 1.0f),
+            glm::vec2(anchorRight.x - anchorLeft.x, 2.0f),
+            glm::vec4(0.0f, 1.0f, 1.0f, 0.5f));
+    }
+}
+
+void Game::RenderStructureOverlays()
+{
+    if (!m_StructureEditMode)
+        return;
+
+    int tileWidth = m_Tilemap.GetTileWidth();
+    int tileHeight = m_Tilemap.GetTileHeight();
+    int mapWidth = m_Tilemap.GetMapWidth();
+    int mapHeight = m_Tilemap.GetMapHeight();
+
+    // Use same world size as main render
+    float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * tileWidth);
+    float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * tileHeight);
+    float worldWidth = baseWorldWidth / m_CameraZoom;
+    float worldHeight = baseWorldHeight / m_CameraZoom;
+    glm::vec2 screenSize(worldWidth, worldHeight);
+
+    int startX = std::max(0, (int)(m_CameraPosition.x / tileWidth) - 1);
+    int endX = std::min(mapWidth, (int)((m_CameraPosition.x + screenSize.x) / tileWidth) + 1);
+    int startY = std::max(0, (int)(m_CameraPosition.y / tileHeight) - 1);
+    int endY = std::min(mapHeight, (int)((m_CameraPosition.y + screenSize.y) / tileHeight) + 1);
+
+    // Draw tiles assigned to structures with purple overlay
+    for (int y = startY; y < endY; ++y)
+    {
+        for (int x = startX; x < endX; ++x)
+        {
+            int structId = m_Tilemap.GetTileStructureId(x, y, m_CurrentLayer + 1);
+            if (structId >= 0)
+            {
+                glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x,
+                                  y * tileHeight - m_CameraPosition.y);
+
+                // Purple overlay for tiles assigned to structures
+                // Highlight current structure in brighter purple
+                float alpha = (structId == m_CurrentStructureId) ? 0.6f : 0.3f;
+                m_Renderer->DrawColoredRect(
+                    tilePos,
+                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec4(0.7f, 0.2f, 0.9f, alpha));
+            }
+        }
+    }
+
+    // Draw defined structure anchors (same style as debug overlay)
+    // Anchors are stored in world coordinates
+    float markerSize = 6.0f;
+    const auto& structures = m_Tilemap.GetNoProjectionStructures();
+    for (const auto& s : structures)
+    {
+        glm::vec2 leftPos(s.leftAnchor.x - m_CameraPosition.x,
+                          s.leftAnchor.y - m_CameraPosition.y);
+        glm::vec2 rightPos(s.rightAnchor.x - m_CameraPosition.x,
+                           s.rightAnchor.y - m_CameraPosition.y);
+
+        // Green for normal, cyan for selected structure
+        glm::vec4 anchorColor = (s.id == m_CurrentStructureId) ?
+            glm::vec4(0.0f, 1.0f, 1.0f, 1.0f) : glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+        // Left anchor cross
+        m_Renderer->DrawColoredRect(
+            glm::vec2(leftPos.x - markerSize, leftPos.y - 1.0f),
+            glm::vec2(markerSize * 2.0f, 2.0f), anchorColor);
+        m_Renderer->DrawColoredRect(
+            glm::vec2(leftPos.x - 1.0f, leftPos.y - markerSize),
+            glm::vec2(2.0f, markerSize * 2.0f), anchorColor);
+
+        // Right anchor cross
+        m_Renderer->DrawColoredRect(
+            glm::vec2(rightPos.x - markerSize, rightPos.y - 1.0f),
+            glm::vec2(markerSize * 2.0f, 2.0f), anchorColor);
+        m_Renderer->DrawColoredRect(
+            glm::vec2(rightPos.x - 1.0f, rightPos.y - markerSize),
+            glm::vec2(2.0f, markerSize * 2.0f), anchorColor);
+
+        // Draw connecting line between anchors
+        float lineY = (leftPos.y + rightPos.y) * 0.5f;
+        m_Renderer->DrawColoredRect(
+            glm::vec2(leftPos.x, lineY - 1.0f),
+            glm::vec2(rightPos.x - leftPos.x, 2.0f),
+            glm::vec4(anchorColor.r, anchorColor.g, anchorColor.b, 0.5f));
+    }
+
+    // Draw temporary anchors being placed (yellow, same style)
+    if (m_TempLeftAnchor.x >= 0)
+    {
+        glm::vec2 pos(m_TempLeftAnchor.x - m_CameraPosition.x,
+                      m_TempLeftAnchor.y - m_CameraPosition.y);
+        glm::vec4 color(1.0f, 1.0f, 0.0f, 1.0f);  // Yellow
+
+        m_Renderer->DrawColoredRect(
+            glm::vec2(pos.x - markerSize, pos.y - 1.0f),
+            glm::vec2(markerSize * 2.0f, 2.0f), color);
+        m_Renderer->DrawColoredRect(
+            glm::vec2(pos.x - 1.0f, pos.y - markerSize),
+            glm::vec2(2.0f, markerSize * 2.0f), color);
+    }
+
+    if (m_TempRightAnchor.x >= 0)
+    {
+        glm::vec2 pos(m_TempRightAnchor.x - m_CameraPosition.x,
+                      m_TempRightAnchor.y - m_CameraPosition.y);
+        glm::vec4 color(1.0f, 0.8f, 0.0f, 1.0f);  // Orange-yellow
+
+        m_Renderer->DrawColoredRect(
+            glm::vec2(pos.x - markerSize, pos.y - 1.0f),
+            glm::vec2(markerSize * 2.0f, 2.0f), color);
+        m_Renderer->DrawColoredRect(
+            glm::vec2(pos.x - 1.0f, pos.y - markerSize),
+            glm::vec2(2.0f, markerSize * 2.0f), color);
+    }
 }
 
 void Game::RenderYSortPlusOverlays()
@@ -1040,7 +1197,7 @@ void Game::RenderLayer4Overlays()
 
 void Game::RenderLayer5Overlays()
 {
-    // Render orange transparent overlays on layer 5 tiles
+    // Render orange transparent overlays on Objects3 tiles (layer 4)
     float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
     float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
     float worldWidth = baseWorldWidth / m_CameraZoom;
@@ -1061,14 +1218,14 @@ void Game::RenderLayer5Overlays()
     {
         for (int x = startX; x < endX; ++x)
         {
-            int tileID = m_Tilemap.GetTile5(x, y);
+            int tileID = m_Tilemap.GetLayerTile(x, y, 4);
             if (tileID >= 0)
             {
                 // Calculate tile position in screen space
                 glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x, y * tileHeight - m_CameraPosition.y);
 
                 // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Orange overlay (Foreground - Layer 4)
+                // Orange overlay (Objects3 - Layer 4)
                 m_Renderer->DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
                                             glm::vec4(1.0f, 0.5f, 0.0f, 0.4f));
             }
@@ -1078,7 +1235,7 @@ void Game::RenderLayer5Overlays()
 
 void Game::RenderLayer6Overlays()
 {
-    // Render yellow transparent overlays on layer 6 tiles
+    // Render yellow transparent overlays on Foreground tiles (layer 5)
     float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
     float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
     float worldWidth = baseWorldWidth / m_CameraZoom;
@@ -1099,14 +1256,14 @@ void Game::RenderLayer6Overlays()
     {
         for (int x = startX; x < endX; ++x)
         {
-            int tileID = m_Tilemap.GetTile6(x, y);
+            int tileID = m_Tilemap.GetLayerTile(x, y, 5);
             if (tileID >= 0)
             {
                 // Calculate tile position in screen space
                 glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x, y * tileHeight - m_CameraPosition.y);
 
                 // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Yellow overlay (Foreground2 - Layer 5)
+                // Yellow overlay (Foreground - Layer 5)
                 m_Renderer->DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
                                             glm::vec4(1.0f, 1.0f, 0.2f, 0.4f));
             }
@@ -1116,7 +1273,7 @@ void Game::RenderLayer6Overlays()
 
 void Game::RenderLayer7Overlays()
 {
-    // Render cyan transparent overlays on layer 7 tiles
+    // Render cyan transparent overlays on Foreground2 tiles (layer 6)
     float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
     float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
     float worldWidth = baseWorldWidth / m_CameraZoom;
@@ -1139,7 +1296,7 @@ void Game::RenderLayer7Overlays()
             if (tileID >= 0)
             {
                 glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x, y * tileHeight - m_CameraPosition.y);
-                // Cyan overlay (Overlay - Layer 6)
+                // Cyan overlay (Foreground2 - Layer 6)
                 m_Renderer->DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
                                             glm::vec4(0.2f, 1.0f, 1.0f, 0.4f));
             }
@@ -1149,7 +1306,7 @@ void Game::RenderLayer7Overlays()
 
 void Game::RenderLayer8Overlays()
 {
-    // Render red transparent overlays on layer 8 tiles
+    // Render red transparent overlays on Overlay tiles (layer 7)
     float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
     float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
     float worldWidth = baseWorldWidth / m_CameraZoom;
@@ -1172,9 +1329,75 @@ void Game::RenderLayer8Overlays()
             if (tileID >= 0)
             {
                 glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x, y * tileHeight - m_CameraPosition.y);
-                // Red overlay (Overlay2 - Layer 7)
+                // Red overlay (Overlay - Layer 7)
                 m_Renderer->DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
                                             glm::vec4(1.0f, 0.3f, 0.3f, 0.4f));
+            }
+        }
+    }
+}
+
+void Game::RenderLayer9Overlays()
+{
+    // Render magenta transparent overlays on Overlay2 tiles (layer 8)
+    float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
+    float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
+    float worldWidth = baseWorldWidth / m_CameraZoom;
+    float worldHeight = baseWorldHeight / m_CameraZoom;
+    glm::vec2 screenSize(worldWidth, worldHeight);
+
+    int tileWidth = m_Tilemap.GetTileWidth();
+    int tileHeight = m_Tilemap.GetTileHeight();
+
+    int startX = std::max(0, (int)(m_CameraPosition.x / tileWidth) - 1);
+    int endX = std::min(m_Tilemap.GetMapWidth(), (int)((m_CameraPosition.x + screenSize.x) / tileWidth) + 1);
+    int startY = std::max(0, (int)(m_CameraPosition.y / tileHeight) - 1);
+    int endY = std::min(m_Tilemap.GetMapHeight(), (int)((m_CameraPosition.y + screenSize.y) / tileHeight) + 1);
+
+    for (int y = startY; y < endY; ++y)
+    {
+        for (int x = startX; x < endX; ++x)
+        {
+            int tileID = m_Tilemap.GetLayerTile(x, y, 8);
+            if (tileID >= 0)
+            {
+                glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x, y * tileHeight - m_CameraPosition.y);
+                // Magenta overlay (Overlay2 - Layer 8)
+                m_Renderer->DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                                            glm::vec4(1.0f, 0.3f, 1.0f, 0.4f));
+            }
+        }
+    }
+}
+
+void Game::RenderLayer10Overlays()
+{
+    // Render white transparent overlays on Overlay3 tiles (layer 9)
+    float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
+    float baseWorldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
+    float worldWidth = baseWorldWidth / m_CameraZoom;
+    float worldHeight = baseWorldHeight / m_CameraZoom;
+    glm::vec2 screenSize(worldWidth, worldHeight);
+
+    int tileWidth = m_Tilemap.GetTileWidth();
+    int tileHeight = m_Tilemap.GetTileHeight();
+
+    int startX = std::max(0, (int)(m_CameraPosition.x / tileWidth) - 1);
+    int endX = std::min(m_Tilemap.GetMapWidth(), (int)((m_CameraPosition.x + screenSize.x) / tileWidth) + 1);
+    int startY = std::max(0, (int)(m_CameraPosition.y / tileHeight) - 1);
+    int endY = std::min(m_Tilemap.GetMapHeight(), (int)((m_CameraPosition.y + screenSize.y) / tileHeight) + 1);
+
+    for (int y = startY; y < endY; ++y)
+    {
+        for (int x = startX; x < endX; ++x)
+        {
+            int tileID = m_Tilemap.GetLayerTile(x, y, 9);
+            if (tileID >= 0)
+            {
+                glm::vec2 tilePos(x * tileWidth - m_CameraPosition.x, y * tileHeight - m_CameraPosition.y);
+                // White overlay (Overlay3 - Layer 9)
+                m_Renderer->DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                                            glm::vec4(1.0f, 1.0f, 1.0f, 0.4f));
             }
         }
     }

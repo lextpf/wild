@@ -658,8 +658,8 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
         bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
                                m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
 
-        // Globe effect: wrap positions around a sphere, creating barrel distortion
-        // Objects near edges curve inward as if projected onto a globe surface
+        // Globe effect: project positions onto a sphere using true spherical math
+        // Points radiate from center uniformly on the sphere surface
         if (applyGlobe)
         {
             double R = static_cast<double>(m_SphereRadius);
@@ -667,9 +667,17 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
             {
                 double dx = dCorners[i][0] - centerX;
                 double dy = dCorners[i][1] - centerY;
-                // Map linear distance to arc on sphere surface
-                dCorners[i][0] = centerX + R * std::sin(dx / R);
-                dCorners[i][1] = centerY + R * std::sin(dy / R);
+                double d = std::sqrt(dx * dx + dy * dy);  // Radial distance from center
+
+                if (d > 0.001)  // Avoid division by zero
+                {
+                    // Project onto sphere: linear distance -> arc length -> projected distance
+                    double projectedD = R * std::sin(d / R);
+                    double ratio = projectedD / d;
+                    dCorners[i][0] = centerX + dx * ratio;
+                    dCorners[i][1] = centerY + dy * ratio;
+                }
+                // else: point is at center, no transformation needed
             }
         }
 
@@ -814,8 +822,15 @@ void OpenGLRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
             {
                 double dx = dCorners[i][0] - centerX;
                 double dy = dCorners[i][1] - centerY;
-                dCorners[i][0] = centerX + R * std::sin(dx / R);
-                dCorners[i][1] = centerY + R * std::sin(dy / R);
+                double d = std::sqrt(dx * dx + dy * dy);
+
+                if (d > 0.001)
+                {
+                    double projectedD = R * std::sin(d / R);
+                    double ratio = projectedD / d;
+                    dCorners[i][0] = centerX + dx * ratio;
+                    dCorners[i][1] = centerY + dy * ratio;
+                }
             }
         }
 
@@ -953,8 +968,15 @@ void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
             {
                 double dx = dCorners[i][0] - centerX;
                 double dy = dCorners[i][1] - centerY;
-                dCorners[i][0] = centerX + R * std::sin(dx / R);
-                dCorners[i][1] = centerY + R * std::sin(dy / R);
+                double d = std::sqrt(dx * dx + dy * dy);
+
+                if (d > 0.001)
+                {
+                    double projectedD = R * std::sin(d / R);
+                    double ratio = projectedD / d;
+                    dCorners[i][0] = centerX + dx * ratio;
+                    dCorners[i][1] = centerY + dy * ratio;
+                }
             }
         }
 
@@ -1116,7 +1138,7 @@ void OpenGLRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
         bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
                                m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
 
-        // Step 1: Apply globe curvature
+        // Step 1: Apply globe curvature using true spherical projection
         if (applyGlobe)
         {
             double R = static_cast<double>(m_SphereRadius);
@@ -1124,8 +1146,15 @@ void OpenGLRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
             {
                 double dx = dCorners[i][0] - centerX;
                 double dy = dCorners[i][1] - centerY;
-                dCorners[i][0] = centerX + R * std::sin(dx / R);
-                dCorners[i][1] = centerY + R * std::sin(dy / R);
+                double d = std::sqrt(dx * dx + dy * dy);
+
+                if (d > 0.001)
+                {
+                    double projectedD = R * std::sin(d / R);
+                    double ratio = projectedD / d;
+                    dCorners[i][0] = centerX + dx * ratio;
+                    dCorners[i][1] = centerY + dy * ratio;
+                }
             }
         }
 

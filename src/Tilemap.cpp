@@ -43,26 +43,30 @@ Tilemap::Tilemap()
     m_CollisionMap.Resize(m_MapWidth, m_MapHeight);
     m_NavigationMap.Resize(m_MapWidth, m_MapHeight);
 
-    // Initialize 8 dynamic layers with proper render order:
+    // Initialize 10 dynamic layers with proper render order:
     // Background layers (rendered before player/NPCs):
     //   Layer 0: Ground (renderOrder 0)
     //   Layer 1: Ground Detail (renderOrder 10)
     //   Layer 2: Objects (renderOrder 20)
     //   Layer 3: Objects2 (renderOrder 30)
+    //   Layer 4: Objects3 (renderOrder 40)
     // Foreground layers (rendered after player/NPCs):
-    //   Layer 4: Foreground (renderOrder 100)
-    //   Layer 5: Foreground2 (renderOrder 110)
-    //   Layer 6: Overlay (renderOrder 120)
-    //   Layer 7: Overlay2 (renderOrder 130)
+    //   Layer 5: Foreground (renderOrder 100)
+    //   Layer 6: Foreground2 (renderOrder 110)
+    //   Layer 7: Overlay (renderOrder 120)
+    //   Layer 8: Overlay2 (renderOrder 130)
+    //   Layer 9: Overlay3 (renderOrder 140)
     m_Layers.clear();
     m_Layers.emplace_back("Ground", 0, true);
     m_Layers.emplace_back("Ground Detail", 10, true);
     m_Layers.emplace_back("Objects", 20, true);
     m_Layers.emplace_back("Objects2", 30, true);
+    m_Layers.emplace_back("Objects3", 40, true);
     m_Layers.emplace_back("Foreground", 100, false);
     m_Layers.emplace_back("Foreground2", 110, false);
     m_Layers.emplace_back("Overlay", 120, false);
     m_Layers.emplace_back("Overlay2", 130, false);
+    m_Layers.emplace_back("Overlay3", 140, false);
 
     // Resize all layers to map size
     for (auto &layer : m_Layers)
@@ -658,21 +662,23 @@ void Tilemap::SetTilemapSize(int width, int height, bool generateMap)
 
     m_Elevation.assign(mapSize, 0);
 
-    // Initialize dynamic layers (8 total: 4 background, 4 foreground)
+    // Initialize dynamic layers (10 total: 5 background, 5 foreground)
     m_Layers.clear();
-    m_Layers.reserve(8);
+    m_Layers.reserve(10);
 
     // Background layers (rendered before player)
     m_Layers.push_back(TileLayer("Ground", 0, true));         // Layer 0: Base terrain
     m_Layers.push_back(TileLayer("Ground Detail", 10, true)); // Layer 1: Ground details
     m_Layers.push_back(TileLayer("Objects", 20, true));       // Layer 2: Background objects
     m_Layers.push_back(TileLayer("Objects2", 30, true));      // Layer 3: More background objects
+    m_Layers.push_back(TileLayer("Objects3", 40, true));      // Layer 4: Extra background objects
 
     // Foreground layers (rendered after player for depth)
-    m_Layers.push_back(TileLayer("Foreground", 100, false));  // Layer 4: Foreground objects
-    m_Layers.push_back(TileLayer("Foreground2", 110, false)); // Layer 5: More foreground
-    m_Layers.push_back(TileLayer("Overlay", 120, false));     // Layer 6: Top overlay
-    m_Layers.push_back(TileLayer("Overlay2", 130, false));    // Layer 7: Extra top layer
+    m_Layers.push_back(TileLayer("Foreground", 100, false));  // Layer 5: Foreground objects
+    m_Layers.push_back(TileLayer("Foreground2", 110, false)); // Layer 6: More foreground
+    m_Layers.push_back(TileLayer("Overlay", 120, false));     // Layer 7: Top overlay
+    m_Layers.push_back(TileLayer("Overlay2", 130, false));    // Layer 8: Extra top layer
+    m_Layers.push_back(TileLayer("Overlay3", 140, false));    // Layer 9: Highest overlay
 
     // Resize all layer data arrays
     for (auto &layer : m_Layers)
@@ -917,48 +923,8 @@ float Tilemap::GetTileRotation4(int x, int y) const
     return 0.0f; // Out of bounds = no rotation
 }
 
-// Layer 5 functions
+// Layer 6 functions (Foreground - index 5)
 void Tilemap::SetTile5(int x, int y, int tileID)
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 4)
-    {
-        m_Layers[4].tiles[static_cast<size_t>(y * m_MapWidth + x)] = tileID;
-    }
-}
-
-int Tilemap::GetTile5(int x, int y) const
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 4)
-    {
-        return m_Layers[4].tiles[static_cast<size_t>(y * m_MapWidth + x)];
-    }
-    return 0; // Out of bounds = empty (transparent)
-}
-
-void Tilemap::SetTileRotation5(int x, int y, float rotation)
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 4)
-    {
-        // Normalize rotation to 0-360 range
-        while (rotation < 0.0f)
-            rotation += 360.0f;
-        while (rotation >= 360.0f)
-            rotation -= 360.0f;
-        m_Layers[4].rotation[static_cast<size_t>(y * m_MapWidth + x)] = rotation;
-    }
-}
-
-float Tilemap::GetTileRotation5(int x, int y) const
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 4)
-    {
-        return m_Layers[4].rotation[static_cast<size_t>(y * m_MapWidth + x)];
-    }
-    return 0.0f; // Out of bounds = no rotation
-}
-
-// Layer 6 functions
-void Tilemap::SetTile6(int x, int y, int tileID)
 {
     if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 5)
     {
@@ -966,7 +932,7 @@ void Tilemap::SetTile6(int x, int y, int tileID)
     }
 }
 
-int Tilemap::GetTile6(int x, int y) const
+int Tilemap::GetTile5(int x, int y) const
 {
     if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 5)
     {
@@ -975,7 +941,7 @@ int Tilemap::GetTile6(int x, int y) const
     return 0; // Out of bounds = empty (transparent)
 }
 
-void Tilemap::SetTileRotation6(int x, int y, float rotation)
+void Tilemap::SetTileRotation5(int x, int y, float rotation)
 {
     if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 5)
     {
@@ -988,11 +954,51 @@ void Tilemap::SetTileRotation6(int x, int y, float rotation)
     }
 }
 
-float Tilemap::GetTileRotation6(int x, int y) const
+float Tilemap::GetTileRotation5(int x, int y) const
 {
     if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 5)
     {
         return m_Layers[5].rotation[static_cast<size_t>(y * m_MapWidth + x)];
+    }
+    return 0.0f; // Out of bounds = no rotation
+}
+
+// Layer 7 functions (Foreground2 - index 6)
+void Tilemap::SetTile6(int x, int y, int tileID)
+{
+    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 6)
+    {
+        m_Layers[6].tiles[static_cast<size_t>(y * m_MapWidth + x)] = tileID;
+    }
+}
+
+int Tilemap::GetTile6(int x, int y) const
+{
+    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 6)
+    {
+        return m_Layers[6].tiles[static_cast<size_t>(y * m_MapWidth + x)];
+    }
+    return 0; // Out of bounds = empty (transparent)
+}
+
+void Tilemap::SetTileRotation6(int x, int y, float rotation)
+{
+    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 6)
+    {
+        // Normalize rotation to 0-360 range
+        while (rotation < 0.0f)
+            rotation += 360.0f;
+        while (rotation >= 360.0f)
+            rotation -= 360.0f;
+        m_Layers[6].rotation[static_cast<size_t>(y * m_MapWidth + x)] = rotation;
+    }
+}
+
+float Tilemap::GetTileRotation6(int x, int y) const
+{
+    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 6)
+    {
+        return m_Layers[6].rotation[static_cast<size_t>(y * m_MapWidth + x)];
     }
     return 0.0f; // Out of bounds = no rotation
 }
@@ -1191,6 +1197,96 @@ bool Tilemap::FindNoProjectionStructureBounds(int tileX, int tileY,
     return true;
 }
 
+int Tilemap::AddNoProjectionStructure(glm::vec2 leftAnchor, glm::vec2 rightAnchor, const std::string& name)
+{
+    int id = static_cast<int>(m_NoProjectionStructures.size());
+    m_NoProjectionStructures.emplace_back(id, leftAnchor, rightAnchor, name);
+    return id;
+}
+
+const NoProjectionStructure* Tilemap::GetNoProjectionStructure(int id) const
+{
+    if (id < 0 || id >= static_cast<int>(m_NoProjectionStructures.size()))
+        return nullptr;
+    return &m_NoProjectionStructures[id];
+}
+
+NoProjectionStructure* Tilemap::GetNoProjectionStructureMutable(int id)
+{
+    if (id < 0 || id >= static_cast<int>(m_NoProjectionStructures.size()))
+        return nullptr;
+    return &m_NoProjectionStructures[id];
+}
+
+void Tilemap::RemoveNoProjectionStructure(int id)
+{
+    if (id < 0 || id >= static_cast<int>(m_NoProjectionStructures.size()))
+        return;
+
+    // Clear structureId from all tiles that referenced this structure
+    for (auto& layer : m_Layers)
+    {
+        for (size_t i = 0; i < layer.structureId.size(); ++i)
+        {
+            if (layer.structureId[i] == id)
+                layer.structureId[i] = -1;
+            else if (layer.structureId[i] > id)
+                layer.structureId[i]--;  // Shift down IDs above removed one
+        }
+    }
+
+    // Remove the structure
+    m_NoProjectionStructures.erase(m_NoProjectionStructures.begin() + id);
+
+    // Update IDs in remaining structures
+    for (size_t i = static_cast<size_t>(id); i < m_NoProjectionStructures.size(); ++i)
+    {
+        m_NoProjectionStructures[i].id = static_cast<int>(i);
+    }
+}
+
+void Tilemap::ClearNoProjectionStructures()
+{
+    // Clear all structureId assignments
+    for (auto& layer : m_Layers)
+    {
+        std::fill(layer.structureId.begin(), layer.structureId.end(), -1);
+    }
+    m_NoProjectionStructures.clear();
+}
+
+int Tilemap::GetTileStructureId(int x, int y, int layer) const
+{
+    if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
+        return -1;
+
+    size_t layerIdx = static_cast<size_t>(layer - 1);
+    if (layerIdx >= m_Layers.size())
+        return -1;
+
+    size_t index = static_cast<size_t>(y * m_MapWidth + x);
+    if (index >= m_Layers[layerIdx].structureId.size())
+        return -1;
+
+    return m_Layers[layerIdx].structureId[index];
+}
+
+void Tilemap::SetTileStructureId(int x, int y, int layer, int structId)
+{
+    if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
+        return;
+
+    size_t layerIdx = static_cast<size_t>(layer - 1);
+    if (layerIdx >= m_Layers.size())
+        return;
+
+    size_t index = static_cast<size_t>(y * m_MapWidth + x);
+    if (index >= m_Layers[layerIdx].structureId.size())
+        return;
+
+    m_Layers[layerIdx].structureId[index] = structId;
+}
+
 bool Tilemap::GetYSortPlus(int x, int y, int layer) const
 {
     if (x < 0 || x >= m_MapWidth || y < 0 || y >= m_MapHeight)
@@ -1239,7 +1335,17 @@ std::vector<Tilemap::YSortPlusTile> Tilemap::GetVisibleYSortPlusTiles(glm::vec2 
             return false;
         if (!layer.ySortPlus[index])
             return false;
-        if (layer.tiles[index] < 0)
+        // Check for animation before checking base tile
+        int tileID = layer.tiles[index];
+        if (index < layer.animationMap.size())
+        {
+            int animId = layer.animationMap[index];
+            if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+            {
+                tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+            }
+        }
+        if (tileID < 0)
             return false;
         return true;
     };
@@ -1260,8 +1366,16 @@ std::vector<Tilemap::YSortPlusTile> Tilemap::GetVisibleYSortPlusTiles(glm::vec2 
                 if (!layer.ySortPlus[index])
                     continue;
 
-                // Skip empty tiles
+                // Check for animation before checking base tile
                 int tileID = layer.tiles[index];
+                if (index < layer.animationMap.size())
+                {
+                    int animId = layer.animationMap[index];
+                    if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+                    {
+                        tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+                    }
+                }
                 if (tileID < 0)
                     continue;
 
@@ -1310,6 +1424,16 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
     int tileID = tileLayer.tiles[index];
     float rotation = tileLayer.rotation[index];
 
+    // Check for animated tile before skip check
+    if (index < tileLayer.animationMap.size())
+    {
+        int animId = tileLayer.animationMap[index];
+        if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+        {
+            tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+        }
+    }
+
     if (tileID < 0)
         return;
 
@@ -1344,107 +1468,113 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
         }
         else
         {
-            // 3D mode: find structure, project anchor, render at integer offset
+            // 3D mode: use structure-based rendering if tile has structure ID
+            int structId = (index < tileLayer.structureId.size()) ? tileLayer.structureId[index] : -1;
 
-            // Flood-fill to find the structure's bounding box
-            std::vector<bool> visited(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
-            std::vector<std::pair<int, int>> stack;
-            stack.push_back({x, y});
-
-            int minX = x, maxX = x, minY = y, maxY = y;
-
-            while (!stack.empty())
+            if (structId >= 0 && structId < static_cast<int>(m_NoProjectionStructures.size()))
             {
-                auto [cx, cy] = stack.back();
-                stack.pop_back();
+                // Use structure-based rendering (same as RenderLayerNoProjection)
+                const NoProjectionStructure& structDef = m_NoProjectionStructures[structId];
 
-                if (cx < 0 || cx >= m_MapWidth || cy < 0 || cy >= m_MapHeight)
-                    continue;
-
-                size_t cIdx = static_cast<size_t>(cy * m_MapWidth + cx);
-                if (visited[cIdx])
-                    continue;
-
-                // Check if no-projection in any layer
-                bool isNoProj = false;
-                for (size_t li = 0; li < m_Layers.size(); ++li)
+                // Find structure bounds by scanning for tiles with same structId
+                int minX = x, maxX = x, minY = y, maxY = y;
+                for (int sy = 0; sy < m_MapHeight; ++sy)
                 {
-                    if (cIdx < m_Layers[li].noProjection.size() && m_Layers[li].noProjection[cIdx])
+                    for (int sx = 0; sx < m_MapWidth; ++sx)
                     {
-                        isNoProj = true;
-                        break;
+                        size_t sIdx = static_cast<size_t>(sy * m_MapWidth + sx);
+                        if (sIdx < tileLayer.structureId.size() && tileLayer.structureId[sIdx] == structId)
+                        {
+                            minX = std::min(minX, sx);
+                            maxX = std::max(maxX, sx);
+                            minY = std::min(minY, sy);
+                            maxY = std::max(maxY, sy);
+                        }
                     }
                 }
-                if (!isNoProj)
-                    continue;
 
-                visited[cIdx] = true;
+                // Use defined anchors for projection (world coordinates)
+                glm::vec2 leftAnchor = structDef.leftAnchor;
+                glm::vec2 rightAnchor = structDef.rightAnchor;
 
-                minX = std::min(minX, cx);
-                maxX = std::max(maxX, cx);
-                minY = std::min(minY, cy);
-                maxY = std::max(maxY, cy);
+                // Bottom edge Y position from anchors
+                float bottomWorldY = std::max(leftAnchor.y, rightAnchor.y);
+                float bottomScreenY = bottomWorldY - cameraPos.y + 1.0f;
 
-                stack.push_back({cx - 1, cy});
-                stack.push_back({cx + 1, cy});
-                stack.push_back({cx, cy - 1});
-                stack.push_back({cx, cy + 1});
+                // Calculate height scale from vanishing point at anchor position
+                auto perspState = renderer.GetPerspectiveState();
+
+                // Calculate projection blend factor - fade out projection when anchor is outside viewport
+                float projectionBlend = 1.0f;
+                float fadeMargin = perspState.viewHeight * 0.25f;
+                if (bottomScreenY < 0.0f)
+                {
+                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
+                }
+                else if (bottomScreenY > perspState.viewHeight)
+                {
+                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    projectionBlend = 1.0f - (distOutside / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
+                }
+
+                float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
+                t = std::max(0.0f, std::min(1.0f, t));
+                float rawVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+                float vanishScale = 1.0f + (rawVanishScale - 1.0f) * projectionBlend;
+                float scaledTileH = static_cast<float>(m_TileHeight) * vanishScale;
+
+                // Structure width based on tile extent
+                int structureWidthTiles = maxX - minX + 1;
+                if (structureWidthTiles < 1) structureWidthTiles = 1;
+
+                // Anchor X positions for projection
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                // Calculate projected X position for this tile's column
+                int edgeIdx = x - minX;
+                float leftEdgeScreenX = anchorMinX + (edgeIdx * structureWorldWidth / structureWidthTiles) - cameraPos.x;
+                float rightEdgeScreenX = anchorMinX + ((edgeIdx + 1) * structureWorldWidth / structureWidthTiles) - cameraPos.x;
+
+                glm::vec2 projectedLeft = renderer.ProjectPoint(glm::vec2(leftEdgeScreenX, bottomScreenY));
+                glm::vec2 projectedRight = renderer.ProjectPoint(glm::vec2(rightEdgeScreenX, bottomScreenY));
+
+                // Blend toward unprojected position when outside viewport
+                float finalX = leftEdgeScreenX + (projectedLeft.x - leftEdgeScreenX) * projectionBlend;
+                float projectedWidth = projectedRight.x - projectedLeft.x;
+                float unprojectedWidth = rightEdgeScreenX - leftEdgeScreenX;
+                float scaledTileW = unprojectedWidth + (projectedWidth - unprojectedWidth) * projectionBlend + 0.5f;
+
+                // Y position: stack from bottom using scaled tile height
+                float tileScreenX = static_cast<float>(x * m_TileWidth) - cameraPos.x;
+                glm::vec2 projectedTileBase = renderer.ProjectPoint(glm::vec2(tileScreenX, bottomScreenY));
+                float blendedBaseY = bottomScreenY + (projectedTileBase.y - bottomScreenY) * projectionBlend;
+
+                int bottomTileY = static_cast<int>(bottomWorldY / static_cast<float>(m_TileHeight));
+                int tileOffsetY = y - bottomTileY;
+                float finalY = blendedBaseY + tileOffsetY * scaledTileH;
+
+                renderer.SuspendPerspective(true);
+                renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(finalX, finalY), glm::vec2(scaledTileW, scaledTileH),
+                                          texCoord, texSize, rotation, glm::vec3(1.0f), flipY);
+                renderer.SuspendPerspective(false);
             }
+            else
+            {
+                // No structure assigned - render with simple projection (legacy fallback)
+                float worldX = static_cast<float>(x * m_TileWidth);
+                float worldY = static_cast<float>(y * m_TileHeight);
+                glm::vec2 screenPos(worldX - cameraPos.x, worldY - cameraPos.y);
+                glm::vec2 renderSize(static_cast<float>(m_TileWidth), static_cast<float>(m_TileHeight));
 
-            // Project structure base anchors once to pin X across the stack
-            int leftPixelX = minX * m_TileWidth;
-            int rightPixelX = (maxX + 1) * m_TileWidth;
-            int bottomPixelY = (maxY + 1) * m_TileHeight;
-
-            glm::vec2 baseProjLeft = renderer.ProjectPoint(
-                glm::vec2(static_cast<float>(leftPixelX) - cameraPos.x,
-                          static_cast<float>(bottomPixelY) - cameraPos.y));
-            glm::vec2 baseProjRight = renderer.ProjectPoint(
-                glm::vec2(static_cast<float>(rightPixelX) - cameraPos.x,
-                          static_cast<float>(bottomPixelY) - cameraPos.y));
-
-            float tilesWide = static_cast<float>(maxX - minX + 1);
-            float baseSpanX = baseProjRight.x - baseProjLeft.x;
-            float baseTileWidth = (tilesWide > 0.0f) ? (baseSpanX / tilesWide) : static_cast<float>(m_TileWidth);
-            if (baseTileWidth == 0.0f)
-                baseTileWidth = static_cast<float>(m_TileWidth);
-
-            // Project per-tile anchors directly to avoid drift: project bottom-left/right and top-left of this tile
-            float worldBLX = static_cast<float>(x * m_TileWidth);
-            float worldBLY = static_cast<float>((y + 1) * m_TileHeight);
-            float worldTLX = worldBLX;
-            float worldTLY = static_cast<float>(y * m_TileHeight);
-
-            glm::vec2 projBL = renderer.ProjectPoint(glm::vec2(worldBLX - cameraPos.x, worldBLY - cameraPos.y));
-            glm::vec2 projBR = renderer.ProjectPoint(glm::vec2(worldBLX + m_TileWidth - cameraPos.x, worldBLY - cameraPos.y));
-            glm::vec2 projTL = renderer.ProjectPoint(glm::vec2(worldTLX - cameraPos.x, worldTLY - cameraPos.y));
-
-            float tileDrawWidth = projBR.x - projBL.x;
-            float tileDrawHeight = projBL.y - projTL.y; // should be positive
-
-            // Fallbacks for degenerate dimensions
-            if (tileDrawWidth == 0.0f)
-                tileDrawWidth = static_cast<float>(m_TileWidth);
-            if (tileDrawHeight == 0.0f)
-                tileDrawHeight = static_cast<float>(m_TileHeight);
-
-            // Column alignment: always anchor to the base-row projection for this column
-            glm::vec2 baseColBL = renderer.ProjectPoint(glm::vec2(worldBLX - cameraPos.x,
-                                                                  static_cast<float>((maxY + 1) * m_TileHeight) - cameraPos.y));
-            glm::vec2 baseColBR = renderer.ProjectPoint(glm::vec2(worldBLX + m_TileWidth - cameraPos.x,
-                                                                  static_cast<float>((maxY + 1) * m_TileHeight) - cameraPos.y));
-            float colBaseWidth = baseColBR.x - baseColBL.x;
-            if (colBaseWidth == 0.0f)
-                colBaseWidth = static_cast<float>(m_TileWidth);
-
-            // Stack rows directly on the base column span (no bias)
-            glm::vec2 screenPos(baseColBL.x, projTL.y);
-            glm::vec2 renderSize(colBaseWidth, tileDrawHeight);
-
-            renderer.SuspendPerspective(true);
-            renderer.DrawSpriteRegion(m_TilesetTexture, screenPos, renderSize,
-                                      texCoord, texSize, rotation, glm::vec3(1.0f), flipY);
-            renderer.SuspendPerspective(false);
+                renderer.SuspendPerspective(true);
+                renderer.DrawSpriteRegion(m_TilesetTexture, screenPos, renderSize,
+                                          texCoord, texSize, rotation, glm::vec3(1.0f), flipY);
+                renderer.SuspendPerspective(false);
+            }
         }
     }
     else
@@ -2550,15 +2680,15 @@ void Tilemap::RenderLayerByIndex(IRenderer &renderer, size_t layerIndex,
         {
             size_t idx = static_cast<size_t>(y * m_MapWidth + x);
 
-            // Skip if no-projection or Y-sorted (rendered separately)
-            if (layer.noProjection[idx] || layer.ySortPlus[idx])
-                continue;
-
             int tileID = layer.tiles[idx];
             if (tileID < 0)
                 continue;
 
-            // Check for animated tile (per-layer animation map)
+            // Skip if no-projection or Y-sorted (rendered separately)
+            if (layer.noProjection[idx] || layer.ySortPlus[idx])
+                continue;
+
+            // Apply animated tile frame if present
             if (idx < layer.animationMap.size())
             {
                 int animId = layer.animationMap[idx];
@@ -2627,10 +2757,11 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                     continue;
 
                 int tileID = layer.tiles[idx];
+
                 if (tileID < 0)
                     continue;
 
-                // Check for animated tile (per-layer animation map)
+                // Apply animated frame if present
                 if (idx < layer.animationMap.size())
                 {
                     int animId = layer.animationMap[idx];
@@ -2662,10 +2793,18 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
     }
 
     // 3D mode: use structure-based rendering
-    // Project ONE anchor per structure, render tiles at integer offsets (no gaps)
+    // Only tiles with structureId >= 0 are rendered (using defined structure anchors)
+    // Tiles with structureId == -1 are skipped (must be assigned to a structure)
 
     // Track which tiles have been processed
     std::vector<bool> processed(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
+
+    // Track which defined structures have been rendered
+    std::vector<bool> renderedStructures(m_NoProjectionStructures.size(), false);
+
+    // Tile size
+    float tileWf = static_cast<float>(m_TileWidth);
+    float tileHf = static_cast<float>(m_TileHeight);
 
     for (int y = y0; y <= y1; ++y)
     {
@@ -2677,226 +2816,177 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                 continue;
 
             int tileID = layer.tiles[idx];
+
             if (tileID < 0)
             {
                 processed[idx] = true;
                 continue;
             }
 
-            // Check for animated tile (per-layer animation map)
-            if (idx < layer.animationMap.size())
+            // Check if this tile belongs to a defined structure
+            int structId = (idx < layer.structureId.size()) ? layer.structureId[idx] : -1;
+
+            if (structId >= 0 && structId < static_cast<int>(m_NoProjectionStructures.size()))
             {
-                int animId = layer.animationMap[idx];
-                if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+                // Skip if this structure was already rendered
+                if (renderedStructures[structId])
                 {
-                    tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+                    processed[idx] = true;
+                    continue;
                 }
-            }
+                renderedStructures[structId] = true;
 
-            if (IsTileTransparent(tileID))
-            {
-                processed[idx] = true;
-                continue;
-            }
+                // Use defined structure with manual anchors
+                const NoProjectionStructure& structDef = m_NoProjectionStructures[structId];
 
-            // Flood-fill to find connected structure
-            std::vector<std::pair<int, int>> structure;
-            std::vector<std::pair<int, int>> stack;
-            stack.push_back({x, y});
+                // Collect all tiles belonging to this structure (across all layers at this layer index)
+                std::vector<std::pair<int, int>> structureTiles;
+                int minX = INT_MAX, maxX = INT_MIN, minY = INT_MAX, maxY = INT_MIN;
 
-            int minX = x, maxX = x, minY = y, maxY = y;
-
-            while (!stack.empty())
-            {
-                auto [cx, cy] = stack.back();
-                stack.pop_back();
-
-                if (cx < 0 || cx >= m_MapWidth || cy < 0 || cy >= m_MapHeight)
-                    continue;
-
-                size_t cIdx = static_cast<size_t>(cy * m_MapWidth + cx);
-                if (processed[cIdx])
-                    continue;
-
-                // Check if this tile is no-projection in ANY layer
-                bool isNoProj = false;
-                for (size_t li = 0; li < m_Layers.size(); ++li)
+                for (int sy = y0; sy <= y1; ++sy)
                 {
-                    if (cIdx < m_Layers[li].noProjection.size() && m_Layers[li].noProjection[cIdx])
+                    for (int sx = x0; sx <= x1; ++sx)
                     {
-                        isNoProj = true;
-                        break;
+                        size_t sIdx = static_cast<size_t>(sy * m_MapWidth + sx);
+                        if (!layer.noProjection[sIdx] || layer.ySortPlus[sIdx])
+                            continue;
+                        int sid = (sIdx < layer.structureId.size()) ? layer.structureId[sIdx] : -1;
+                        if (sid != structId)
+                            continue;
+
+                        processed[sIdx] = true;
+                        structureTiles.push_back({sx, sy});
+
+                        minX = std::min(minX, sx);
+                        maxX = std::max(maxX, sx);
+                        minY = std::min(minY, sy);
+                        maxY = std::max(maxY, sy);
                     }
                 }
-                if (!isNoProj)
+
+                if (structureTiles.empty())
                     continue;
 
-                processed[cIdx] = true;
-                structure.push_back({cx, cy});
+                // Use defined anchors for projection (world coordinates)
+                glm::vec2 leftAnchor = structDef.leftAnchor;
+                glm::vec2 rightAnchor = structDef.rightAnchor;
 
-                minX = std::min(minX, cx);
-                maxX = std::max(maxX, cx);
-                minY = std::min(minY, cy);
-                maxY = std::max(maxY, cy);
+                // Bottom edge Y position from anchors (use the lower Y, which is higher world value)
+                float bottomWorldY = std::max(leftAnchor.y, rightAnchor.y);
+                float bottomScreenY = bottomWorldY - renderCam.y + 1.0f;  // +1px offset
 
-                // 4-way connectivity
-                stack.push_back({cx - 1, cy});
-                stack.push_back({cx + 1, cy});
-                stack.push_back({cx, cy - 1});
-                stack.push_back({cx, cy + 1});
-            }
+                // Calculate height scale from vanishing point at anchor position
+                auto perspState = renderer.GetPerspectiveState();
 
-            // Project bottom-left anchor for Y reference
-            int leftPixelX = minX * m_TileWidth;
-            int bottomPixelY = (maxY + 1) * m_TileHeight;
-            float tileWf = static_cast<float>(m_TileWidth);
-            float tileHf = static_cast<float>(m_TileHeight);
-
-            // Get perspective state for globe curvature parameters
-            auto perspState = renderer.GetPerspectiveState();
-            float centerX = perspState.viewWidth * 0.5f;
-            bool applyGlobe = (perspState.mode == IRenderer::ProjectionMode::Globe ||
-                               perspState.mode == IRenderer::ProjectionMode::Fisheye);
-            float R = perspState.sphereRadius;
-
-            // Calculate anchor screen position
-            float anchorScreenX = static_cast<float>(leftPixelX) - renderCam.x;
-            float bottomScreenY = static_cast<float>(bottomPixelY) - renderCam.y;
-
-            // Calculate expanded 3D viewport bounds
-            float expansion = 1.0f / perspState.horizonScale;
-            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
-            float expandedHeight = perspState.viewHeight * expansion;
-            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
-            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
-
-            // Calculate distance outside expanded viewport (0 if inside)
-            float distOutsideX = std::max(0.0f, std::max(-anchorScreenX - widthPadding,
-                                                         anchorScreenX - perspState.viewWidth - widthPadding));
-            float distOutsideY = std::max(0.0f, std::max(-bottomScreenY - heightPadding,
-                                                         bottomScreenY - perspState.viewHeight - heightPadding));
-            float distOutside = std::max(distOutsideX, distOutsideY);
-
-            // Blend factor: 1.0 when inside expanded viewport, fades to 0.0 as we move outside
-            float blendDistance = 200.0f;
-            float viewportBlend = 1.0f - std::min(1.0f, distOutside / blendDistance);
-
-            // Calculate normal vanishing scale
-            float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
-            t = std::max(0.0f, std::min(1.0f, t));
-            float normalVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
-
-            // Blend vanishScale towards 1.0 when outside expanded viewport
-            float vanishScale = normalVanishScale * viewportBlend + 1.0f * (1.0f - viewportBlend);
-
-            // Only apply globe effects when mostly inside expanded viewport
-            bool useGlobeEffects = applyGlobe && viewportBlend > 0.5f;
-
-            glm::vec2 projectedLeft;
-            if (viewportBlend > 0.01f)
-            {
-                // Use projected position, blended with simple position
-                glm::vec2 projected = renderer.ProjectPoint(glm::vec2(anchorScreenX, bottomScreenY));
-
-                // Apply exponential Y offset to fix lifted structure issue (vanishing point)
-                float distanceFactor = 1.0f - normalVanishScale;
-                float exponent = 2.0f;
-                float multiplier = tileHf * 4.0f;
-                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier * viewportBlend;
-                projected.y += exponentialYOffset;
-
-                // Compensate for globe Y curvature displacement
-                if (useGlobeEffects && R > 0.0f)
+                // Calculate projection blend factor - fade out projection when anchor is outside viewport
+                // This allows structures to naturally scroll off-screen without being pulled toward center
+                float projectionBlend = 1.0f;
+                float fadeMargin = perspState.viewHeight * 0.25f;  // Start fading at 25% outside
+                if (bottomScreenY < 0.0f)
                 {
-                    float centerY = perspState.viewHeight * 0.5f;
-                    float dy = bottomScreenY - centerY;
-                    float globeY = centerY + R * std::sin(dy / R);
-                    float globeDisplacement = globeY - bottomScreenY;
-                    projected.y += globeDisplacement * viewportBlend;
+                    // Above viewport - fade out as it goes further up
+                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
+                }
+                else if (bottomScreenY > perspState.viewHeight)
+                {
+                    // Below viewport - fade out as it goes further down
+                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    projectionBlend = 1.0f - (distOutside / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
 
-                // Blend between projected and simple screen position
-                glm::vec2 simplePos(anchorScreenX, bottomScreenY);
-                projectedLeft = projected * viewportBlend + simplePos * (1.0f - viewportBlend);
+                float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
+                t = std::max(0.0f, std::min(1.0f, t));
+                float rawVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+                // Blend vanish scale toward 1.0 (no scaling) when outside viewport
+                float vanishScale = 1.0f + (rawVanishScale - 1.0f) * projectionBlend;
+                float scaledTileH = tileHf * vanishScale;
+
+                // Structure width based on tile extent (uses minX/maxX from structureTiles)
+                int structureWidthTiles = maxX - minX + 1;
+                if (structureWidthTiles < 1) structureWidthTiles = 1;
+
+                // Anchor X positions for projection (world coordinates)
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                // Pre-compute all projected X edge positions for the structure
+                // Blend between projected and unprojected positions based on viewport distance
+                std::vector<float> projectedEdgeX(structureWidthTiles + 1);
+                for (int i = 0; i <= structureWidthTiles; ++i)
+                {
+                    float edgeScreenX = anchorMinX + (i * structureWorldWidth / structureWidthTiles) - renderCam.x;
+                    glm::vec2 projected = renderer.ProjectPoint(glm::vec2(edgeScreenX, bottomScreenY));
+                    // Blend toward unprojected position when outside viewport
+                    projectedEdgeX[i] = edgeScreenX + (projected.x - edgeScreenX) * projectionBlend;
+                }
+
+                // Suspend perspective for drawing
+                renderer.SuspendPerspective(true);
+
+                // Render tiles using pre-computed X positions
+                for (const auto &[tx, ty] : structureTiles)
+                {
+                    size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
+
+                    int tid = layer.tiles[tIdx];
+                    if (tid < 0)
+                        continue;
+
+                    if (tIdx < layer.animationMap.size())
+                    {
+                        int animId = layer.animationMap[tIdx];
+                        if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+                        {
+                            tid = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+                        }
+                    }
+
+                    if (IsTileTransparent(tid))
+                        continue;
+
+                    // X position: use pre-computed edge positions (no gaps)
+                    // Map tile column (tx) to structure column index based on tile extent
+                    int edgeIdx = tx - minX;
+                    if (edgeIdx < 0 || edgeIdx >= static_cast<int>(projectedEdgeX.size()) - 1)
+                        continue;  // Tile outside anchor bounds
+
+                    float finalX = projectedEdgeX[edgeIdx];
+                    float scaledTileW = projectedEdgeX[edgeIdx + 1] - projectedEdgeX[edgeIdx] + .5f;
+
+                    // Y position: project this tile's bottom edge for base alignment, then stack up
+                    float tileBottomScreenY = bottomWorldY - renderCam.y + 1.0f;
+                    float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
+                    glm::vec2 projectedTileBase = renderer.ProjectPoint(glm::vec2(tileScreenX, tileBottomScreenY));
+                    // Blend Y toward unprojected position when outside viewport
+                    float blendedBaseY = tileBottomScreenY + (projectedTileBase.y - tileBottomScreenY) * projectionBlend;
+
+                    // Calculate tile offset from bottom of structure using world Y
+                    int bottomTileY = static_cast<int>(bottomWorldY / static_cast<float>(m_TileHeight));
+                    int tileOffsetY = ty - bottomTileY;  // Rows above bottom (negative)
+                    float finalY = blendedBaseY + tileOffsetY * scaledTileH;
+
+                    int tsX = (tid % dataTilesPerRow) * m_TileWidth;
+                    int tsY = (tid / dataTilesPerRow) * m_TileHeight;
+
+                    glm::vec2 pos(finalX, finalY);
+                    glm::vec2 texCoord(static_cast<float>(tsX), static_cast<float>(tsY));
+                    glm::vec2 texSize(tileWf, tileHf);
+
+                    float rotation = layer.rotation[tIdx];
+                    renderer.DrawSpriteRegion(m_TilesetTexture, pos, glm::vec2(scaledTileW, scaledTileH),
+                                              texCoord, texSize, rotation, glm::vec3(1.0f), flipY);
+                }
+
+                renderer.SuspendPerspective(false);
             }
             else
             {
-                // Fully outside - use simple screen position
-                projectedLeft = glm::vec2(anchorScreenX, bottomScreenY);
+                // No defined structure - skip (requires structure assignment for no-projection)
+                processed[idx] = true;
             }
-
-            // Suspend perspective for drawing
-            renderer.SuspendPerspective(true);
-
-            // Render all tiles scaled to fit between the two anchors
-            for (const auto &[tx, ty] : structure)
-            {
-                size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
-
-                // Only render tiles from this layer
-                if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
-                    continue;
-
-                int tid = layer.tiles[tIdx];
-                if (tid < 0)
-                    continue;
-
-                // Check for animated tile (per-layer animation map)
-                if (tIdx < layer.animationMap.size())
-                {
-                    int animId = layer.animationMap[tIdx];
-                    if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
-                    {
-                        tid = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
-                    }
-                }
-
-                if (IsTileTransparent(tid))
-                    continue;
-
-                // Calculate tile's screen X position (left edge of tile)
-                float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
-
-                // Apply globe X curvature only if anchor is in viewport
-                float curvedX = tileScreenX;
-                if (useGlobeEffects && R > 0.0f)
-                {
-                    float dx = tileScreenX - centerX;
-                    curvedX = centerX + R * std::sin(dx / R);
-                }
-
-                // Apply vanishing point X scaling
-                float finalX = centerX + (curvedX - centerX) * vanishScale;
-
-                // Y offset from anchor, scaled by vanishScale to match width scaling
-                float relativeY = static_cast<float>((ty * m_TileHeight) - bottomPixelY) * vanishScale;
-                float finalY = projectedLeft.y + relativeY;
-
-                glm::vec2 pos(finalX, finalY);
-
-                // Calculate scaled tile width for this X position
-                float tileRightX = tileScreenX + tileWf;
-                float curvedRightX = tileRightX;
-                if (useGlobeEffects && R > 0.0f)
-                {
-                    float dxRight = tileRightX - centerX;
-                    curvedRightX = centerX + R * std::sin(dxRight / R);
-                }
-                float finalRightX = centerX + (curvedRightX - centerX) * vanishScale;
-                float tileDrawWidth = finalRightX - finalX;
-
-                int tsX = (tid % dataTilesPerRow) * m_TileWidth;
-                int tsY = (tid / dataTilesPerRow) * m_TileHeight;
-
-                glm::vec2 texCoord(static_cast<float>(tsX), static_cast<float>(tsY));
-                glm::vec2 texSize(tileWf, tileHf);
-
-                float rotation = layer.rotation[tIdx];
-                renderer.DrawSpriteRegion(m_TilesetTexture, pos, glm::vec2(tileDrawWidth, tileHf * vanishScale),
-                                          texCoord, texSize, rotation, glm::vec3(1.0f), flipY);
-            }
-
-            renderer.SuspendPerspective(false);
         }
     }
 }
@@ -2956,15 +3046,16 @@ void Tilemap::RenderBackgroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
             {
                 const TileLayer &layer = m_Layers[layerIdx];
 
+                int tileID = layer.tiles[idx];
+
+                if (tileID < 0)
+                    continue;
+
                 // Skip if no-projection or Y-sorted (rendered separately)
                 if (layer.noProjection[idx] || layer.ySortPlus[idx])
                     continue;
 
-                int tileID = layer.tiles[idx];
-                if (tileID < 0)
-                    continue;
-
-                // Check for animated tile
+                // Apply animated tile frame if present
                 if (idx < layer.animationMap.size())
                 {
                     int animId = layer.animationMap[idx];
@@ -2973,6 +3064,9 @@ void Tilemap::RenderBackgroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
                         tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
                     }
                 }
+
+                if (tileID < 0)
+                    continue;
 
                 // Skip transparent tiles
                 if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
@@ -3048,12 +3142,13 @@ void Tilemap::RenderForegroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
             {
                 const TileLayer &layer = m_Layers[layerIdx];
 
-                // Skip if no-projection or Y-sorted (rendered separately)
-                if (layer.noProjection[idx] || layer.ySortPlus[idx])
+                int tileID = layer.tiles[idx];
+
+                if (tileID < 0)
                     continue;
 
-                int tileID = layer.tiles[idx];
-                if (tileID < 0)
+                // Skip if no-projection or Y-sorted (rendered separately)
+                if (layer.noProjection[idx] || layer.ySortPlus[idx])
                     continue;
 
                 // Check for animated tile
@@ -3065,6 +3160,9 @@ void Tilemap::RenderForegroundLayers(IRenderer &renderer, glm::vec2 renderCam, g
                         tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
                     }
                 }
+
+                if (tileID < 0)
+                    continue;
 
                 // Skip transparent tiles
                 if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
@@ -3132,13 +3230,15 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 {
                     const TileLayer &layer = m_Layers[layerIdx];
 
-                    if (!layer.noProjection[idx] || layer.ySortPlus[idx])
-                        continue;
-
                     int tileID = layer.tiles[idx];
+
                     if (tileID < 0)
                         continue;
 
+                    if (!layer.noProjection[idx] || layer.ySortPlus[idx])
+                        continue;
+
+                    // Apply animated tile frame if present
                     if (idx < layer.animationMap.size())
                     {
                         int animId = layer.animationMap[idx];
@@ -3168,6 +3268,7 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
     // 3D mode: structure-based rendering with shared processed array
     std::vector<bool> processed(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
+    std::vector<bool> renderedStructures(m_NoProjectionStructures.size(), false);
 
     for (int y = y0; y <= y1; ++y)
     {
@@ -3180,212 +3281,188 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
             // Check if ANY background layer has noProjection at this position
             bool hasNoProj = false;
+            int foundStructId = -1;
             for (size_t layerIdx : bgLayers)
             {
                 if (m_Layers[layerIdx].noProjection[idx] && !m_Layers[layerIdx].ySortPlus[idx])
                 {
                     hasNoProj = true;
+                    // Check for defined structure
+                    if (idx < m_Layers[layerIdx].structureId.size() && m_Layers[layerIdx].structureId[idx] >= 0)
+                    {
+                        foundStructId = m_Layers[layerIdx].structureId[idx];
+                    }
                     break;
                 }
             }
             if (!hasNoProj)
                 continue;
 
-            // Flood-fill to find connected structure (across ALL layers)
-            std::vector<std::pair<int, int>> structure;
-            std::vector<std::pair<int, int>> stack;
-            stack.push_back({x, y});
-
-            int minX = x, maxX = x, minY = y, maxY = y;
-
-            while (!stack.empty())
+            if (foundStructId >= 0 && foundStructId < static_cast<int>(m_NoProjectionStructures.size()))
             {
-                auto [cx, cy] = stack.back();
-                stack.pop_back();
-
-                if (cx < 0 || cx >= m_MapWidth || cy < 0 || cy >= m_MapHeight)
-                    continue;
-
-                size_t cIdx = static_cast<size_t>(cy * m_MapWidth + cx);
-                if (processed[cIdx])
-                    continue;
-
-                // Check if this tile is no-projection in ANY layer
-                bool isNoProj = false;
-                for (size_t li = 0; li < m_Layers.size(); ++li)
+                // Skip if this structure was already rendered
+                if (renderedStructures[foundStructId])
                 {
-                    if (cIdx < m_Layers[li].noProjection.size() && m_Layers[li].noProjection[cIdx])
+                    processed[idx] = true;
+                    continue;
+                }
+                renderedStructures[foundStructId] = true;
+
+                // Use defined structure with manual anchors
+                const NoProjectionStructure& structDef = m_NoProjectionStructures[foundStructId];
+
+                // Collect all tiles belonging to this structure
+                std::vector<std::pair<int, int>> structureTiles;
+                int minX = INT_MAX, maxX = INT_MIN, minY = INT_MAX, maxY = INT_MIN;
+
+                for (int sy = y0; sy <= y1; ++sy)
+                {
+                    for (int sx = x0; sx <= x1; ++sx)
                     {
-                        isNoProj = true;
-                        break;
+                        size_t sIdx = static_cast<size_t>(sy * m_MapWidth + sx);
+                        bool hasTileInStruct = false;
+                        for (size_t layerIdx : bgLayers)
+                        {
+                            if (!m_Layers[layerIdx].noProjection[sIdx] || m_Layers[layerIdx].ySortPlus[sIdx])
+                                continue;
+                            int sid = (sIdx < m_Layers[layerIdx].structureId.size()) ? m_Layers[layerIdx].structureId[sIdx] : -1;
+                            if (sid == foundStructId)
+                            {
+                                hasTileInStruct = true;
+                                break;
+                            }
+                        }
+                        if (!hasTileInStruct)
+                            continue;
+
+                        processed[sIdx] = true;
+                        structureTiles.push_back({sx, sy});
+
+                        minX = std::min(minX, sx);
+                        maxX = std::max(maxX, sx);
+                        minY = std::min(minY, sy);
+                        maxY = std::max(maxY, sy);
                     }
                 }
-                if (!isNoProj)
+
+                if (structureTiles.empty())
                     continue;
 
-                processed[cIdx] = true;
-                structure.push_back({cx, cy});
+                // Use defined anchors for projection (world coordinates)
+                glm::vec2 leftAnchor = structDef.leftAnchor;
+                glm::vec2 rightAnchor = structDef.rightAnchor;
 
-                minX = std::min(minX, cx);
-                maxX = std::max(maxX, cx);
-                minY = std::min(minY, cy);
-                maxY = std::max(maxY, cy);
+                // Bottom edge Y position from anchors (use the lower Y, which is higher world value)
+                float bottomWorldY = std::max(leftAnchor.y, rightAnchor.y);
+                float bottomScreenY = bottomWorldY - renderCam.y + 1.0f;  // +1px offset
 
-                stack.push_back({cx - 1, cy});
-                stack.push_back({cx + 1, cy});
-                stack.push_back({cx, cy - 1});
-                stack.push_back({cx, cy + 1});
-            }
+                auto perspState = renderer.GetPerspectiveState();
 
-            // Project bottom-left anchor for Y reference
-            int leftPixelX = minX * m_TileWidth;
-            int bottomPixelY = (maxY + 1) * m_TileHeight;
-
-            // Get perspective state for globe curvature parameters
-            auto perspState = renderer.GetPerspectiveState();
-            float centerX = perspState.viewWidth * 0.5f;
-            bool applyGlobe = (perspState.mode == IRenderer::ProjectionMode::Globe ||
-                               perspState.mode == IRenderer::ProjectionMode::Fisheye);
-            float R = perspState.sphereRadius;
-
-            // Calculate anchor screen position
-            float anchorScreenX = static_cast<float>(leftPixelX) - renderCam.x;
-            float bottomScreenY = static_cast<float>(bottomPixelY) - renderCam.y;
-
-            // Calculate expanded 3D viewport bounds
-            float expansion = 1.0f / perspState.horizonScale;
-            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
-            float expandedHeight = perspState.viewHeight * expansion;
-            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
-            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
-
-            // Calculate distance outside expanded viewport (0 if inside)
-            float distOutsideX = std::max(0.0f, std::max(-anchorScreenX - widthPadding,
-                                                         anchorScreenX - perspState.viewWidth - widthPadding));
-            float distOutsideY = std::max(0.0f, std::max(-bottomScreenY - heightPadding,
-                                                         bottomScreenY - perspState.viewHeight - heightPadding));
-            float distOutside = std::max(distOutsideX, distOutsideY);
-
-            // Blend factor: 1.0 when inside expanded viewport, fades to 0.0 as we move outside
-            float blendDistance = 200.0f;
-            float viewportBlend = 1.0f - std::min(1.0f, distOutside / blendDistance);
-
-            // Calculate normal vanishing scale
-            float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
-            t = std::max(0.0f, std::min(1.0f, t));
-            float normalVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
-
-            // Blend vanishScale towards 1.0 when outside expanded viewport
-            float vanishScale = normalVanishScale * viewportBlend + 1.0f * (1.0f - viewportBlend);
-
-            // Only apply globe effects when mostly inside expanded viewport
-            bool useGlobeEffects = applyGlobe && viewportBlend > 0.5f;
-
-            glm::vec2 projectedLeft;
-            if (viewportBlend > 0.01f)
-            {
-                // Use projected position, blended with simple position
-                glm::vec2 projected = renderer.ProjectPoint(glm::vec2(anchorScreenX, bottomScreenY));
-
-                // Apply exponential Y offset
-                float distanceFactor = 1.0f - normalVanishScale;
-                float exponent = 2.0f;
-                float multiplier = tileHf * 4.0f;
-                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier * viewportBlend;
-                projected.y += exponentialYOffset;
-
-                // Compensate for globe Y curvature displacement
-                if (useGlobeEffects && R > 0.0f)
+                // Calculate projection blend factor - fade out projection when anchor is outside viewport
+                float projectionBlend = 1.0f;
+                float fadeMargin = perspState.viewHeight * 0.25f;
+                if (bottomScreenY < 0.0f)
                 {
-                    float centerY = perspState.viewHeight * 0.5f;
-                    float dy = bottomScreenY - centerY;
-                    float globeY = centerY + R * std::sin(dy / R);
-                    float globeDisplacement = globeY - bottomScreenY;
-                    projected.y += globeDisplacement * viewportBlend;
+                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
+                }
+                else if (bottomScreenY > perspState.viewHeight)
+                {
+                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    projectionBlend = 1.0f - (distOutside / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
 
-                // Blend between projected and simple screen position
-                glm::vec2 simplePos(anchorScreenX, bottomScreenY);
-                projectedLeft = projected * viewportBlend + simplePos * (1.0f - viewportBlend);
+                float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
+                t = std::max(0.0f, std::min(1.0f, t));
+                float rawVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+                float vanishScale = 1.0f + (rawVanishScale - 1.0f) * projectionBlend;
+                float scaledTileH = tileHf * vanishScale;
+
+                // Structure width based on tile extent (uses minX/maxX from structureTiles)
+                int structureWidthTiles = maxX - minX + 1;
+                if (structureWidthTiles < 1) structureWidthTiles = 1;
+
+                // Anchor X positions for projection (world coordinates)
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                std::vector<float> projectedEdgeX(structureWidthTiles + 1);
+                for (int i = 0; i <= structureWidthTiles; ++i)
+                {
+                    float edgeScreenX = anchorMinX + (i * structureWorldWidth / structureWidthTiles) - renderCam.x;
+                    glm::vec2 projected = renderer.ProjectPoint(glm::vec2(edgeScreenX, bottomScreenY));
+                    projectedEdgeX[i] = edgeScreenX + (projected.x - edgeScreenX) * projectionBlend;
+                }
+
+                renderer.SuspendPerspective(true);
+
+                for (const auto &[tx, ty] : structureTiles)
+                {
+                    size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
+
+                    for (size_t layerIdx : bgLayers)
+                    {
+                        const TileLayer &layer = m_Layers[layerIdx];
+
+                        if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
+                            continue;
+
+                        int tid = layer.tiles[tIdx];
+                        if (tid < 0)
+                            continue;
+
+                        if (tIdx < layer.animationMap.size())
+                        {
+                            int animId = layer.animationMap[tIdx];
+                            if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+                            {
+                                tid = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+                            }
+                        }
+
+                        if (IsTileTransparent(tid))
+                            continue;
+
+                        // X position: use pre-computed edge positions (no gaps)
+                        // Map tile column (tx) to structure column index based on tile extent
+                        int edgeIdx = tx - minX;
+                        if (edgeIdx < 0 || edgeIdx >= static_cast<int>(projectedEdgeX.size()) - 1)
+                            continue;
+
+                        float finalX = projectedEdgeX[edgeIdx];
+                        float scaledTileW = projectedEdgeX[edgeIdx + 1] - projectedEdgeX[edgeIdx] + .5f;
+
+                        // Y position: project this tile's bottom edge for base alignment, then stack up
+                        float tileBottomScreenY = bottomWorldY - renderCam.y + 1.0f;
+                        float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
+                        glm::vec2 projectedTileBase = renderer.ProjectPoint(glm::vec2(tileScreenX, tileBottomScreenY));
+                        float blendedBaseY = tileBottomScreenY + (projectedTileBase.y - tileBottomScreenY) * projectionBlend;
+
+                        // Calculate tile offset from bottom of structure using world Y
+                        int bottomTileY = static_cast<int>(bottomWorldY / static_cast<float>(m_TileHeight));
+                        int tileOffsetY = ty - bottomTileY;  // Rows above bottom (negative)
+                        float finalY = blendedBaseY + tileOffsetY * scaledTileH;
+
+                        int tsX = (tid % dataTilesPerRow) * m_TileWidth;
+                        int tsY = (tid / dataTilesPerRow) * m_TileHeight;
+
+                        renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(finalX, finalY),
+                                                  glm::vec2(scaledTileW, scaledTileH),
+                                                  glm::vec2(static_cast<float>(tsX), static_cast<float>(tsY)),
+                                                  glm::vec2(tileWf, tileHf),
+                                                  layer.rotation[tIdx], white, flipY);
+                    }
+                }
+
+                renderer.SuspendPerspective(false);
             }
             else
             {
-                projectedLeft = glm::vec2(anchorScreenX, bottomScreenY);
+                // No defined structure - skip (requires structure assignment for no-projection)
+                processed[idx] = true;
             }
-
-            renderer.SuspendPerspective(true);
-
-            // Render all background layers for this structure (in layer order)
-            for (const auto &[tx, ty] : structure)
-            {
-                size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
-
-                for (size_t layerIdx : bgLayers)
-                {
-                    const TileLayer &layer = m_Layers[layerIdx];
-
-                    if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
-                        continue;
-
-                    int tid = layer.tiles[tIdx];
-                    if (tid < 0)
-                        continue;
-
-                    if (tIdx < layer.animationMap.size())
-                    {
-                        int animId = layer.animationMap[tIdx];
-                        if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
-                        {
-                            tid = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
-                        }
-                    }
-
-                    if (IsTileTransparent(tid))
-                        continue;
-
-                    // Calculate tile's screen X position (left edge of tile)
-                    float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
-
-                    // Apply globe X curvature only when mostly in viewport
-                    float curvedX = tileScreenX;
-                    if (useGlobeEffects && R > 0.0f)
-                    {
-                        float dx = tileScreenX - centerX;
-                        curvedX = centerX + R * std::sin(dx / R);
-                    }
-
-                    // Apply vanishing point X scaling
-                    float finalX = centerX + (curvedX - centerX) * vanishScale;
-
-                    // Y offset from anchor, scaled by vanishScale to match width scaling
-                    float relativeY = static_cast<float>((ty * m_TileHeight) - bottomPixelY) * vanishScale;
-                    float finalY = projectedLeft.y + relativeY;
-
-                    glm::vec2 pos(finalX, finalY);
-
-                    // Calculate scaled tile width for this X position
-                    float tileRightX = tileScreenX + tileWf;
-                    float curvedRightX = tileRightX;
-                    if (useGlobeEffects && R > 0.0f)
-                    {
-                        float dxRight = tileRightX - centerX;
-                        curvedRightX = centerX + R * std::sin(dxRight / R);
-                    }
-                    float finalRightX = centerX + (curvedRightX - centerX) * vanishScale;
-                    float tileDrawWidth = finalRightX - finalX;
-
-                    int tsX = (tid % dataTilesPerRow) * m_TileWidth;
-                    int tsY = (tid / dataTilesPerRow) * m_TileHeight;
-
-                    renderer.DrawSpriteRegion(m_TilesetTexture, pos,
-                                              glm::vec2(tileDrawWidth, tileHf * vanishScale),
-                                              glm::vec2(static_cast<float>(tsX), static_cast<float>(tsY)),
-                                              glm::vec2(tileWf, tileHf),
-                                              layer.rotation[tIdx], white, flipY);
-                }
-            }
-
-            renderer.SuspendPerspective(false);
         }
     }
 }
@@ -3437,13 +3514,15 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 {
                     const TileLayer &layer = m_Layers[layerIdx];
 
-                    if (!layer.noProjection[idx] || layer.ySortPlus[idx])
-                        continue;
-
                     int tileID = layer.tiles[idx];
+
                     if (tileID < 0)
                         continue;
 
+                    if (!layer.noProjection[idx] || layer.ySortPlus[idx])
+                        continue;
+
+                    // Apply animated tile frame if present
                     if (idx < layer.animationMap.size())
                     {
                         int animId = layer.animationMap[idx];
@@ -3473,6 +3552,7 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
     // 3D mode: structure-based rendering with shared processed array
     std::vector<bool> processed(static_cast<size_t>(m_MapWidth * m_MapHeight), false);
+    std::vector<bool> renderedStructures(m_NoProjectionStructures.size(), false);
 
     for (int y = y0; y <= y1; ++y)
     {
@@ -3485,212 +3565,184 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
             // Check if ANY foreground layer has noProjection at this position
             bool hasNoProj = false;
+            int foundStructId = -1;
             for (size_t layerIdx : fgLayers)
             {
                 if (m_Layers[layerIdx].noProjection[idx] && !m_Layers[layerIdx].ySortPlus[idx])
                 {
                     hasNoProj = true;
+                    if (idx < m_Layers[layerIdx].structureId.size() && m_Layers[layerIdx].structureId[idx] >= 0)
+                    {
+                        foundStructId = m_Layers[layerIdx].structureId[idx];
+                    }
                     break;
                 }
             }
             if (!hasNoProj)
                 continue;
 
-            // Flood-fill to find connected structure (across ALL layers)
-            std::vector<std::pair<int, int>> structure;
-            std::vector<std::pair<int, int>> stack;
-            stack.push_back({x, y});
-
-            int minX = x, maxX = x, minY = y, maxY = y;
-
-            while (!stack.empty())
+            if (foundStructId >= 0 && foundStructId < static_cast<int>(m_NoProjectionStructures.size()))
             {
-                auto [cx, cy] = stack.back();
-                stack.pop_back();
-
-                if (cx < 0 || cx >= m_MapWidth || cy < 0 || cy >= m_MapHeight)
-                    continue;
-
-                size_t cIdx = static_cast<size_t>(cy * m_MapWidth + cx);
-                if (processed[cIdx])
-                    continue;
-
-                // Check if this tile is no-projection in ANY layer
-                bool isNoProj = false;
-                for (size_t li = 0; li < m_Layers.size(); ++li)
+                if (renderedStructures[foundStructId])
                 {
-                    if (cIdx < m_Layers[li].noProjection.size() && m_Layers[li].noProjection[cIdx])
+                    processed[idx] = true;
+                    continue;
+                }
+                renderedStructures[foundStructId] = true;
+
+                const NoProjectionStructure& structDef = m_NoProjectionStructures[foundStructId];
+
+                std::vector<std::pair<int, int>> structureTiles;
+                int minX = INT_MAX, maxX = INT_MIN, minY = INT_MAX, maxY = INT_MIN;
+
+                for (int sy = y0; sy <= y1; ++sy)
+                {
+                    for (int sx = x0; sx <= x1; ++sx)
                     {
-                        isNoProj = true;
-                        break;
+                        size_t sIdx = static_cast<size_t>(sy * m_MapWidth + sx);
+                        bool hasTileInStruct = false;
+                        for (size_t layerIdx : fgLayers)
+                        {
+                            if (!m_Layers[layerIdx].noProjection[sIdx] || m_Layers[layerIdx].ySortPlus[sIdx])
+                                continue;
+                            int sid = (sIdx < m_Layers[layerIdx].structureId.size()) ? m_Layers[layerIdx].structureId[sIdx] : -1;
+                            if (sid == foundStructId)
+                            {
+                                hasTileInStruct = true;
+                                break;
+                            }
+                        }
+                        if (!hasTileInStruct)
+                            continue;
+
+                        processed[sIdx] = true;
+                        structureTiles.push_back({sx, sy});
+
+                        minX = std::min(minX, sx);
+                        maxX = std::max(maxX, sx);
+                        minY = std::min(minY, sy);
+                        maxY = std::max(maxY, sy);
                     }
                 }
-                if (!isNoProj)
+
+                if (structureTiles.empty())
                     continue;
 
-                processed[cIdx] = true;
-                structure.push_back({cx, cy});
+                // Use defined anchors for projection (world coordinates)
+                glm::vec2 leftAnchor = structDef.leftAnchor;
+                glm::vec2 rightAnchor = structDef.rightAnchor;
 
-                minX = std::min(minX, cx);
-                maxX = std::max(maxX, cx);
-                minY = std::min(minY, cy);
-                maxY = std::max(maxY, cy);
+                // Bottom edge Y position from anchors (use the lower Y, which is higher world value)
+                float bottomWorldY = std::max(leftAnchor.y, rightAnchor.y);
+                float bottomScreenY = bottomWorldY - renderCam.y + 1.0f;  // +1px offset
 
-                stack.push_back({cx - 1, cy});
-                stack.push_back({cx + 1, cy});
-                stack.push_back({cx, cy - 1});
-                stack.push_back({cx, cy + 1});
-            }
+                auto perspState = renderer.GetPerspectiveState();
 
-            // Project bottom-left anchor for Y reference
-            int leftPixelX = minX * m_TileWidth;
-            int bottomPixelY = (maxY + 1) * m_TileHeight;
-
-            // Get perspective state for globe curvature parameters
-            auto perspState = renderer.GetPerspectiveState();
-            float centerX = perspState.viewWidth * 0.5f;
-            bool applyGlobe = (perspState.mode == IRenderer::ProjectionMode::Globe ||
-                               perspState.mode == IRenderer::ProjectionMode::Fisheye);
-            float R = perspState.sphereRadius;
-
-            // Calculate anchor screen position
-            float anchorScreenX = static_cast<float>(leftPixelX) - renderCam.x;
-            float bottomScreenY = static_cast<float>(bottomPixelY) - renderCam.y;
-
-            // Calculate expanded 3D viewport bounds
-            float expansion = 1.0f / perspState.horizonScale;
-            float expandedWidth = perspState.viewWidth * expansion * 1.5f;
-            float expandedHeight = perspState.viewHeight * expansion;
-            float widthPadding = (expandedWidth - perspState.viewWidth) * 0.5f;
-            float heightPadding = (expandedHeight - perspState.viewHeight) * 0.5f;
-
-            // Calculate distance outside expanded viewport (0 if inside)
-            float distOutsideX = std::max(0.0f, std::max(-anchorScreenX - widthPadding,
-                                                         anchorScreenX - perspState.viewWidth - widthPadding));
-            float distOutsideY = std::max(0.0f, std::max(-bottomScreenY - heightPadding,
-                                                         bottomScreenY - perspState.viewHeight - heightPadding));
-            float distOutside = std::max(distOutsideX, distOutsideY);
-
-            // Blend factor: 1.0 when inside expanded viewport, fades to 0.0 as we move outside
-            float blendDistance = 200.0f;
-            float viewportBlend = 1.0f - std::min(1.0f, distOutside / blendDistance);
-
-            // Calculate normal vanishing scale
-            float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
-            t = std::max(0.0f, std::min(1.0f, t));
-            float normalVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
-
-            // Blend vanishScale towards 1.0 when outside expanded viewport
-            float vanishScale = normalVanishScale * viewportBlend + 1.0f * (1.0f - viewportBlend);
-
-            // Only apply globe effects when mostly inside expanded viewport
-            bool useGlobeEffects = applyGlobe && viewportBlend > 0.5f;
-
-            glm::vec2 projectedLeft;
-            if (viewportBlend > 0.01f)
-            {
-                // Use projected position, blended with simple position
-                glm::vec2 projected = renderer.ProjectPoint(glm::vec2(anchorScreenX, bottomScreenY));
-
-                // Apply exponential Y offset
-                float distanceFactor = 1.0f - normalVanishScale;
-                float exponent = 2.0f;
-                float multiplier = tileHf * 4.0f;
-                float exponentialYOffset = std::pow(distanceFactor, exponent) * multiplier * viewportBlend;
-                projected.y += exponentialYOffset;
-
-                // Compensate for globe Y curvature displacement
-                if (useGlobeEffects && R > 0.0f)
+                // Calculate projection blend factor - fade out projection when anchor is outside viewport
+                float projectionBlend = 1.0f;
+                float fadeMargin = perspState.viewHeight * 0.25f;
+                if (bottomScreenY < 0.0f)
                 {
-                    float centerY = perspState.viewHeight * 0.5f;
-                    float dy = bottomScreenY - centerY;
-                    float globeY = centerY + R * std::sin(dy / R);
-                    float globeDisplacement = globeY - bottomScreenY;
-                    projected.y += globeDisplacement * viewportBlend;
+                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
+                }
+                else if (bottomScreenY > perspState.viewHeight)
+                {
+                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    projectionBlend = 1.0f - (distOutside / fadeMargin);
+                    projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
 
-                // Blend between projected and simple screen position
-                glm::vec2 simplePos(anchorScreenX, bottomScreenY);
-                projectedLeft = projected * viewportBlend + simplePos * (1.0f - viewportBlend);
+                float t = (bottomScreenY - perspState.horizonY) / (perspState.viewHeight - perspState.horizonY);
+                t = std::max(0.0f, std::min(1.0f, t));
+                float rawVanishScale = perspState.horizonScale + (1.0f - perspState.horizonScale) * t;
+                float vanishScale = 1.0f + (rawVanishScale - 1.0f) * projectionBlend;
+                float scaledTileH = tileHf * vanishScale;
+
+                // Structure width based on tile extent (uses minX/maxX from structureTiles)
+                int structureWidthTiles = maxX - minX + 1;
+                if (structureWidthTiles < 1) structureWidthTiles = 1;
+
+                // Anchor X positions for projection (world coordinates)
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                std::vector<float> projectedEdgeX(structureWidthTiles + 1);
+                for (int i = 0; i <= structureWidthTiles; ++i)
+                {
+                    float edgeScreenX = anchorMinX + (i * structureWorldWidth / structureWidthTiles) - renderCam.x;
+                    glm::vec2 projected = renderer.ProjectPoint(glm::vec2(edgeScreenX, bottomScreenY));
+                    projectedEdgeX[i] = edgeScreenX + (projected.x - edgeScreenX) * projectionBlend;
+                }
+
+                renderer.SuspendPerspective(true);
+
+                for (const auto &[tx, ty] : structureTiles)
+                {
+                    size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
+
+                    for (size_t layerIdx : fgLayers)
+                    {
+                        const TileLayer &layer = m_Layers[layerIdx];
+
+                        if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
+                            continue;
+
+                        int tid = layer.tiles[tIdx];
+                        if (tid < 0)
+                            continue;
+
+                        if (tIdx < layer.animationMap.size())
+                        {
+                            int animId = layer.animationMap[tIdx];
+                            if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
+                            {
+                                tid = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
+                            }
+                        }
+
+                        if (IsTileTransparent(tid))
+                            continue;
+
+                        // X position: use pre-computed edge positions (no gaps)
+                        // Map tile column (tx) to structure column index based on tile extent
+                        int edgeIdx = tx - minX;
+                        if (edgeIdx < 0 || edgeIdx >= static_cast<int>(projectedEdgeX.size()) - 1)
+                            continue;
+
+                        float finalX = projectedEdgeX[edgeIdx];
+                        float scaledTileW = projectedEdgeX[edgeIdx + 1] - projectedEdgeX[edgeIdx] + .5f;
+
+                        // Y position: project this tile's bottom edge for base alignment, then stack up
+                        float tileBottomScreenY = bottomWorldY - renderCam.y + 1.0f;
+                        float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
+                        glm::vec2 projectedTileBase = renderer.ProjectPoint(glm::vec2(tileScreenX, tileBottomScreenY));
+                        float blendedBaseY = tileBottomScreenY + (projectedTileBase.y - tileBottomScreenY) * projectionBlend;
+
+                        // Calculate tile offset from bottom of structure using world Y
+                        int bottomTileY = static_cast<int>(bottomWorldY / static_cast<float>(m_TileHeight));
+                        int tileOffsetY = ty - bottomTileY;  // Rows above bottom (negative)
+                        float finalY = blendedBaseY + tileOffsetY * scaledTileH;
+
+                        int tsX = (tid % dataTilesPerRow) * m_TileWidth;
+                        int tsY = (tid / dataTilesPerRow) * m_TileHeight;
+
+                        renderer.DrawSpriteRegion(m_TilesetTexture, glm::vec2(finalX, finalY),
+                                                  glm::vec2(scaledTileW, scaledTileH),
+                                                  glm::vec2(static_cast<float>(tsX), static_cast<float>(tsY)),
+                                                  glm::vec2(tileWf, tileHf),
+                                                  layer.rotation[tIdx], white, flipY);
+                    }
+                }
+
+                renderer.SuspendPerspective(false);
             }
             else
             {
-                projectedLeft = glm::vec2(anchorScreenX, bottomScreenY);
+                // No defined structure - skip (requires structure assignment for no-projection)
+                processed[idx] = true;
             }
-
-            renderer.SuspendPerspective(true);
-
-            // Render all foreground layers for this structure (in layer order)
-            for (const auto &[tx, ty] : structure)
-            {
-                size_t tIdx = static_cast<size_t>(ty * m_MapWidth + tx);
-
-                for (size_t layerIdx : fgLayers)
-                {
-                    const TileLayer &layer = m_Layers[layerIdx];
-
-                    if (!layer.noProjection[tIdx] || layer.ySortPlus[tIdx])
-                        continue;
-
-                    int tid = layer.tiles[tIdx];
-                    if (tid < 0)
-                        continue;
-
-                    if (tIdx < layer.animationMap.size())
-                    {
-                        int animId = layer.animationMap[tIdx];
-                        if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
-                        {
-                            tid = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
-                        }
-                    }
-
-                    if (IsTileTransparent(tid))
-                        continue;
-
-                    // Calculate tile's screen X position (left edge of tile)
-                    float tileScreenX = static_cast<float>(tx * m_TileWidth) - renderCam.x;
-
-                    // Apply globe X curvature only when mostly in viewport
-                    float curvedX = tileScreenX;
-                    if (useGlobeEffects && R > 0.0f)
-                    {
-                        float dx = tileScreenX - centerX;
-                        curvedX = centerX + R * std::sin(dx / R);
-                    }
-
-                    // Apply vanishing point X scaling
-                    float finalX = centerX + (curvedX - centerX) * vanishScale;
-
-                    // Y offset from anchor, scaled by vanishScale to match width scaling
-                    float relativeY = static_cast<float>((ty * m_TileHeight) - bottomPixelY) * vanishScale;
-                    float finalY = projectedLeft.y + relativeY;
-
-                    glm::vec2 pos(finalX, finalY);
-
-                    // Calculate scaled tile width for this X position
-                    float tileRightX = tileScreenX + tileWf;
-                    float curvedRightX = tileRightX;
-                    if (useGlobeEffects && R > 0.0f)
-                    {
-                        float dxRight = tileRightX - centerX;
-                        curvedRightX = centerX + R * std::sin(dxRight / R);
-                    }
-                    float finalRightX = centerX + (curvedRightX - centerX) * vanishScale;
-                    float tileDrawWidth = finalRightX - finalX;
-
-                    int tsX = (tid % dataTilesPerRow) * m_TileWidth;
-                    int tsY = (tid / dataTilesPerRow) * m_TileHeight;
-
-                    renderer.DrawSpriteRegion(m_TilesetTexture, pos,
-                                              glm::vec2(tileDrawWidth, tileHf * vanishScale),
-                                              glm::vec2(static_cast<float>(tsX), static_cast<float>(tsY)),
-                                              glm::vec2(tileWf, tileHf),
-                                              layer.rotation[tIdx], white, flipY);
-                }
-            }
-
-            renderer.SuspendPerspective(false);
         }
     }
 }
@@ -4029,9 +4081,42 @@ bool Tilemap::SaveMapToJSON(const std::string &filename, const std::vector<NonPl
         }
         layerJson["ySortMinus"] = ySortMinusArr;
 
+        // StructureId (sparse - only save non-default values)
+        json structIdObj = json::object();
+        for (size_t i = 0; i < layer.structureId.size(); ++i)
+        {
+            if (layer.structureId[i] >= 0)
+            {
+                structIdObj[std::to_string(i)] = layer.structureId[i];
+            }
+        }
+        if (!structIdObj.empty())
+        {
+            layerJson["structureId"] = structIdObj;
+        }
+
         dynamicLayersArray.push_back(layerJson);
     }
     j["dynamicLayers"] = dynamicLayersArray;
+
+    // No-Projection Structures (manually defined with anchors)
+    if (!m_NoProjectionStructures.empty())
+    {
+        json structuresArray = json::array();
+        for (const auto &s : m_NoProjectionStructures)
+        {
+            json structJson;
+            structJson["id"] = s.id;
+            if (!s.name.empty())
+            {
+                structJson["name"] = s.name;
+            }
+            structJson["leftAnchor"] = {s.leftAnchor.x, s.leftAnchor.y};
+            structJson["rightAnchor"] = {s.rightAnchor.x, s.rightAnchor.y};
+            structuresArray.push_back(structJson);
+        }
+        j["noProjectionStructures"] = structuresArray;
+    }
 
     // Particle Zones
     json particleZonesArray = json::array();
@@ -4437,6 +4522,25 @@ bool Tilemap::LoadMapFromJSON(const std::string &filename, std::vector<NonPlayer
                 }
             }
 
+            // Load structureId (sparse object)
+            if (layerJson.contains("structureId") && layerJson["structureId"].is_object())
+            {
+                for (auto &[key, value] : layerJson["structureId"].items())
+                {
+                    try
+                    {
+                        size_t index = static_cast<size_t>(std::stoi(key));
+                        if (index < mapSize)
+                        {
+                            layer.structureId[index] = value.get<int>();
+                        }
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+
             m_Layers.push_back(std::move(layer));
         }
         std::cout << "Loaded " << m_Layers.size() << " dynamic layers" << std::endl;
@@ -4466,6 +4570,30 @@ bool Tilemap::LoadMapFromJSON(const std::string &filename, std::vector<NonPlayer
             m_ParticleZones.push_back(zone);
         }
         std::cout << "Loaded " << m_ParticleZones.size() << " particle zones" << std::endl;
+    }
+
+    // Load No-Projection Structures
+    m_NoProjectionStructures.clear();
+    if (j.contains("noProjectionStructures") && j["noProjectionStructures"].is_array())
+    {
+        for (const auto &structJson : j["noProjectionStructures"])
+        {
+            NoProjectionStructure s;
+            s.id = structJson.value("id", static_cast<int>(m_NoProjectionStructures.size()));
+            s.name = structJson.value("name", "");
+            if (structJson.contains("leftAnchor") && structJson["leftAnchor"].is_array() && structJson["leftAnchor"].size() >= 2)
+            {
+                s.leftAnchor.x = structJson["leftAnchor"][0].get<float>();
+                s.leftAnchor.y = structJson["leftAnchor"][1].get<float>();
+            }
+            if (structJson.contains("rightAnchor") && structJson["rightAnchor"].is_array() && structJson["rightAnchor"].size() >= 2)
+            {
+                s.rightAnchor.x = structJson["rightAnchor"][0].get<float>();
+                s.rightAnchor.y = structJson["rightAnchor"][1].get<float>();
+            }
+            m_NoProjectionStructures.push_back(s);
+        }
+        std::cout << "Loaded " << m_NoProjectionStructures.size() << " no-projection structures" << std::endl;
     }
 
     // Load NPCs

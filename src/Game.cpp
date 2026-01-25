@@ -31,7 +31,7 @@ Game::Game()
     , m_CameraZoom(1.0f)                            // Camera zoom level (1.0 = normal)
     , m_CameraTilt(0.2f)                            // Default tilt angle for 3D effect (vanishing point)
     , m_Enable3DEffect(false)                       // 3D effect disabled by default
-    , m_GlobeSphereRadius(400.0f)                   // Globe + vanishing point projection radius (smaller = more curve)
+    , m_GlobeSphereRadius(300.0f)                   // Globe + vanishing point projection radius (smaller = more curve)
     , m_FreeCameraMode(false)                       // Free camera mode disabled by default (Space toggle)
     , m_LastFrameTime(0.0f)                         // Time of last frame (for delta time calculation)
     , m_EditorMode(false)                           // Whether editor mode is active
@@ -46,6 +46,12 @@ Game::Game()
     , m_ParticleNoProjection(false)                 // Whether new particle zones use no projection
     , m_PlacingParticleZone(false)                  // Whether currently dragging to create a zone
     , m_ParticleZoneStart(0.0f, 0.0f)               // Start position of zone being placed
+    , m_StructureEditMode(false)                    // Whether structure definition mode is active
+    , m_CurrentStructureId(-1)                      // Currently selected structure (-1 = none)
+    , m_PlacingAnchor(0)                            // 0=not placing, 1=left anchor, 2=right anchor
+    , m_TempLeftAnchor(-1.0f, -1.0f)                 // Temporary left anchor world position
+    , m_TempRightAnchor(-1.0f, -1.0f)               // Temporary right anchor world position
+    , m_AssigningTilesToStructure(false)            // Whether assigning tiles to structure
     , m_AnimationEditMode(false)                    // Whether animation editing mode is active
     , m_AnimationFrameDuration(0.2f)                // Default animation frame duration
     , m_SelectedAnimationId(-1)                     // No animation selected initially
@@ -835,14 +841,18 @@ void Game::ConfigureRendererPerspective(float width, float height)
     if (m_Enable3DEffect)
     {
         // horizonY: vertical position of the vanishing point (negative = above center)
-        // The 0.35 factor controls how much tilt affects horizon placement.
-        float horizonY = -height * m_CameraTilt * 0.35f;
+        // The 0.20 factor controls how much tilt affects horizon placement.
+        float horizonY = -height * m_CameraTilt * 0.20f;
 
-        // horizonScale: how much objects shrink at the horizon (0.6 = 60% size minimum)
-        // Less tilt means less shrinking (closer to 0.75 at tilt=0).
-        float horizonScale = 0.6f + (1.0f - m_CameraTilt) * 0.15f;
+        // horizonScale: how much objects shrink at the horizon (0.75 = 75% size minimum)
+        // Less tilt means less shrinking (closer to 0.85 at tilt=0).
+        float horizonScale = 0.75f + (1.0f - m_CameraTilt) * 0.10f;
 
-        m_Renderer->SetFisheyePerspective(true, m_GlobeSphereRadius, horizonY, horizonScale, width, height);
+        // Scale sphere radius with zoom to maintain consistent visual effect
+        // When zoomed in (smaller view), use smaller radius to compensate
+        float effectiveSphereRadius = m_GlobeSphereRadius / m_CameraZoom;
+
+        m_Renderer->SetFisheyePerspective(true, effectiveSphereRadius, horizonY, horizonScale, width, height);
     }
     else
     {
@@ -1061,9 +1071,9 @@ void Game::Render()
 
                   if ((aIsYSortMinusTile && bIsEntity) || (bIsYSortMinusTile && aIsEntity))
                   {
-                      // 2px offset below tile anchor where player still renders behind
-                      float aSortY = a.sortY + (aIsYSortMinusTile ? 2.0f : 0.0f);
-                      float bSortY = b.sortY + (bIsYSortMinusTile ? 2.0f : 0.0f);
+                      // Half-tile offset: player must be at least 8px in front to render in front
+                      float aSortY = a.sortY + (aIsYSortMinusTile ? 8.0f : 0.0f);
+                      float bSortY = b.sortY + (bIsYSortMinusTile ? 8.0f : 0.0f);
                       // Use epsilon for float comparison to avoid flickering
                       if (std::abs(aSortY - bSortY) > 0.1f)
                           return aSortY < bSortY;
@@ -1168,6 +1178,8 @@ void Game::Render()
         RenderNavigationOverlays();
         // No-projection overlay (shows tiles that bypass 3D projection)
         RenderNoProjectionOverlays();
+        // Structure edit overlay (shows defined structures and anchors)
+        RenderStructureOverlays();
         // Y-sort-plus overlay (shows tiles that sort with entities by Y position)
         RenderYSortPlusOverlays();
         // Y-sort-minus overlay (shows Y-sort-plus tiles where player renders behind)
@@ -1179,10 +1191,12 @@ void Game::Render()
     // 1: Ground Detail -> RenderLayer2Overlays
     // 2: Objects       -> RenderLayer3Overlays
     // 3: Objects2      -> RenderLayer4Overlays
-    // 4: Foreground    -> RenderLayer5Overlays
-    // 5: Foreground2   -> RenderLayer6Overlays
-    // 6: Overlay       -> RenderLayer7Overlays
-    // 7: Overlay2      -> RenderLayer8Overlays
+    // 4: Objects3      -> RenderLayer5Overlays
+    // 5: Foreground    -> RenderLayer6Overlays
+    // 6: Foreground2   -> RenderLayer7Overlays
+    // 7: Overlay       -> RenderLayer8Overlays
+    // 8: Overlay2      -> RenderLayer9Overlays
+    // 9: Overlay3      -> RenderLayer10Overlays
     if (m_EditorMode && !m_ShowTilePicker)
     {
         switch (m_CurrentLayer)
@@ -1208,6 +1222,12 @@ void Game::Render()
         case 7:
             RenderLayer8Overlays();
             break; // Red
+        case 8:
+            RenderLayer9Overlays();
+            break; // Magenta
+        case 9:
+            RenderLayer10Overlays();
+            break; // White
         }
 
         // Render placement preview
@@ -1227,6 +1247,8 @@ void Game::Render()
         RenderElevationOverlays();
         // Show no-projection overlays (Orange)
         RenderNoProjectionOverlays();
+        // Structure edit overlay (shows defined structures and anchors)
+        RenderStructureOverlays();
         // Show Y-sort-plus overlays (Cyan)
         RenderYSortPlusOverlays();
         // Show Y-sort-minus overlays (Magenta)
@@ -1244,6 +1266,8 @@ void Game::Render()
         RenderLayer6Overlays();
         RenderLayer7Overlays();
         RenderLayer8Overlays();
+        RenderLayer9Overlays();
+        RenderLayer10Overlays();
     }
 
     // Reset ambient color to white for UI elements (not affected by day/night cycle)

@@ -65,12 +65,12 @@
  * 
  * @par Render Order
  * The game renders in this order for correct depth:
- * 1. Background layers (Ground, Ground Detail, Objects, Objects2) - skips Y-sorted/no-projection tiles
+ * 1. Background layers (Ground, Ground Detail, Objects, Objects2, Objects3) - skips Y-sorted/no-projection tiles
  * 2. Background no-projection tiles (buildings rendered upright, perspective suspended)
  * 3. Y-sorted pass: Y-sorted tiles from ALL layers + NPCs + Player (sorted by Y coordinate)
  * 4. Foreground no-projection tiles (rendered upright)
  * 5. No-projection particles (perspective suspended)
- * 6. Foreground layers (Foreground, Foreground2, Overlay, Overlay2) - skips Y-sorted/no-projection tiles
+ * 6. Foreground layers (Foreground, Foreground2, Overlay, Overlay2, Overlay3) - skips Y-sorted/no-projection tiles
  * 7. Regular particles
  * 8. Sky/ambient overlay (stars, rays, atmospheric effects)
  * 9. Editor UI (if active)
@@ -337,32 +337,46 @@ private:
     void RenderLayer4Overlays();
 
     /**
-     * @brief Render Foreground layer overlays.
+     * @brief Render Objects3 layer overlays.
      *
-     * Draws orange indicators for Foreground tiles (index 4) in editor mode.
+     * Draws orange indicators for Objects3 tiles (index 4) in editor mode.
      */
     void RenderLayer5Overlays();
 
     /**
-     * @brief Render Foreground2 layer overlays.
+     * @brief Render Foreground layer overlays.
      *
-     * Draws yellow indicators for Foreground2 tiles (index 5) in editor mode.
+     * Draws yellow indicators for Foreground tiles (index 5) in editor mode.
      */
     void RenderLayer6Overlays();
 
     /**
-     * @brief Render Overlay layer overlays.
+     * @brief Render Foreground2 layer overlays.
      *
-     * Draws cyan indicators for Overlay tiles (index 6) in editor mode.
+     * Draws cyan indicators for Foreground2 tiles (index 6) in editor mode.
      */
     void RenderLayer7Overlays();
 
     /**
-     * @brief Render Overlay2 layer overlays.
+     * @brief Render Overlay layer overlays.
      *
-     * Draws red indicators for Overlay2 tiles (index 7) in editor mode.
+     * Draws red indicators for Overlay tiles (index 7) in editor mode.
      */
     void RenderLayer8Overlays();
+
+    /**
+     * @brief Render Overlay2 layer overlays.
+     *
+     * Draws magenta indicators for Overlay2 tiles (index 8) in editor mode.
+     */
+    void RenderLayer9Overlays();
+
+    /**
+     * @brief Render Overlay3 layer overlays.
+     *
+     * Draws white indicators for Overlay3 tiles (index 9) in editor mode.
+     */
+    void RenderLayer10Overlays();
 
     /**
      * @brief Render navigation mesh overlays.
@@ -393,6 +407,16 @@ private:
      * calculations as the actual rendering. Rendered on top of everything.
      */
     void RenderNoProjectionAnchors();
+
+    /**
+     * @brief Render structure edit mode overlays.
+     *
+     * When in structure edit mode, draws:
+     * - Blue markers for defined structure anchors
+     * - Purple overlay for tiles assigned to structures
+     * - Temporary anchor markers when placing
+     */
+    void RenderStructureOverlays();
 
     /**
      * @brief Render Y-sort-plus tile overlays.
@@ -586,6 +610,12 @@ private:
     bool m_ParticleNoProjection;                   ///< If true, new particle zones use no projection
     bool m_PlacingParticleZone;                    ///< Currently dragging to create a zone
     glm::vec2 m_ParticleZoneStart;                 ///< Start position of zone being placed
+    bool m_StructureEditMode;                      ///< Structure definition mode (K key)
+    int m_CurrentStructureId;                      ///< Currently selected structure (-1 = none/new)
+    int m_PlacingAnchor;                           ///< 0=not placing, 1=left anchor, 2=right anchor
+    glm::vec2 m_TempLeftAnchor;                    ///< Temporary left anchor world position
+    glm::vec2 m_TempRightAnchor;                   ///< Temporary right anchor world position
+    bool m_AssigningTilesToStructure;              ///< Shift held - assigning tiles to structure
     bool m_AnimationEditMode;                      ///< Creating animated tile definitions
     std::vector<int> m_AnimationFrames;            ///< Frames being collected for new animation
     float m_AnimationFrameDuration;                ///< Frame duration for new animation (seconds)

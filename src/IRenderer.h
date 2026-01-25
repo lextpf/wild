@@ -391,44 +391,58 @@ public:
         PerspectiveState s = GetPerspectiveState();
         if (!s.enabled) return p;
 
-        glm::vec2 result = p;
-        float centerX = s.viewWidth * 0.5f;
-        float centerY = s.viewHeight * 0.5f;
+        // Use double precision to match renderer exactly
+        double resultX = static_cast<double>(p.x);
+        double resultY = static_cast<double>(p.y);
+        double centerX = static_cast<double>(s.viewWidth) * 0.5;
+        double centerY = static_cast<double>(s.viewHeight) * 0.5;
 
         bool applyGlobe = (s.mode == ProjectionMode::Globe || s.mode == ProjectionMode::Fisheye);
         bool applyVanishing = (s.mode == ProjectionMode::VanishingPoint || s.mode == ProjectionMode::Fisheye);
 
-        // Step 1: Apply globe curvature
+        // Step 1: Apply globe curvature using true spherical projection
         if (applyGlobe)
         {
-            float R = s.sphereRadius;
-            float dx = result.x - centerX;
-            float dy = result.y - centerY;
-            result.x = centerX + R * std::sin(dx / R);
-            result.y = centerY + R * std::sin(dy / R);
+            double R = static_cast<double>(s.sphereRadius);
+            double dx = resultX - centerX;
+            double dy = resultY - centerY;
+            double d = std::sqrt(dx * dx + dy * dy);  // Radial distance from center
+
+            if (d > 0.001)  // Avoid division by zero
+            {
+                // Project onto sphere: linear distance -> arc length -> projected distance
+                double projectedD = R * std::sin(d / R);
+                double ratio = projectedD / d;
+                resultX = centerX + dx * ratio;
+                resultY = centerY + dy * ratio;
+            }
+            // else: point is at center, no transformation needed
         }
 
         // Step 2: Apply vanishing point projection
         if (applyVanishing)
         {
-            float denom = (s.viewHeight - s.horizonY);
-            if (denom < 1e-5f) return result;
+            double horizonY = static_cast<double>(s.horizonY);
+            double screenHeight = static_cast<double>(s.viewHeight);
+            double horizonScale = static_cast<double>(s.horizonScale);
 
-            glm::vec2 v(centerX, s.horizonY);
-            float t = (result.y - s.horizonY) / denom;
-            t = std::max(0.0f, std::min(1.0f, t));
+            double denom = screenHeight - horizonY;
+            if (denom < 1e-5) return p;
+
+            double t = (resultY - horizonY) / denom;
+            t = std::max(0.0, std::min(1.0, t));
 
             // Match renderer exactly: horizonScale + (1 - horizonScale) * t
-            float scale = s.horizonScale + (1.0f - s.horizonScale) * t;
+            double scale = horizonScale + (1.0 - horizonScale) * t;
 
             // Apply same transformation as renderer
-            float dx = result.x - centerX;
-            float dy = result.y - s.horizonY;
-            result.x = centerX + dx * scale;
-            result.y = s.horizonY + dy * scale;
+            double dx = resultX - centerX;
+            double dy = resultY - horizonY;
+            resultX = centerX + dx * scale;
+            resultY = horizonY + dy * scale;
         }
 
-        return result;
+        return glm::vec2(static_cast<float>(resultX), static_cast<float>(resultY));
     }
 
     /**

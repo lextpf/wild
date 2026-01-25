@@ -205,6 +205,8 @@ void Game::ProcessInput(float deltaTime)
             m_YSortPlusEditMode = false;
             m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
         }
         std::cout << "Navigation edit mode: " << (m_EditNavigationMode ? "ON" : "OFF") << std::endl;
         mKeyPressed = true;
@@ -230,6 +232,8 @@ void Game::ProcessInput(float deltaTime)
             m_YSortPlusEditMode = false;
             m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
             if (!m_AvailableNPCTypes.empty())
             {
                 std::cout << "NPC placement mode: ON - Selected NPC: " << m_AvailableNPCTypes[m_SelectedNPCTypeIndex] << std::endl;
@@ -263,6 +267,8 @@ void Game::ProcessInput(float deltaTime)
             m_YSortPlusEditMode = false;
             m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
             std::cout << "Elevation edit mode: ON - Current elevation: " << m_CurrentElevation << " pixels" << std::endl;
             std::cout << "Use scroll wheel to adjust elevation value" << std::endl;
         }
@@ -293,6 +299,8 @@ void Game::ProcessInput(float deltaTime)
             m_YSortPlusEditMode = false;
             m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
             std::cout << "No-projection edit mode: ON (Layer " << m_CurrentLayer << ") - Click to mark tiles that bypass 3D projection" << std::endl;
             std::cout << "Use 1-6 keys to change layer" << std::endl;
         }
@@ -323,6 +331,8 @@ void Game::ProcessInput(float deltaTime)
             m_NoProjectionEditMode = false;
             m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
             std::cout << "Y-sort+1 edit mode: ON (Layer " << m_CurrentLayer << ") - Click to mark tiles for Y-sorting with entities" << std::endl;
             std::cout << "Use 1-6 keys to change layer" << std::endl;
         }
@@ -353,6 +363,8 @@ void Game::ProcessInput(float deltaTime)
             m_NoProjectionEditMode = false;
             m_YSortPlusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
             std::cout << "========================================" << std::endl;
             std::cout << "Y-SORT-1 EDIT MODE: ON (Layer " << m_CurrentLayer << ")" << std::endl;
             std::cout << "Click the BOTTOM tile of a structure to mark it" << std::endl;
@@ -386,6 +398,8 @@ void Game::ProcessInput(float deltaTime)
             m_NoProjectionEditMode = false;
             m_YSortPlusEditMode = false;
             m_YSortMinusEditMode = false;
+            m_StructureEditMode = false;
+            m_AnimationEditMode = false;
             const char *typeNames[] = {"Firefly", "Rain", "Snow", "Fog", "Sparkles", "Wisp", "Lantern", "Sunshine"};
             std::cout << "Particle zone edit mode: ON - Type: " << typeNames[static_cast<int>(m_CurrentParticleType)] << std::endl;
             std::cout << "Click and drag to place zones, use , and . to change type" << std::endl;
@@ -444,6 +458,132 @@ void Game::ProcessInput(float deltaTime)
             nKeyParticle = false;
     }
 
+    // Toggles structure definition mode. When active:
+    //   - Click to place left anchor, click again to place right anchor
+    //   - Enter to create structure from anchors
+    //   - , and . to cycle through existing structures
+    //   - Shift+click to assign tiles to current structure
+    //   - Right-click to clear structure assignment from tiles
+    //   - Delete to remove current structure
+    static bool gKeyPressedStruct = false;
+    if (m_EditorMode && glfwGetKey(m_Window, GLFW_KEY_G) == GLFW_PRESS && !gKeyPressedStruct)
+    {
+        m_StructureEditMode = !m_StructureEditMode;
+        if (m_StructureEditMode)
+        {
+            m_EditNavigationMode = false;
+            m_NPCPlacementMode = false;
+            m_ElevationEditMode = false;
+            m_NoProjectionEditMode = false;
+            m_YSortPlusEditMode = false;
+            m_YSortMinusEditMode = false;
+            m_ParticleZoneEditMode = false;
+            m_AnimationEditMode = false;
+            m_PlacingAnchor = 0;
+            m_TempLeftAnchor = glm::vec2(-1.0f, -1.0f);
+            m_TempRightAnchor = glm::vec2(-1.0f, -1.0f);
+            std::cout << "========================================" << std::endl;
+            std::cout << "STRUCTURE EDIT MODE: ON (Layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+            std::cout << "Click = toggle no-projection" << std::endl;
+            std::cout << "Shift+click = flood-fill no-projection" << std::endl;
+            std::cout << "Ctrl+click = place anchors (left, then right)" << std::endl;
+            std::cout << ", . = select existing structures" << std::endl;
+            std::cout << "Delete = remove selected structure" << std::endl;
+            std::cout << "Structures: " << m_Tilemap.GetNoProjectionStructureCount() << std::endl;
+            std::cout << "========================================" << std::endl;
+        }
+        else
+        {
+            m_PlacingAnchor = 0;
+            std::cout << "Structure edit mode: OFF" << std::endl;
+        }
+        gKeyPressedStruct = true;
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_G) == GLFW_RELEASE)
+    {
+        gKeyPressedStruct = false;
+    }
+
+    // Structure mode controls
+    if (m_EditorMode && m_StructureEditMode)
+    {
+        // Cycle through structures with , and .
+        static bool commaPressed = false;
+        static bool periodPressed = false;
+
+        if (glfwGetKey(m_Window, GLFW_KEY_COMMA) == GLFW_PRESS && !commaPressed)
+        {
+            size_t count = m_Tilemap.GetNoProjectionStructureCount();
+            if (count > 0)
+            {
+                if (m_CurrentStructureId < 0)
+                    m_CurrentStructureId = static_cast<int>(count) - 1;
+                else
+                    m_CurrentStructureId = (m_CurrentStructureId - 1 + static_cast<int>(count)) % static_cast<int>(count);
+
+                const NoProjectionStructure* s = m_Tilemap.GetNoProjectionStructure(m_CurrentStructureId);
+                if (s)
+                {
+                    std::cout << "Selected structure " << m_CurrentStructureId << ": \"" << s->name
+                              << "\" anchors: (" << s->leftAnchor.x << "," << s->leftAnchor.y << ") - ("
+                              << s->rightAnchor.x << "," << s->rightAnchor.y << ")" << std::endl;
+                }
+            }
+            commaPressed = true;
+        }
+        if (glfwGetKey(m_Window, GLFW_KEY_COMMA) == GLFW_RELEASE)
+            commaPressed = false;
+
+        if (glfwGetKey(m_Window, GLFW_KEY_PERIOD) == GLFW_PRESS && !periodPressed)
+        {
+            size_t count = m_Tilemap.GetNoProjectionStructureCount();
+            if (count > 0)
+            {
+                m_CurrentStructureId = (m_CurrentStructureId + 1) % static_cast<int>(count);
+
+                const NoProjectionStructure* s = m_Tilemap.GetNoProjectionStructure(m_CurrentStructureId);
+                if (s)
+                {
+                    std::cout << "Selected structure " << m_CurrentStructureId << ": \"" << s->name
+                              << "\" anchors: (" << s->leftAnchor.x << "," << s->leftAnchor.y << ") - ("
+                              << s->rightAnchor.x << "," << s->rightAnchor.y << ")" << std::endl;
+                }
+            }
+            periodPressed = true;
+        }
+        if (glfwGetKey(m_Window, GLFW_KEY_PERIOD) == GLFW_RELEASE)
+            periodPressed = false;
+
+        // Escape to cancel anchor placement
+        static bool escapePressedAnchor = false;
+        if (glfwGetKey(m_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS && !escapePressedAnchor && m_PlacingAnchor != 0)
+        {
+            m_PlacingAnchor = 0;
+            m_TempLeftAnchor = glm::vec2(-1.0f, -1.0f);
+            m_TempRightAnchor = glm::vec2(-1.0f, -1.0f);
+            std::cout << "Anchor placement cancelled" << std::endl;
+            escapePressedAnchor = true;
+        }
+        if (glfwGetKey(m_Window, GLFW_KEY_ESCAPE) == GLFW_RELEASE)
+            escapePressedAnchor = false;
+
+        // Delete to remove current structure
+        static bool deletePressedStruct = false;
+        if (glfwGetKey(m_Window, GLFW_KEY_DELETE) == GLFW_PRESS && !deletePressedStruct)
+        {
+            if (m_CurrentStructureId >= 0)
+            {
+                std::cout << "Removed structure " << m_CurrentStructureId << std::endl;
+                m_Tilemap.RemoveNoProjectionStructure(m_CurrentStructureId);
+                m_CurrentStructureId = -1;
+            }
+            deletePressedStruct = true;
+        }
+        if (glfwGetKey(m_Window, GLFW_KEY_DELETE) == GLFW_RELEASE)
+            deletePressedStruct = false;
+
+    }
+
     // Toggles animated tile creation mode. When active:
     //   - Click tiles in the tile picker to add frames to animation
     //   - Press Enter to create the animation and apply to selected map tile
@@ -462,6 +602,7 @@ void Game::ProcessInput(float deltaTime)
             m_YSortPlusEditMode = false;
             m_YSortMinusEditMode = false;
             m_ParticleZoneEditMode = false;
+            m_StructureEditMode = false;
             m_AnimationFrames.clear();
             std::cout << "Animation edit mode: ON" << std::endl;
             std::cout << "Click tiles in picker to add frames, Enter to create, Esc to cancel" << std::endl;
@@ -905,8 +1046,9 @@ void Game::ProcessInput(float deltaTime)
         if (isNewTile && tileX >= 0 && tileX < m_Tilemap.GetMapWidth() &&
             tileY >= 0 && tileY < m_Tilemap.GetMapHeight())
         {
-            // Delete tile on selected layer (set to -1 = empty)
+            // Delete tile on selected layer (set to -1 = empty) and clear animation
             m_Tilemap.SetLayerTile(tileX, tileY, m_CurrentLayer, -1);
+            m_Tilemap.SetTileAnimation(tileX, tileY, static_cast<int>(m_CurrentLayer), -1);
             lastDeletedTileX = tileX;
             lastDeletedTileY = tileY;
         }
@@ -967,8 +1109,10 @@ void Game::ProcessInput(float deltaTime)
     static bool key6Pressed = false;
     static bool key7Pressed = false;
     static bool key8Pressed = false;
+    static bool key9Pressed = false;
+    static bool key0Pressed = false;
 
-    // Layer switching: Keys 1-8 map to dynamic layers 0-7
+    // Layer switching: Keys 1-9,0 map to dynamic layers 0-9
     if (glfwGetKey(m_Window, GLFW_KEY_1) == GLFW_PRESS && !key1Pressed && m_EditorMode)
     {
         m_CurrentLayer = 0;
@@ -1008,7 +1152,7 @@ void Game::ProcessInput(float deltaTime)
     if (glfwGetKey(m_Window, GLFW_KEY_5) == GLFW_PRESS && !key5Pressed && m_EditorMode)
     {
         m_CurrentLayer = 4;
-        std::cout << "Switched to Layer 5: Foreground (foreground)" << std::endl;
+        std::cout << "Switched to Layer 5: Objects3 (background)" << std::endl;
         key5Pressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_5) == GLFW_RELEASE)
@@ -1017,7 +1161,7 @@ void Game::ProcessInput(float deltaTime)
     if (glfwGetKey(m_Window, GLFW_KEY_6) == GLFW_PRESS && !key6Pressed && m_EditorMode)
     {
         m_CurrentLayer = 5;
-        std::cout << "Switched to Layer 6: Foreground2 (foreground)" << std::endl;
+        std::cout << "Switched to Layer 6: Foreground (foreground)" << std::endl;
         key6Pressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_6) == GLFW_RELEASE)
@@ -1026,7 +1170,7 @@ void Game::ProcessInput(float deltaTime)
     if (glfwGetKey(m_Window, GLFW_KEY_7) == GLFW_PRESS && !key7Pressed && m_EditorMode)
     {
         m_CurrentLayer = 6;
-        std::cout << "Switched to Layer 7: Overlay (foreground)" << std::endl;
+        std::cout << "Switched to Layer 7: Foreground2 (foreground)" << std::endl;
         key7Pressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_7) == GLFW_RELEASE)
@@ -1035,11 +1179,29 @@ void Game::ProcessInput(float deltaTime)
     if (glfwGetKey(m_Window, GLFW_KEY_8) == GLFW_PRESS && !key8Pressed && m_EditorMode)
     {
         m_CurrentLayer = 7;
-        std::cout << "Switched to Layer 8: Overlay2 (foreground)" << std::endl;
+        std::cout << "Switched to Layer 8: Overlay (foreground)" << std::endl;
         key8Pressed = true;
     }
     if (glfwGetKey(m_Window, GLFW_KEY_8) == GLFW_RELEASE)
         key8Pressed = false;
+
+    if (glfwGetKey(m_Window, GLFW_KEY_9) == GLFW_PRESS && !key9Pressed && m_EditorMode)
+    {
+        m_CurrentLayer = 8;
+        std::cout << "Switched to Layer 9: Overlay2 (foreground)" << std::endl;
+        key9Pressed = true;
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_9) == GLFW_RELEASE)
+        key9Pressed = false;
+
+    if (glfwGetKey(m_Window, GLFW_KEY_0) == GLFW_PRESS && !key0Pressed && m_EditorMode)
+    {
+        m_CurrentLayer = 9;
+        std::cout << "Switched to Layer 10: Overlay3 (foreground)" << std::endl;
+        key0Pressed = true;
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_0) == GLFW_RELEASE)
+        key0Pressed = false;
 
     // Cycles through available player character sprites.
     // Each character type has its own sprite sheet loaded from assets.
@@ -1874,6 +2036,59 @@ void Game::ProcessMouseInput()
                 std::cout << "Cleared elevation at (" << tileX << ", " << tileY << ")" << std::endl;
                 m_RightMousePressed = true;
             }
+            // Structure edit mode, right-click clears structure assignment from tiles
+            // Shift+right-click, flood-fill to clear all connected tiles
+            else if (m_StructureEditMode)
+            {
+                bool shiftHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                                  glfwGetKey(m_Window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+
+                if (shiftHeld)
+                {
+                    // Flood-fill to clear structure assignment
+                    int mapWidth = m_Tilemap.GetMapWidth();
+                    int mapHeight = m_Tilemap.GetMapHeight();
+                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
+                    std::vector<std::pair<int, int>> stack;
+                    stack.push_back({tileX, tileY});
+                    int count = 0;
+
+                    while (!stack.empty())
+                    {
+                        auto [cx, cy] = stack.back();
+                        stack.pop_back();
+
+                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
+                            continue;
+
+                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
+                        if (visited[idx])
+                            continue;
+
+                        // Check if tile has structure assignment on current layer
+                        int structId = m_Tilemap.GetTileStructureId(cx, cy, m_CurrentLayer + 1);
+                        if (structId < 0)
+                            continue;
+
+                        visited[idx] = true;
+                        m_Tilemap.SetTileStructureId(cx, cy, m_CurrentLayer + 1, -1);
+                        count++;
+
+                        stack.push_back({cx - 1, cy});
+                        stack.push_back({cx + 1, cy});
+                        stack.push_back({cx, cy - 1});
+                        stack.push_back({cx, cy + 1});
+                    }
+                    std::cout << "Cleared structure assignment from " << count << " tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                }
+                else
+                {
+                    // Single tile: clear structure assignment
+                    m_Tilemap.SetTileStructureId(tileX, tileY, m_CurrentLayer + 1, -1);
+                    std::cout << "Cleared structure assignment at (" << tileX << ", " << tileY << ")" << std::endl;
+                }
+                m_RightMousePressed = true;
+            }
             // No-projection edit mode, right-click clears no-projection flag for current layer
             // Shift+right-click, flood-fill to clear all connected tiles
             else if (m_NoProjectionEditMode)
@@ -1902,12 +2117,25 @@ void Game::ProcessMouseInput()
                         if (visited[idx])
                             continue;
 
-                        // Check if tile has no-projection flag in current layer
-                        if (!m_Tilemap.GetLayerNoProjection(cx, cy, m_CurrentLayer))
+                        // Check if tile has no-projection flag in ANY layer
+                        bool hasNoProj = false;
+                        for (size_t li = 0; li < m_Tilemap.GetLayerCount(); ++li)
+                        {
+                            if (m_Tilemap.GetLayerNoProjection(cx, cy, li))
+                            {
+                                hasNoProj = true;
+                                break;
+                            }
+                        }
+                        if (!hasNoProj)
                             continue;
 
                         visited[idx] = true;
-                        m_Tilemap.SetLayerNoProjection(cx, cy, m_CurrentLayer, false);
+                        // Clear noProjection on ALL layers at this position
+                        for (size_t li = 0; li < m_Tilemap.GetLayerCount(); ++li)
+                        {
+                            m_Tilemap.SetLayerNoProjection(cx, cy, li, false);
+                        }
                         count++;
 
                         stack.push_back({cx - 1, cy});
@@ -1915,12 +2143,16 @@ void Game::ProcessMouseInput()
                         stack.push_back({cx, cy - 1});
                         stack.push_back({cx, cy + 1});
                     }
-                    std::cout << "Cleared no-projection on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    std::cout << "Cleared no-projection on " << count << " connected tiles (all layers)" << std::endl;
                 }
                 else
                 {
-                    m_Tilemap.SetLayerNoProjection(tileX, tileY, m_CurrentLayer, false);
-                    std::cout << "Cleared no-projection at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+                    // Clear noProjection on ALL layers at this position
+                    for (size_t li = 0; li < m_Tilemap.GetLayerCount(); ++li)
+                    {
+                        m_Tilemap.SetLayerNoProjection(tileX, tileY, li, false);
+                    }
+                    std::cout << "Cleared no-projection at (" << tileX << ", " << tileY << ") all layers" << std::endl;
                 }
                 m_RightMousePressed = true;
             }
@@ -2323,54 +2555,250 @@ void Game::ProcessMouseInput()
                         {
                             npc.SetTilePosition(tileX, tileY, tileSize);
 
-                            // Create a simple UFO sighting dialogue tree
+                            // Randomly assign one of several mystery-themed dialogue trees
                             // TODO: Load from save.json only and create dialogues via editor
                             DialogueTree tree;
-                            tree.id = "ufo_sighting";
-                            tree.startNodeId = "start";
+                            std::string npcName;
+                            int mysteryType = rand() % 5;
 
-                            DialogueNode startNode;
-                            startNode.id = "start";
-                            startNode.speaker = "Anna";
-                            startNode.text = "Please, you have to help me! My brother went to investigate strange lights in the northern field three nights ago. He hasn't come back.";
-                            DialogueOption askLightsOpt("Strange lights?", "lights");
-                            askLightsOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
-                            startNode.options.push_back(askLightsOpt);
-                            DialogueOption cantHelpOpt("I'm sorry, I can't help.", "");
-                            cantHelpOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
-                            startNode.options.push_back(cantHelpOpt);
-                            DialogueOption updateOpt("Any news about your brother?", "update");
-                            updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_ufo_quest"));
-                            startNode.options.push_back(updateOpt);
-                            tree.AddNode(startNode);
+                            if (mysteryType == 0)
+                            {
+                                // UFO sighting mystery
+                                tree.id = "ufo_sighting";
+                                tree.startNodeId = "start";
+                                npcName = "Anna";
 
-                            DialogueNode lightsNode;
-                            lightsNode.id = "lights";
-                            lightsNode.speaker = "Anna";
-                            lightsNode.text = "Green lights, hovering in the sky. People say it's a UFO. Others have gone missing too. Will you look for him?";
-                            DialogueOption questOpt("I'll find your brother.", "accept");
-                            questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
-                            questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_ufo_quest", "Find Anna's missing brother in the northern field!"));
-                            lightsNode.options.push_back(questOpt);
-                            lightsNode.options.push_back(DialogueOption("That sounds too dangerous.", ""));
-                            tree.AddNode(lightsNode);
+                                DialogueNode startNode;
+                                startNode.id = "start";
+                                startNode.speaker = npcName;
+                                startNode.text = "Please, you have to help me! My brother went to investigate strange lights in the northern field three nights ago. He hasn't come back.";
+                                DialogueOption askLightsOpt("Strange lights?", "lights");
+                                askLightsOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
+                                startNode.options.push_back(askLightsOpt);
+                                DialogueOption cantHelpOpt("I'm sorry, I can't help.", "");
+                                cantHelpOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
+                                startNode.options.push_back(cantHelpOpt);
+                                DialogueOption updateOpt("Any news about your brother?", "update");
+                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_ufo_quest"));
+                                startNode.options.push_back(updateOpt);
+                                tree.AddNode(startNode);
 
-                            DialogueNode acceptNode;
-                            acceptNode.id = "accept";
-                            acceptNode.speaker = "Anna";
-                            acceptNode.text = "Thank you! The field is north of town. Please be careful, and bring him home safe.";
-                            acceptNode.options.push_back(DialogueOption("I'll do my best.", ""));
-                            tree.AddNode(acceptNode);
+                                DialogueNode lightsNode;
+                                lightsNode.id = "lights";
+                                lightsNode.speaker = npcName;
+                                lightsNode.text = "Green lights, hovering in the sky. People say it's a UFO. Others have gone missing too. Will you look for him?";
+                                DialogueOption questOpt("I'll find your brother.", "accept");
+                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
+                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_ufo_quest", "Find Anna's missing brother in the northern field!"));
+                                lightsNode.options.push_back(questOpt);
+                                lightsNode.options.push_back(DialogueOption("That sounds too dangerous.", ""));
+                                tree.AddNode(lightsNode);
 
-                            DialogueNode updateNode;
-                            updateNode.id = "update";
-                            updateNode.speaker = "Anna";
-                            updateNode.text = "Have you found him? Please, the northern field... that's where he went. I can't lose him.";
-                            updateNode.options.push_back(DialogueOption("I'm still looking.", ""));
-                            tree.AddNode(updateNode);
+                                DialogueNode acceptNode;
+                                acceptNode.id = "accept";
+                                acceptNode.speaker = npcName;
+                                acceptNode.text = "Thank you! The field is north of town. Please be careful, and bring him home safe.";
+                                acceptNode.options.push_back(DialogueOption("I'll do my best.", ""));
+                                tree.AddNode(acceptNode);
+
+                                DialogueNode updateNode;
+                                updateNode.id = "update";
+                                updateNode.speaker = npcName;
+                                updateNode.text = "Have you found him? Please, the northern field... that's where he went. I can't lose him.";
+                                updateNode.options.push_back(DialogueOption("I'm still looking.", ""));
+                                tree.AddNode(updateNode);
+                            }
+                            else if (mysteryType == 1)
+                            {
+                                // Bigfoot/cryptid sighting mystery
+                                tree.id = "bigfoot_sighting";
+                                tree.startNodeId = "start";
+                                npcName = "Mona";
+
+                                DialogueNode startNode;
+                                startNode.id = "start";
+                                startNode.speaker = npcName;
+                                startNode.text = "I know what I saw. Eight feet tall, covered in fur, walking upright through the forest. Everyone thinks I'm crazy.";
+                                DialogueOption askMoreOpt("Tell me more about what you saw.", "details");
+                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_bigfoot_quest"));
+                                startNode.options.push_back(askMoreOpt);
+                                DialogueOption dismissOpt("Probably just a bear.", "");
+                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_bigfoot_quest"));
+                                startNode.options.push_back(dismissOpt);
+                                DialogueOption updateOpt("Found any more evidence?", "update");
+                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_bigfoot_quest"));
+                                startNode.options.push_back(updateOpt);
+                                tree.AddNode(startNode);
+
+                                DialogueNode detailsNode;
+                                detailsNode.id = "details";
+                                detailsNode.speaker = npcName;
+                                detailsNode.text = "It left tracks, huge ones, near the old mill. I found tufts of hair too. Something's out there. Will you help me prove it?";
+                                DialogueOption questOpt("I'll investigate the old mill.", "accept");
+                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_bigfoot_quest"));
+                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_bigfoot_quest", "Investigate the strange tracks near the old mill."));
+                                detailsNode.options.push_back(questOpt);
+                                detailsNode.options.push_back(DialogueOption("I'd rather not get involved.", ""));
+                                tree.AddNode(detailsNode);
+
+                                DialogueNode acceptNode;
+                                acceptNode.id = "accept";
+                                acceptNode.speaker = npcName;
+                                acceptNode.text = "Finally, someone who believes me! The mill is east of here. Look for broken branches and disturbed earth. And be careful.";
+                                acceptNode.options.push_back(DialogueOption("I'll see what I can find.", ""));
+                                tree.AddNode(acceptNode);
+
+                                DialogueNode updateNode;
+                                updateNode.id = "update";
+                                updateNode.speaker = npcName;
+                                updateNode.text = "Any luck at the mill? I've been hearing strange howls at night. Something's definitely out there.";
+                                updateNode.options.push_back(DialogueOption("Still investigating.", ""));
+                                tree.AddNode(updateNode);
+                            }
+                            else if (mysteryType == 2)
+                            {
+                                // Haunted house mystery
+                                tree.id = "haunted_manor";
+                                tree.startNodeId = "start";
+                                npcName = "Eleanor";
+
+                                DialogueNode startNode;
+                                startNode.id = "start";
+                                startNode.speaker = npcName;
+                                startNode.text = "The Blackwood Manor has been abandoned for decades. But lately... I've seen lights in the windows. And heard music. Piano music.";
+                                DialogueOption askMoreOpt("That does sound strange.", "details");
+                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ghost_quest"));
+                                startNode.options.push_back(askMoreOpt);
+                                DialogueOption dismissOpt("Probably just squatters.", "");
+                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ghost_quest"));
+                                startNode.options.push_back(dismissOpt);
+                                DialogueOption updateOpt("I went to the manor...", "update");
+                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_ghost_quest"));
+                                startNode.options.push_back(updateOpt);
+                                tree.AddNode(startNode);
+
+                                DialogueNode detailsNode;
+                                detailsNode.id = "details";
+                                detailsNode.speaker = npcName;
+                                detailsNode.text = "The Blackwoods all died in a fire fifty years ago. The piano burned with them. Yet I hear it playing every midnight. Will you find out what's happening?";
+                                DialogueOption questOpt("I'll investigate the manor.", "accept");
+                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ghost_quest"));
+                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_ghost_quest", "Investigate the strange occurrences at Blackwood Manor."));
+                                detailsNode.options.push_back(questOpt);
+                                detailsNode.options.push_back(DialogueOption("I don't believe in ghosts.", ""));
+                                tree.AddNode(detailsNode);
+
+                                DialogueNode acceptNode;
+                                acceptNode.id = "accept";
+                                acceptNode.speaker = npcName;
+                                acceptNode.text = "Bless you. The manor is on the hill west of town. Go at midnight if you want to hear the music. But don't say I didn't warn you.";
+                                acceptNode.options.push_back(DialogueOption("I'll be careful.", ""));
+                                tree.AddNode(acceptNode);
+
+                                DialogueNode updateNode;
+                                updateNode.id = "update";
+                                updateNode.speaker = npcName;
+                                updateNode.text = "Did you hear it? The piano? Some say it's Lady Blackwood, still playing for her children. They never found her body in the fire...";
+                                updateNode.options.push_back(DialogueOption("I need to look deeper.", ""));
+                                tree.AddNode(updateNode);
+                            }
+                            else if (mysteryType == 3)
+                            {
+                                // Bermuda Triangle-style sea mystery
+                                tree.id = "sea_vanishings";
+                                tree.startNodeId = "start";
+                                npcName = "Claire";
+
+                                DialogueNode startNode;
+                                startNode.id = "start";
+                                startNode.speaker = npcName;
+                                startNode.text = "Three ships. Three ships vanished in the same waters this month. No storms. No wreckage. Just... gone. The sea took them.";
+                                DialogueOption askMoreOpt("Where did they disappear?", "details");
+                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_sea_quest"));
+                                startNode.options.push_back(askMoreOpt);
+                                DialogueOption dismissOpt("Ships sink all the time.", "");
+                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_sea_quest"));
+                                startNode.options.push_back(dismissOpt);
+                                DialogueOption updateOpt("Any word on the missing ships?", "update");
+                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_sea_quest"));
+                                startNode.options.push_back(updateOpt);
+                                tree.AddNode(startNode);
+
+                                DialogueNode detailsNode;
+                                detailsNode.id = "details";
+                                detailsNode.speaker = npcName;
+                                detailsNode.text = "All near the Devil's Reef. Sailors tell of strange lights beneath the waves. Compasses spinning wildly. My own brother was on the last ship. Find out what happened.";
+                                DialogueOption questOpt("I'll look into it.", "accept");
+                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_sea_quest"));
+                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_sea_quest", "Investigate the mysterious disappearances near Devil's Reef."));
+                                detailsNode.options.push_back(questOpt);
+                                detailsNode.options.push_back(DialogueOption("The sea keeps its secrets.", ""));
+                                tree.AddNode(detailsNode);
+
+                                DialogueNode acceptNode;
+                                acceptNode.id = "accept";
+                                acceptNode.speaker = npcName;
+                                acceptNode.text = "Thank you. Talk to the lighthouse keeper. He watches those waters every night. If anyone's seen something, it's him.";
+                                acceptNode.options.push_back(DialogueOption("I'll find the lighthouse.", ""));
+                                tree.AddNode(acceptNode);
+
+                                DialogueNode updateNode;
+                                updateNode.id = "update";
+                                updateNode.speaker = npcName;
+                                updateNode.text = "Another ship reported strange fog near the reef last night. They barely made it through. Something's out there, I tell you.";
+                                updateNode.options.push_back(DialogueOption("I'm getting closer to the truth.", ""));
+                                tree.AddNode(updateNode);
+                            }
+                            else
+                            {
+                                // Crop circles mystery
+                                tree.id = "crop_circles";
+                                tree.startNodeId = "start";
+                                npcName = "Fiona";
+
+                                DialogueNode startNode;
+                                startNode.id = "start";
+                                startNode.speaker = npcName;
+                                startNode.text = "Every morning, new patterns in the wheat fields up north. Perfect circles and spirals. No footprints leading in or out. Something's making them at night.";
+                                DialogueOption askMoreOpt("What kind of patterns?", "details");
+                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_circles_quest"));
+                                startNode.options.push_back(askMoreOpt);
+                                DialogueOption dismissOpt("Probably just pranksters.", "");
+                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_circles_quest"));
+                                startNode.options.push_back(dismissOpt);
+                                DialogueOption updateOpt("Any new formations?", "update");
+                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_circles_quest"));
+                                startNode.options.push_back(updateOpt);
+                                tree.AddNode(startNode);
+
+                                DialogueNode detailsNode;
+                                detailsNode.id = "details";
+                                detailsNode.speaker = npcName;
+                                detailsNode.text = "Mathematical precision. My dog won't go near them, howls all night long. Last week I found a metal disc in the center of one. Will you watch the fields tonight?";
+                                DialogueOption questOpt("I'll keep watch tonight.", "accept");
+                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_circles_quest"));
+                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_circles_quest", "Watch Farmer Giles' fields at night to discover what's making the crop circles."));
+                                detailsNode.options.push_back(questOpt);
+                                detailsNode.options.push_back(DialogueOption("I have better things to do.", ""));
+                                tree.AddNode(detailsNode);
+
+                                DialogueNode acceptNode;
+                                acceptNode.id = "accept";
+                                acceptNode.speaker = npcName;
+                                acceptNode.text = "Good. Hide by the old scarecrow around midnight. That's when the humming starts. And whatever you do, don't let them see you.";
+                                acceptNode.options.push_back(DialogueOption("I'll be there.", ""));
+                                tree.AddNode(acceptNode);
+
+                                DialogueNode updateNode;
+                                updateNode.id = "update";
+                                updateNode.speaker = npcName;
+                                updateNode.text = "Three new circles appeared last night. Bigger than before. The wheat in the center was warm to the touch at dawn. Unnatural warm.";
+                                updateNode.options.push_back(DialogueOption("I'll catch them in the act.", ""));
+                                tree.AddNode(updateNode);
+                            }
 
                             npc.SetDialogueTree(tree);
-                            npc.SetName("Anna");
+                            npc.SetName(npcName);
 
                             m_NPCs.emplace_back(std::move(npc));
                             std::cout << "Placed NPC " << npcType << " at tile (" << tileX << ", " << tileY << ") with dialogue tree" << std::endl;
@@ -2429,19 +2857,65 @@ void Game::ProcessMouseInput()
             return;
         }
 
-        // No-projection editing mode, set no-projection flag for current layer
-        // Shift+click, flood-fill to mark all connected tiles in the shape
-        if (m_EditorMode && m_NoProjectionEditMode)
+        // Structure editing mode - works like no-projection mode with anchor placement
+        // Click = toggle no-projection, Shift+click = flood-fill, Ctrl+click = place anchors
+        if (m_EditorMode && m_StructureEditMode)
         {
             if (tileX >= 0 && tileX < m_Tilemap.GetMapWidth() &&
                 tileY >= 0 && tileY < m_Tilemap.GetMapHeight())
             {
                 bool shiftHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
                                   glfwGetKey(m_Window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+                bool ctrlHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+                                 glfwGetKey(m_Window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS);
 
-                if (shiftHeld)
+                if (ctrlHeld && !m_MousePressed)
                 {
-                    // Flood-fill to find connected tiles with valid tile IDs
+                    // Ctrl+click: place anchor at clicked corner of tile (no tile modification)
+                    int tileWidth = m_Tilemap.GetTileWidth();
+                    int tileHeight = m_Tilemap.GetTileHeight();
+                    float tileCenterX = (tileX + 0.5f) * tileWidth;
+                    float tileCenterY = (tileY + 0.5f) * tileHeight;
+
+                    bool clickedRight = worldX >= tileCenterX;
+                    bool clickedBottom = worldY >= tileCenterY;
+
+                    float cornerX = static_cast<float>(clickedRight ? (tileX + 1) * tileWidth : tileX * tileWidth);
+                    float cornerY = static_cast<float>(clickedBottom ? (tileY + 1) * tileHeight : tileY * tileHeight);
+
+                    const char* cornerNames[4] = {"top-left", "top-right", "bottom-left", "bottom-right"};
+                    int cornerIdx = (clickedBottom ? 2 : 0) + (clickedRight ? 1 : 0);
+
+                    if (m_PlacingAnchor == 0 || m_PlacingAnchor == 1)
+                    {
+                        // Place left anchor
+                        m_TempLeftAnchor = glm::vec2(cornerX, cornerY);
+                        m_PlacingAnchor = 2;
+                        m_MousePressed = true;
+                        std::cout << "Left anchor: " << cornerNames[cornerIdx]
+                                  << " of tile (" << tileX << ", " << tileY << ")" << std::endl;
+                    }
+                    else if (m_PlacingAnchor == 2)
+                    {
+                        // Place right anchor and create structure
+                        m_TempRightAnchor = glm::vec2(cornerX, cornerY);
+                        m_PlacingAnchor = 0;
+                        m_MousePressed = true;
+
+                        int id = m_Tilemap.AddNoProjectionStructure(m_TempLeftAnchor, m_TempRightAnchor);
+                        m_CurrentStructureId = id;
+                        std::cout << "Right anchor: " << cornerNames[cornerIdx]
+                                  << " of tile (" << tileX << ", " << tileY << ")" << std::endl;
+                        std::cout << "Created structure " << id << std::endl;
+                        m_TempLeftAnchor = glm::vec2(-1.0f, -1.0f);
+                        m_TempRightAnchor = glm::vec2(-1.0f, -1.0f);
+                    }
+                    // Don't process any tile modifications when placing anchors
+                }
+                else if (shiftHeld && !m_MousePressed)
+                {
+                    // Shift+click: flood-fill set no-projection and assign to structure
+                    m_MousePressed = true;
                     int mapWidth = m_Tilemap.GetMapWidth();
                     int mapHeight = m_Tilemap.GetMapHeight();
                     std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
@@ -2461,12 +2935,86 @@ void Game::ProcessMouseInput()
                         if (visited[idx])
                             continue;
 
-                        // Check if tile has a valid tile ID in current layer
                         int tid = m_Tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        if (tid < 0)
+                        int animId = m_Tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
+                        if (tid < 0 && animId < 0)
                             continue;
 
                         visited[idx] = true;
+                        m_Tilemap.SetLayerNoProjection(cx, cy, m_CurrentLayer, true);
+                        if (m_CurrentStructureId >= 0)
+                        {
+                            m_Tilemap.SetTileStructureId(cx, cy, m_CurrentLayer + 1, m_CurrentStructureId);
+                        }
+                        count++;
+
+                        stack.push_back({cx - 1, cy});
+                        stack.push_back({cx + 1, cy});
+                        stack.push_back({cx, cy - 1});
+                        stack.push_back({cx, cy + 1});
+                    }
+                    if (m_CurrentStructureId >= 0)
+                        std::cout << "Set no-projection on " << count << " tiles, assigned to structure " << m_CurrentStructureId << std::endl;
+                    else
+                        std::cout << "Set no-projection on " << count << " tiles (no structure)" << std::endl;
+                }
+                else if (!ctrlHeld && !shiftHeld && !m_MousePressed)
+                {
+                    // Normal click: toggle no-projection on single tile
+                    m_MousePressed = true;
+                    bool current = m_Tilemap.GetLayerNoProjection(tileX, tileY, m_CurrentLayer);
+                    m_Tilemap.SetLayerNoProjection(tileX, tileY, m_CurrentLayer, !current);
+                    if (m_CurrentStructureId >= 0 && !current)
+                    {
+                        m_Tilemap.SetTileStructureId(tileX, tileY, m_CurrentLayer + 1, m_CurrentStructureId);
+                    }
+                    std::cout << (current ? "Cleared" : "Set") << " no-projection at (" << tileX << ", " << tileY << ")" << std::endl;
+                }
+            }
+            return;
+        }
+
+        // No-projection editing mode, set no-projection flag for current layer
+        // Shift+click, flood-fill to mark all connected tiles in the shape
+        if (m_EditorMode && m_NoProjectionEditMode)
+        {
+            if (tileX >= 0 && tileX < m_Tilemap.GetMapWidth() &&
+                tileY >= 0 && tileY < m_Tilemap.GetMapHeight())
+            {
+                bool shiftHeld = (glfwGetKey(m_Window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                                  glfwGetKey(m_Window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+
+                if (shiftHeld)
+                {
+                    // Flood-fill to find connected tiles on CURRENT layer
+                    // Connectivity is determined by current layer only
+                    int mapWidth = m_Tilemap.GetMapWidth();
+                    int mapHeight = m_Tilemap.GetMapHeight();
+                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
+                    std::vector<std::pair<int, int>> stack;
+                    stack.push_back({tileX, tileY});
+                    int count = 0;
+
+                    while (!stack.empty())
+                    {
+                        auto [cx, cy] = stack.back();
+                        stack.pop_back();
+
+                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
+                            continue;
+
+                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
+                        if (visited[idx])
+                            continue;
+
+                        // Check connectivity based on CURRENT layer only (tile or animation)
+                        int tid = m_Tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
+                        int animId = m_Tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
+                        if (tid < 0 && animId < 0)
+                            continue;
+
+                        visited[idx] = true;
+                        // Set noProjection on current layer only
                         m_Tilemap.SetLayerNoProjection(cx, cy, m_CurrentLayer, true);
                         count++;
 
@@ -2480,8 +3028,9 @@ void Game::ProcessMouseInput()
                 }
                 else
                 {
+                    // Single tile: set noProjection on current layer only
                     m_Tilemap.SetLayerNoProjection(tileX, tileY, m_CurrentLayer, true);
-                    std::cout << "Set no-projection at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+                    std::cout << "Set no-projection at (" << tileX << ", " << tileY << ") on layer " << (m_CurrentLayer + 1) << std::endl;
                 }
             }
             return;
@@ -2519,9 +3068,10 @@ void Game::ProcessMouseInput()
                         if (visited[idx])
                             continue;
 
-                        // Check if tile has a valid tile ID in current layer
+                        // Check if tile has a valid tile ID or animation in current layer
                         int tid = m_Tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        if (tid < 0)
+                        int animId = m_Tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
+                        if (tid < 0 && animId < 0)
                             continue;
 
                         visited[idx] = true;
@@ -2577,9 +3127,10 @@ void Game::ProcessMouseInput()
                         if (visited[idx])
                             continue;
 
-                        // Check if tile has a valid tile ID in current layer
+                        // Check if tile has a valid tile ID or animation in current layer
                         int tid = m_Tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        if (tid < 0)
+                        int animId = m_Tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
+                        if (tid < 0 && animId < 0)
                             continue;
 
                         visited[idx] = true;

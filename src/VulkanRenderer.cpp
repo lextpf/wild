@@ -1683,7 +1683,7 @@ void VulkanRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
         bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
                                m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
 
-        // Step 1: Apply globe curvature
+        // Step 1: Apply globe curvature using true spherical projection
         if (applyGlobe)
         {
             float R = m_SphereRadius;
@@ -1691,8 +1691,14 @@ void VulkanRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
             {
                 float dx = corners[i].x - centerX;
                 float dy = corners[i].y - centerY;
-                corners[i].x = centerX + R * std::sin(dx / R);
-                corners[i].y = centerY + R * std::sin(dy / R);
+                float d = std::sqrt(dx * dx + dy * dy);
+                if (d > 0.001f)
+                {
+                    float projectedD = R * std::sin(d / R);
+                    float ratio = projectedD / d;
+                    corners[i].x = centerX + dx * ratio;
+                    corners[i].y = centerY + dy * ratio;
+                }
             }
         }
 
@@ -1883,8 +1889,14 @@ void VulkanRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
             {
                 float dx = corners[i].x - centerX;
                 float dy = corners[i].y - centerY;
-                corners[i].x = centerX + R * std::sin(dx / R);
-                corners[i].y = centerY + R * std::sin(dy / R);
+                float d = std::sqrt(dx * dx + dy * dy);
+                if (d > 0.001f)
+                {
+                    float projectedD = R * std::sin(d / R);
+                    float ratio = projectedD / d;
+                    corners[i].x = centerX + dx * ratio;
+                    corners[i].y = centerY + dy * ratio;
+                }
             }
         }
 
@@ -2058,8 +2070,14 @@ void VulkanRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
             {
                 float dx = corners[i].x - centerX;
                 float dy = corners[i].y - centerY;
-                corners[i].x = centerX + R * std::sin(dx / R);
-                corners[i].y = centerY + R * std::sin(dy / R);
+                float d = std::sqrt(dx * dx + dy * dy);
+                if (d > 0.001f)
+                {
+                    float projectedD = R * std::sin(d / R);
+                    float ratio = projectedD / d;
+                    corners[i].x = centerX + dx * ratio;
+                    corners[i].y = centerY + dy * ratio;
+                }
             }
         }
 
@@ -2176,7 +2194,7 @@ void VulkanRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
         bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
                                m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
 
-        // Step 1: Apply globe curvature
+        // Step 1: Apply globe curvature using true spherical projection
         if (applyGlobe)
         {
             float R = m_SphereRadius;
@@ -2184,8 +2202,14 @@ void VulkanRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
             {
                 float dx = corners[i].x - centerX;
                 float dy = corners[i].y - centerY;
-                corners[i].x = centerX + R * std::sin(dx / R);
-                corners[i].y = centerY + R * std::sin(dy / R);
+                float d = std::sqrt(dx * dx + dy * dy);
+                if (d > 0.001f)
+                {
+                    float projectedD = R * std::sin(d / R);
+                    float ratio = projectedD / d;
+                    corners[i].x = centerX + dx * ratio;
+                    corners[i].y = centerY + dy * ratio;
+                }
             }
         }
 
