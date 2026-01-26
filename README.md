@@ -18,6 +18,12 @@
 
 A modern 2D game engine built with C++23, featuring dual OpenGL/Vulkan rendering backends, dynamic world simulation, and a built-in level editor. Designed for tile-based RPGs with a focus on performance, flexibility, and visual polish.
 
+<div align="center">
+
+![Game](./preview.png)
+
+</div>
+
 > [!IMPORTANT]
 > **Assets Not Included**
 >
