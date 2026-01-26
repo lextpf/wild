@@ -901,6 +901,7 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
         glm::vec2 size;
         glm::vec4 color;
         float rotation;
+        float phase;
         bool additive;
         ParticleType type;
     };
@@ -930,6 +931,7 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
         data.size = glm::vec2(p.size, p.size);
         data.color = p.color;
         data.rotation = p.rotation;
+        data.phase = p.phase;
         data.additive = p.additive;
         data.type = p.type;
 
@@ -1031,6 +1033,22 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
         }
         else
         {
+            // Cull regular particles that are outside viewport or behind sphere
+            // Use generous padding to account for particle size and partial visibility
+            float padding = std::max(data.size.x, data.size.y) * 2.0f + 50.0f;
+
+            bool outsideViewport = data.screenPos.x < -padding ||
+                                   data.screenPos.x > perspState.viewWidth + padding ||
+                                   data.screenPos.y < -padding ||
+                                   data.screenPos.y > perspState.viewHeight + padding;
+
+            if (outsideViewport)
+                continue;
+
+            // Check if particle is behind the sphere (only when globe/fisheye is enabled)
+            if (renderer.IsPointBehindSphere(data.screenPos))
+                continue;
+
             regularBatch.push_back(data);
         }
     }
@@ -1049,10 +1067,18 @@ void ParticleSystem::Render(IRenderer &renderer, glm::vec2 cameraPos, bool noPro
             {
                 renderSize = glm::vec2(data.size.x, data.size.x * 4.0f);
             }
-            // Rain uses stretched vertical texture
+            // Rain uses stretched vertical texture with per-droplet variation
             else if (data.type == ParticleType::Rain)
             {
-                renderSize = glm::vec2(data.size.x, data.size.x * 1.6f);
+                // Vary stretch between 1.0x and 1.4x based on particle phase
+                float stretch = 1.0f + 0.4f * (std::sin(data.phase) * 0.5f + 0.5f);
+                renderSize = glm::vec2(data.size.x, data.size.x * stretch);
+            }
+            // Snow flips like a coin
+            else if (data.type == ParticleType::Snow)
+            {
+                float flipScale = std::cos(m_Time * 3.0f + data.phase);
+                renderSize.x *= flipScale;
             }
             glm::vec2 centeredPos = data.screenPos - renderSize * 0.5f;
             renderer.DrawSpriteAtlas(m_AtlasTexture, centeredPos, renderSize,

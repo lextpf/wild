@@ -3360,8 +3360,8 @@ void Game::ScrollCallback(GLFWwindow *window, double /*xoffset*/, double yoffset
         else if (yoffset < 0)
         {
             game->m_CurrentElevation -= 2;
-            if (game->m_CurrentElevation < 0)
-                game->m_CurrentElevation = 0;
+            if (game->m_CurrentElevation < -32)
+                game->m_CurrentElevation = -32;
         }
         std::cout << "Elevation value: " << game->m_CurrentElevation << " pixels" << std::endl;
         return;

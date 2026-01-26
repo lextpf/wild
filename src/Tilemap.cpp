@@ -1510,17 +1510,27 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
                 // Calculate height scale from vanishing point at anchor position
                 auto perspState = renderer.GetPerspectiveState();
 
+                // Anchor X positions for projection
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+
+                // Project anchor center to get actual on-screen Y with sphere curvature
+                // On wide screens, sphere edges curve upward, so use projected Y for viewport check
+                float anchorCenterScreenX = (anchorMinX + anchorMaxX) * 0.5f - cameraPos.x;
+                glm::vec2 projectedAnchor = renderer.ProjectPoint(glm::vec2(anchorCenterScreenX, bottomScreenY));
+                float projectedAnchorY = projectedAnchor.y;
+
                 // Calculate projection blend factor - fade out projection when anchor is outside viewport
                 float projectionBlend = 1.0f;
                 float fadeMargin = perspState.viewHeight * 0.25f;
-                if (bottomScreenY < 0.0f)
+                if (projectedAnchorY < 0.0f)
                 {
-                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = 1.0f + (projectedAnchorY / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
-                else if (bottomScreenY > perspState.viewHeight)
+                else if (projectedAnchorY > perspState.viewHeight)
                 {
-                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    float distOutside = projectedAnchorY - perspState.viewHeight;
                     projectionBlend = 1.0f - (distOutside / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
@@ -1534,10 +1544,6 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
                 // Structure width based on tile extent
                 int structureWidthTiles = maxX - minX + 1;
                 if (structureWidthTiles < 1) structureWidthTiles = 1;
-
-                // Anchor X positions for projection
-                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
-                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
                 float structureWorldWidth = anchorMaxX - anchorMinX;
 
                 // Calculate projected X position for this tile's column
@@ -2896,20 +2902,31 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                 // Calculate height scale from vanishing point at anchor position
                 auto perspState = renderer.GetPerspectiveState();
 
+                // Anchor X positions for projection (world coordinates)
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                // Project anchor center to get actual on-screen Y with sphere curvature
+                // On wide screens, sphere edges curve upward, so use projected Y for viewport check
+                float anchorCenterScreenX = (anchorMinX + anchorMaxX) * 0.5f - renderCam.x;
+                glm::vec2 projectedAnchor = renderer.ProjectPoint(glm::vec2(anchorCenterScreenX, bottomScreenY));
+                float projectedAnchorY = projectedAnchor.y;
+
                 // Calculate projection blend factor - fade out projection when anchor is outside viewport
                 // This allows structures to naturally scroll off-screen without being pulled toward center
                 float projectionBlend = 1.0f;
                 float fadeMargin = perspState.viewHeight * 0.25f;  // Start fading at 25% outside
-                if (bottomScreenY < 0.0f)
+                if (projectedAnchorY < 0.0f)
                 {
                     // Above viewport - fade out as it goes further up
-                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = 1.0f + (projectedAnchorY / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
-                else if (bottomScreenY > perspState.viewHeight)
+                else if (projectedAnchorY > perspState.viewHeight)
                 {
                     // Below viewport - fade out as it goes further down
-                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    float distOutside = projectedAnchorY - perspState.viewHeight;
                     projectionBlend = 1.0f - (distOutside / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
@@ -2924,11 +2941,6 @@ void Tilemap::RenderLayerNoProjection(IRenderer &renderer, size_t layerIndex,
                 // Structure width based on tile extent (uses minX/maxX from structureTiles)
                 int structureWidthTiles = maxX - minX + 1;
                 if (structureWidthTiles < 1) structureWidthTiles = 1;
-
-                // Anchor X positions for projection (world coordinates)
-                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
-                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
-                float structureWorldWidth = anchorMaxX - anchorMinX;
 
                 // Pre-compute all projected X edge positions for the structure
                 // Blend between projected and unprojected positions based on viewport distance
@@ -3399,17 +3411,28 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
                 auto perspState = renderer.GetPerspectiveState();
 
+                // Anchor X positions for projection (world coordinates)
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                // Project anchor center to get actual on-screen Y with sphere curvature
+                // On wide screens, sphere edges curve upward, so use projected Y for viewport check
+                float anchorCenterScreenX = (anchorMinX + anchorMaxX) * 0.5f - renderCam.x;
+                glm::vec2 projectedAnchor = renderer.ProjectPoint(glm::vec2(anchorCenterScreenX, bottomScreenY));
+                float projectedAnchorY = projectedAnchor.y;
+
                 // Calculate projection blend factor - fade out projection when anchor is outside viewport
                 float projectionBlend = 1.0f;
                 float fadeMargin = perspState.viewHeight * 0.25f;
-                if (bottomScreenY < 0.0f)
+                if (projectedAnchorY < 0.0f)
                 {
-                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = 1.0f + (projectedAnchorY / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
-                else if (bottomScreenY > perspState.viewHeight)
+                else if (projectedAnchorY > perspState.viewHeight)
                 {
-                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    float distOutside = projectedAnchorY - perspState.viewHeight;
                     projectionBlend = 1.0f - (distOutside / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
@@ -3423,11 +3446,6 @@ void Tilemap::RenderBackgroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 // Structure width based on tile extent (uses minX/maxX from structureTiles)
                 int structureWidthTiles = maxX - minX + 1;
                 if (structureWidthTiles < 1) structureWidthTiles = 1;
-
-                // Anchor X positions for projection (world coordinates)
-                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
-                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
-                float structureWorldWidth = anchorMaxX - anchorMinX;
 
                 std::vector<float> projectedEdgeX(structureWidthTiles + 1);
                 for (int i = 0; i <= structureWidthTiles; ++i)
@@ -3692,17 +3710,28 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
 
                 auto perspState = renderer.GetPerspectiveState();
 
+                // Anchor X positions for projection (world coordinates)
+                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
+                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
+                float structureWorldWidth = anchorMaxX - anchorMinX;
+
+                // Project anchor center to get actual on-screen Y with sphere curvature
+                // On wide screens, sphere edges curve upward, so use projected Y for viewport check
+                float anchorCenterScreenX = (anchorMinX + anchorMaxX) * 0.5f - renderCam.x;
+                glm::vec2 projectedAnchor = renderer.ProjectPoint(glm::vec2(anchorCenterScreenX, bottomScreenY));
+                float projectedAnchorY = projectedAnchor.y;
+
                 // Calculate projection blend factor - fade out projection when anchor is outside viewport
                 float projectionBlend = 1.0f;
                 float fadeMargin = perspState.viewHeight * 0.25f;
-                if (bottomScreenY < 0.0f)
+                if (projectedAnchorY < 0.0f)
                 {
-                    projectionBlend = 1.0f + (bottomScreenY / fadeMargin);
+                    projectionBlend = 1.0f + (projectedAnchorY / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
-                else if (bottomScreenY > perspState.viewHeight)
+                else if (projectedAnchorY > perspState.viewHeight)
                 {
-                    float distOutside = bottomScreenY - perspState.viewHeight;
+                    float distOutside = projectedAnchorY - perspState.viewHeight;
                     projectionBlend = 1.0f - (distOutside / fadeMargin);
                     projectionBlend = std::max(0.0f, std::min(1.0f, projectionBlend));
                 }
@@ -3716,11 +3745,6 @@ void Tilemap::RenderForegroundLayersNoProjection(IRenderer &renderer, glm::vec2 
                 // Structure width based on tile extent (uses minX/maxX from structureTiles)
                 int structureWidthTiles = maxX - minX + 1;
                 if (structureWidthTiles < 1) structureWidthTiles = 1;
-
-                // Anchor X positions for projection (world coordinates)
-                float anchorMinX = std::min(leftAnchor.x, rightAnchor.x);
-                float anchorMaxX = std::max(leftAnchor.x, rightAnchor.x);
-                float structureWorldWidth = anchorMaxX - anchorMinX;
 
                 std::vector<float> projectedEdgeX(structureWidthTiles + 1);
                 for (int i = 0; i <= structureWidthTiles; ++i)

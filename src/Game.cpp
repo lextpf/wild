@@ -8,6 +8,9 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include <cctype>
 #include <vector>
 
@@ -848,9 +851,14 @@ void Game::ConfigureRendererPerspective(float width, float height)
         // Less tilt means less shrinking (closer to 0.85 at tilt=0).
         float horizonScale = 0.75f + (1.0f - m_CameraTilt) * 0.10f;
 
-        // Scale sphere radius with zoom to maintain consistent visual effect
+        // Scale sphere radius with both zoom and viewport size to maintain consistent visual effect
         // When zoomed in (smaller view), use smaller radius to compensate
-        float effectiveSphereRadius = m_GlobeSphereRadius / m_CameraZoom;
+        // Also scale with viewport diagonal to prevent culling at wider viewports
+        float viewportDiagonal = std::sqrt(width * width + height * height);
+        float baseRadius = m_GlobeSphereRadius / m_CameraZoom;
+        // Ensure sphere edge (R * pi/2) covers the viewport diagonal
+        float minRadius = viewportDiagonal / static_cast<float>(M_PI * 0.5);
+        float effectiveSphereRadius = std::max(baseRadius, minRadius);
 
         m_Renderer->SetFisheyePerspective(true, effectiveSphereRadius, horizonY, horizonScale, width, height);
     }
@@ -903,9 +911,10 @@ void Game::Render()
     glm::vec3 skyColor = m_TimeManager.GetSkyColor();
     m_Renderer->Clear(skyColor.r, skyColor.g, skyColor.b, 1.0f);
 
-    // Pass world space size, not screen size
-    float worldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
-    float worldHeight = static_cast<float>(m_TilesVisibleHeight * m_Tilemap.GetTileHeight());
+    // Calculate world space size from actual screen dimensions (not truncated tile count)
+    // This ensures viewport calculations match the true visible area
+    float worldWidth = static_cast<float>(m_ScreenWidth) / static_cast<float>(PIXEL_SCALE);
+    float worldHeight = static_cast<float>(m_ScreenHeight) / static_cast<float>(PIXEL_SCALE);
 
     // Set ambient color for world rendering (day & night tint)
     m_Renderer->SetAmbientColor(m_TimeManager.GetAmbientColor());
