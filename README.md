@@ -1,6 +1,6 @@
 <div align="center">
 
-# Wild Game Engine
+# wild
 **A modern 2D game engine built with C++23.**
 
 🏠 [Mainpage](./docs/MAINPAGE.md) • 🧱 [Building](./docs/BUILDING.md) • 🏛️ [Architecture](./docs/ARCHITECTURE.md) • 🤝 [Contributing](./CONTRIBUTING.md)
