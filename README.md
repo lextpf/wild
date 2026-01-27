@@ -12,6 +12,7 @@
 ![OpenGL](https://img.shields.io/badge/OpenGL-v4.6-orange?style=flat&logo=opengl&logoColor=white)
 ![Vulkan](https://img.shields.io/badge/Vulkan-v1.4-red?style=flat&logo=vulkan&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue?logo=opensourceinitiative&logoColor=white)
+<br/>
 [![build](https://github.com/lextpf/wild/actions/workflows/build.yml/badge.svg)](https://github.com/lextpf/wild/actions/workflows/build.yml)
 [![tests](https://github.com/lextpf/wild/actions/workflows/test.yml/badge.svg)](https://github.com/lextpf/wild/actions/workflows/test.yml)
 </div>
@@ -421,6 +422,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
