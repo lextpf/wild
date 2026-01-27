@@ -18,6 +18,7 @@ A modern 2D game engine built with C++23, featuring dual OpenGL 4.6 and Vulkan 1
 It includes dynamic world simulation with a full day/night cycle, weather effects, and npc interactions, alongside a built-in level editor
 for rapid content creation. Designed for tile-based RPGs with a focus on performance, flexibility, and visual polish.
 <div align="center">
+<br>
 
 ![Game](./preview.png)
 
@@ -419,6 +420,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
