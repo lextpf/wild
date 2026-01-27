@@ -1,12 +1,12 @@
 # ============================================================================
-# setup.ps1 - Download and setup all external dependencies
+# setup.ps1 - Download and setup external dependencies
 # ============================================================================
 # Dependencies:
-#   - GLFW (windowing)          -> external/glfw/
-#   - GLM (math)                -> external/glm/
-#   - GLAD (OpenGL loader)      -> external/glad/
-#   - stb_image (image loading) -> external/stb/
-#   - nlohmann/json (JSON)      -> external/nlohmann/
+#   - GLFW (windowing)          -> external/glfw/     (downloaded)
+#   - GLM (math)                -> external/glm/      (downloaded)
+#   - GLAD (OpenGL loader)      -> external/glad/     (included in repo)
+#   - stb_image (image loading) -> external/stb/      (included in repo)
+#   - nlohmann/json (JSON)      -> external/nlohmann/ (downloaded)
 #   - Vulkan SDK (optional)     -> System install required
 #   - FreeType (optional)       -> vcpkg or system install
 # ============================================================================
@@ -42,7 +42,7 @@ if (-not (Test-Path "external")) {
 # ============================================================================
 # GLFW - Windowing library
 # ============================================================================
-Write-Host "[1/5] Setting up GLFW..." -ForegroundColor Cyan
+Write-Host "[1/3] Setting up GLFW..." -ForegroundColor Cyan
 Write-Host "----------------------------------------------------------------------------"
 
 if (Test-Path "external\glfw\CMakeLists.txt") {
@@ -65,7 +65,7 @@ Write-Host ""
 # ============================================================================
 # GLM - Math library
 # ============================================================================
-Write-Host "[2/5] Setting up GLM..." -ForegroundColor Cyan
+Write-Host "[2/3] Setting up GLM..." -ForegroundColor Cyan
 Write-Host "----------------------------------------------------------------------------"
 
 if (Test-Path "external\glm\glm\glm.hpp") {
@@ -86,130 +86,21 @@ Write-Host "GLM setup complete." -ForegroundColor Green
 Write-Host ""
 
 # ============================================================================
-# GLAD - OpenGL Loader
+# GLAD - OpenGL Loader (included in repo)
 # ============================================================================
-Write-Host "[3/5] Setting up GLAD..." -ForegroundColor Cyan
-Write-Host "----------------------------------------------------------------------------"
-
-if (Test-Path "external\glad\src\glad.c") {
-    Write-Host "GLAD already exists. Skipping."
-} else {
-    Write-Host "Setting up GLAD structure..."
-
-    # Create directories
-    @("external\glad", "external\glad\include", "external\glad\include\glad",
-      "external\glad\include\KHR", "external\glad\src") | ForEach-Object {
-        if (-not (Test-Path $_)) {
-            New-Item -ItemType Directory -Path $_ | Out-Null
-        }
-    }
-
-    Write-Host "Downloading GLAD files..."
-
-    # Download glad.h
-    try {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Dav1dde/glad/glad2/include/glad/gl.h" -OutFile "external\glad\include\glad\glad.h" -UseBasicParsing
-    } catch {
-        Write-Host "Trying alternative source for glad.h..."
-        try {
-            # Use a known working GLAD generated file
-            $gladContent = @"
-// GLAD OpenGL loader - auto-generated
-// Go to https://glad.dav1d.de/ to generate a custom version
-// Settings: Language=C/C++, Specification=OpenGL, API gl=3.3, Profile=Core
-#ifndef GLAD_GL_H_
-#define GLAD_GL_H_
-// Placeholder - please generate from https://glad.dav1d.de/
-#error "Please download GLAD from https://glad.dav1d.de/ with OpenGL 3.3 Core profile"
-#endif
-"@
-            Set-Content -Path "external\glad\include\glad\glad.h" -Value $gladContent
-        } catch {
-            Write-Host "WARNING: Could not download glad.h" -ForegroundColor Yellow
-        }
-    }
-
-    # Download khrplatform.h
-    try {
-        Invoke-WebRequest -Uri "https://www.khronos.org/registry/EGL/api/KHR/khrplatform.h" -OutFile "external\glad\include\KHR\khrplatform.h" -UseBasicParsing
-    } catch {
-        Write-Host "WARNING: Could not download khrplatform.h" -ForegroundColor Yellow
-    }
-
-    # Download glad.c
-    try {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Dav1dde/glad/glad2/src/gl.c" -OutFile "external\glad\src\glad.c" -UseBasicParsing
-    } catch {
-        Write-Host "WARNING: Could not download glad.c" -ForegroundColor Yellow
-        $gladCContent = @"
-// GLAD source - placeholder
-#error "Please download GLAD from https://glad.dav1d.de/"
-"@
-        Set-Content -Path "external\glad\src\glad.c" -Value $gladCContent
-    }
-
-    # Create CMakeLists.txt for GLAD
-    $cmakeContent = @"
-cmake_minimum_required(VERSION 3.10)
-project(glad)
-add_library(glad STATIC src/glad.c)
-target_include_directories(glad PUBLIC include)
-"@
-    Set-Content -Path "external\glad\CMakeLists.txt" -Value $cmakeContent
-
-    if (Test-Path "external\glad\src\glad.c") {
-        Write-Host "GLAD setup complete." -ForegroundColor Green
-        Write-Host "NOTE: If build fails, regenerate GLAD from https://glad.dav1d.de/" -ForegroundColor Yellow
-    } else {
-        Write-Host ""
-        Write-Host "WARNING: Could not download GLAD automatically." -ForegroundColor Yellow
-        Write-Host "Please manually download from https://glad.dav1d.de/"
-        Write-Host "  Settings: Language=C/C++, Specification=OpenGL, API gl=3.3, Profile=Core"
-        Write-Host "  Extract to external/glad/"
-        Write-Host ""
-    }
-}
+Write-Host "GLAD is included in the repository (external/glad)" -ForegroundColor Green
 Write-Host ""
 
 # ============================================================================
-# stb_image - Image loading
+# stb_image - Image loading (included in repo)
 # ============================================================================
-Write-Host "[4/5] Setting up stb_image..." -ForegroundColor Cyan
-Write-Host "----------------------------------------------------------------------------"
-
-if (Test-Path "external\stb\stb_image.h") {
-    Write-Host "stb_image already exists. Skipping."
-} else {
-    Write-Host "Downloading stb_image.h..."
-
-    if (-not (Test-Path "external\stb")) {
-        New-Item -ItemType Directory -Path "external\stb" | Out-Null
-    }
-
-    try {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h" -OutFile "external\stb\stb_image.h" -UseBasicParsing
-
-        # Create implementation file
-        $stbImpl = @"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-"@
-        Set-Content -Path "external\stb\stb_image.c" -Value $stbImpl
-
-        Write-Host "stb_image setup complete." -ForegroundColor Green
-    } catch {
-        Write-Host "ERROR: Failed to download stb_image.h!" -ForegroundColor Red
-        Write-Host "Please download manually from: https://github.com/nothings/stb"
-        Read-Host "Press Enter to exit"
-        exit 1
-    }
-}
+Write-Host "stb_image is included in the repository (external/stb)" -ForegroundColor Green
 Write-Host ""
 
 # ============================================================================
 # nlohmann/json - JSON library
 # ============================================================================
-Write-Host "[5/5] Setting up nlohmann/json..." -ForegroundColor Cyan
+Write-Host "[3/3] Setting up nlohmann/json..." -ForegroundColor Cyan
 Write-Host "----------------------------------------------------------------------------"
 
 if (Test-Path "external\nlohmann\json.hpp") {
