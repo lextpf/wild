@@ -26,6 +26,11 @@ jobs:
           echo "VULKAN_SDK=C:\VulkanSDK\$ver" >> $env:GITHUB_ENV
           echo "C:\VulkanSDK\$ver\Bin" >> $env:GITHUB_PATH
 
+      - name: Create asset directories
+        run: |
+          New-Item -ItemType Directory -Path assets -Force
+          New-Item -ItemType Directory -Path shaders -Force
+
       - name: Configure CMake
         run: |
           cmake -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
