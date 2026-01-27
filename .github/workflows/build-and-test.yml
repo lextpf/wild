@@ -17,13 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies via vcpkg
-        run: |
-          vcpkg install glm glfw3 nlohmann-json freetype gtest
-
       - name: Configure CMake
         run: |
-          cmake -B build_tests -DBUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          cmake -B build_tests -DBUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
 
       - name: Build tests
         run: cmake --build build_tests --config Release --target wild_tests
