@@ -918,7 +918,7 @@ void Game::ProcessInput(float deltaTime)
         // Globe effect parameter adjustment
         if (glfwGetKey(m_Window, GLFW_KEY_PAGE_UP) == GLFW_PRESS && !pageUpPressed)
         {
-            m_GlobeSphereRadius = std::min(2000.0f, m_GlobeSphereRadius + 100.0f);
+            m_GlobeSphereRadius = std::min(500.0f, m_GlobeSphereRadius + 10.0f);
             m_CameraTilt = std::max(0.0f, m_CameraTilt - 0.05f);
             std::cout << "3D Effect - Radius: " << m_GlobeSphereRadius << ", Tilt: " << m_CameraTilt << std::endl;
             pageUpPressed = true;
@@ -930,7 +930,7 @@ void Game::ProcessInput(float deltaTime)
 
         if (glfwGetKey(m_Window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS && !pageDownPressed)
         {
-            m_GlobeSphereRadius = std::max(300.0f, m_GlobeSphereRadius - 100.0f);
+            m_GlobeSphereRadius = std::max(50.0f, m_GlobeSphereRadius - 10.0f);
             m_CameraTilt = std::min(1.0f, m_CameraTilt + 0.05f);
             std::cout << "3D Effect - Radius: " << m_GlobeSphereRadius << ", Tilt: " << m_CameraTilt << std::endl;
             pageDownPressed = true;

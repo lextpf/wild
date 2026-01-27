@@ -1,0 +1,12 @@
+{
+  "name": "wild",
+  "version": "1.0.0",
+  "description": "2D tile-based game engine with OpenGL/Vulkan rendering",
+  "dependencies": [
+    "glm",
+    "glfw3",
+    "nlohmann-json",
+    "freetype",
+    "gtest"
+  ]
+}

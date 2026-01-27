@@ -1,4 +1,4 @@
-﻿#include "Tilemap.h"
+#include "Tilemap.h"
 #include "NonPlayerCharacter.h"
 
 #include <iostream>

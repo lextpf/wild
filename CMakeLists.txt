@@ -263,3 +263,64 @@ if(SAVE_FILES)
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     )
 endif()
+
+# ============================================================================
+# Testing Support
+# ============================================================================
+option(BUILD_TESTS "Build unit tests" OFF)
+
+if(BUILD_TESTS)
+    enable_testing()
+
+    # Google Test - try vcpkg first, otherwise use FetchContent
+    find_package(GTest CONFIG QUIET)
+    if(GTest_FOUND)
+        message(STATUS "Google Test found via vcpkg/find_package")
+        set(GTEST_FROM_VCPKG TRUE)
+    else()
+        message(STATUS "Google Test not found via vcpkg, fetching from GitHub...")
+        include(FetchContent)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG        v1.14.0
+        )
+        # Prevent overriding parent project's compiler/linker settings on Windows
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+        message(STATUS "Using Google Test from FetchContent")
+    endif()
+
+    # Collect test source files
+    file(GLOB TEST_SOURCES "tests/*.cpp")
+
+    # Source files needed for tests (exclude main.cpp)
+    set(TEST_LIB_SOURCES
+        "${CMAKE_SOURCE_DIR}/src/TimeManager.cpp"
+    )
+
+    # Create test executable
+    add_executable(wild_tests ${TEST_SOURCES} ${TEST_LIB_SOURCES})
+
+    target_include_directories(wild_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    # Link Google Test
+    if(GTEST_FROM_VCPKG)
+        target_link_libraries(wild_tests PRIVATE GTest::gtest GTest::gtest_main)
+    else()
+        target_link_libraries(wild_tests PRIVATE gtest gtest_main)
+    endif()
+
+    # Link GLM (required for TimeManager)
+    if(GLM_FROM_VCPKG)
+        target_link_libraries(wild_tests PRIVATE glm::glm)
+    endif()
+
+    # Register tests with CTest
+    include(GoogleTest)
+    gtest_discover_tests(wild_tests)
+
+    message(STATUS "Tests enabled - build target: wild_tests")
+endif()

@@ -34,7 +34,7 @@ Game::Game()
     , m_CameraZoom(1.0f)                            // Camera zoom level (1.0 = normal)
     , m_CameraTilt(0.2f)                            // Default tilt angle for 3D effect (vanishing point)
     , m_Enable3DEffect(false)                       // 3D effect disabled by default
-    , m_GlobeSphereRadius(300.0f)                   // Globe + vanishing point projection radius (smaller = more curve)
+    , m_GlobeSphereRadius(200.0f)                   // Globe + vanishing point projection radius (smaller = more curve)
     , m_FreeCameraMode(false)                       // Free camera mode disabled by default (Space toggle)
     , m_LastFrameTime(0.0f)                         // Time of last frame (for delta time calculation)
     , m_EditorMode(false)                           // Whether editor mode is active
@@ -851,13 +851,11 @@ void Game::ConfigureRendererPerspective(float width, float height)
         // Less tilt means less shrinking (closer to 0.85 at tilt=0).
         float horizonScale = 0.75f + (1.0f - m_CameraTilt) * 0.10f;
 
-        // Scale sphere radius with both zoom and viewport size to maintain consistent visual effect
-        // When zoomed in (smaller view), use smaller radius to compensate
-        // Also scale with viewport diagonal to prevent culling at wider viewports
+        // Scale sphere radius with zoom and viewport, but allow globe to be visible
         float viewportDiagonal = std::sqrt(width * width + height * height);
         float baseRadius = m_GlobeSphereRadius / m_CameraZoom;
-        // Ensure sphere edge (R * pi/2) covers the viewport diagonal
-        float minRadius = viewportDiagonal / static_cast<float>(M_PI * 0.5);
+        // Minimum radius to prevent extreme distortion, but set lower to allow globe visibility
+        float minRadius = viewportDiagonal / static_cast<float>(M_PI * 2.0);  // Quarter of full coverage
         float effectiveSphereRadius = std::max(baseRadius, minRadius);
 
         m_Renderer->SetFisheyePerspective(true, effectiveSphereRadius, horizonY, horizonScale, width, height);
