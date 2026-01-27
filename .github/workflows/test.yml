@@ -1,4 +1,4 @@
-name: Build and Test
+name: Test
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   checks: write
 
 jobs:
-  build-and-test:
+  test:
     runs-on: windows-latest
 
     env:
