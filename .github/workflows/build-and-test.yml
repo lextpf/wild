@@ -1,0 +1,47 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: '55f756c87b9b4a22718e4ea4c3ec72905168a146'
+
+      - name: Configure CMake
+        run: |
+          cmake -B build_tests -DBUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+      - name: Build tests
+        run: cmake --build build_tests --config Release --target wild_tests
+
+      - name: Run tests
+        run: |
+          cd build_tests
+          ctest -C Release --output-on-failure --output-junit test-results.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: build_tests/test-results.xml
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Tests
+          path: build_tests/test-results.xml
+          reporter: java-junit
