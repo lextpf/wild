@@ -277,32 +277,6 @@ public:
     bool LoadTileset(const std::string &path, int tileWidth = 16, int tileHeight = 16);
 
     /**
-     * @brief Load and combine two tileset images vertically.
-     * 
-     * Creates a single combined texture with the second tileset
-     * appended below the first.
-     * 
-     * @param path1 Path to first (top) tileset.
-     * @param path2 Path to second (bottom) tileset.
-     * @param tileWidth Tile width in pixels.
-     * @param tileHeight Tile height in pixels.
-     * @return `true` if both loaded and combined successfully.
-     */
-    bool LoadCombinedTileset(const std::string &path1, const std::string &path2, int tileWidth = 16, int tileHeight = 16);
-
-    /**
-     * @brief Load and combine three tileset images vertically.
-     * 
-     * @param path1 First (top) tileset path.
-     * @param path2 Second (middle) tileset path.
-     * @param path3 Third (bottom) tileset path.
-     * @param tileWidth Tile width in pixels.
-     * @param tileHeight Tile height in pixels.
-     * @return `true` if all loaded and combined successfully.
-     */
-    bool LoadCombinedTileset3(const std::string &path1, const std::string &path2, const std::string &path3, int tileWidth = 16, int tileHeight = 16);
-
-    /**
      * @brief Load and combine multiple tileset images vertically.
      * 
      * @param paths Vector of tileset paths (combined top-to-bottom).
@@ -356,63 +330,13 @@ public:
     /** @} */
 
     /**
-     * @name Ground Detail Layer (Index 1)
-     * @brief Secondary background layer, rendered after Ground.
-     * No collision. Useful for ground details like grass variations.
+     * @name Additional Layer Tile Getters
+     * @brief Read-only access to other layer tiles (for editor display).
      * @{
      */
-    void SetTile2(int x, int y, int tileID);
     int GetTile2(int x, int y) const;
-    void SetTileRotation2(int x, int y, float rotation);
-    float GetTileRotation2(int x, int y) const;
-    /** @} */
-
-    /**
-     * @name Objects Layer (Index 2)
-     * @brief Background objects layer, rendered before NPCs/player.
-     * Useful for rocks, bushes, and decorative objects.
-     * @{
-     */
-    void SetTile3(int x, int y, int tileID);
     int GetTile3(int x, int y) const;
-    void SetTileRotation3(int x, int y, float rotation);
-    float GetTileRotation3(int x, int y) const;
-    /** @} */
-
-    /**
-     * @name Objects2 Layer (Index 3)
-     * @brief Secondary objects layer, rendered before NPCs/player.
-     * Useful for additional background objects.
-     * @{
-     */
-    void SetTile4(int x, int y, int tileID);
     int GetTile4(int x, int y) const;
-    void SetTileRotation4(int x, int y, float rotation);
-    float GetTileRotation4(int x, int y) const;
-    /** @} */
-
-    /**
-     * @name Foreground Layer (Index 5)
-     * @brief First foreground layer, rendered above NPCs/player.
-     * Useful for tree tops, awnings, and overhangs.
-     * @{
-     */
-    void SetTile5(int x, int y, int tileID);
-    int GetTile5(int x, int y) const;
-    void SetTileRotation5(int x, int y, float rotation);
-    float GetTileRotation5(int x, int y) const;
-    /** @} */
-
-    /**
-     * @name Foreground2 Layer (Index 6)
-     * @brief Second foreground layer, rendered above Foreground.
-     * Useful for rooftops and tall structures.
-     * @{
-     */
-    void SetTile6(int x, int y, int tileID);
-    int GetTile6(int x, int y) const;
-    void SetTileRotation6(int x, int y, float rotation);
-    float GetTileRotation6(int x, int y) const;
     /** @} */
 
     /**
@@ -450,22 +374,6 @@ public:
      * @return true if corner cutting is blocked at this corner.
      */
     bool IsCornerCutBlocked(int x, int y, Corner corner) const;
-
-    /**
-     * @brief Get the full corner cut mask for a tile (4 bits).
-     * @param x Tile X coordinate.
-     * @param y Tile Y coordinate.
-     * @return Bitmask where bit 0=TL, 1=TR, 2=BL, 3=BR (1=blocked).
-     */
-    uint8_t GetCornerCutMask(int x, int y) const;
-
-    /**
-     * @brief Set the full corner cut mask for a tile.
-     * @param x Tile X coordinate.
-     * @param y Tile Y coordinate.
-     * @param mask Bitmask where bit 0=TL, 1=TR, 2=BL, 3=BR (1=blocked).
-     */
-    void SetCornerCutMask(int x, int y, uint8_t mask);
     /** @} */
 
     /**
@@ -602,45 +510,12 @@ public:
      * @param cullSize Visible area size for culling calculations.
      */
     void Render(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer2(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer3(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer4(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer5(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer6(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
     /** @} */
 
-    // Render methods for no-projection tiles (call with perspective suspended)
-    void RenderNoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer2NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer3NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer4NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer5NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    void RenderLayer6NoProjection(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-
-    // 3-parameter convenience wrappers (same camera for render and cull)
+    // 3-parameter convenience wrapper (same camera for render and cull)
     inline void Render(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
     {
         Render(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
-    }
-    inline void RenderLayer2(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
-    {
-        RenderLayer2(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
-    }
-    inline void RenderLayer3(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
-    {
-        RenderLayer3(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
-    }
-    inline void RenderLayer4(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
-    {
-        RenderLayer4(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
-    }
-    inline void RenderLayer5(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
-    {
-        RenderLayer5(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
-    }
-    inline void RenderLayer6(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
-    {
-        RenderLayer6(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
     }
 
     /**
@@ -671,15 +546,6 @@ public:
     TileLayer& GetLayer(size_t index);
     const TileLayer& GetLayer(size_t index) const;
 
-    /// Add a new layer at the end
-    size_t AddLayer(const std::string& name, int renderOrder, bool isBackground);
-
-    /// Insert a layer at a specific index
-    void InsertLayer(size_t index, const std::string& name, int renderOrder, bool isBackground);
-
-    /// Remove a layer by index
-    void RemoveLayer(size_t index);
-
     /// Get/set tile ID for any layer (0-based layer index)
     int GetLayerTile(int x, int y, size_t layer) const;
     void SetLayerTile(int x, int y, size_t layer, int tileID);
@@ -699,16 +565,6 @@ public:
     /// Get/set player-behind flag for any layer (affects Y-sort tiebreaker)
     bool GetLayerYSortMinus(int x, int y, size_t layer) const;
     void SetLayerYSortMinus(int x, int y, size_t layer, bool ySortMinus);
-
-    /// Render a specific layer by index
-    void RenderLayerByIndex(IRenderer& renderer, size_t layerIndex,
-                            glm::vec2 renderCam, glm::vec2 renderSize,
-                            glm::vec2 cullCam, glm::vec2 cullSize);
-
-    /// Render no-projection tiles for a specific layer
-    void RenderLayerNoProjection(IRenderer& renderer, size_t layerIndex,
-                                  glm::vec2 renderCam, glm::vec2 renderSize,
-                                  glm::vec2 cullCam, glm::vec2 cullSize);
 
     /// Render all background layers (isBackground == true) in render order
     void RenderBackgroundLayers(IRenderer& renderer, glm::vec2 renderCam, glm::vec2 renderSize,
@@ -750,15 +606,6 @@ public:
     bool GetNoProjection(int x, int y, int layer = 1) const;
 
     /**
-     * @brief Set no-projection flag at tile coordinates for a specific layer.
-     * @param x Tile X coordinate.
-     * @param y Tile Y coordinate.
-     * @param noProjection true to bypass 3D projection.
-     * @param layer Layer index (0-based, 0 to layer_count-1).
-     */
-    void SetNoProjection(int x, int y, bool noProjection, int layer = 1);
-
-    /**
      * @brief Find the bounding box of the noProjection structure containing the given tile.
      * @param tileX Tile X coordinate.
      * @param tileY Tile Y coordinate.
@@ -789,13 +636,6 @@ public:
     const NoProjectionStructure* GetNoProjectionStructure(int id) const;
 
     /**
-     * @brief Get mutable no-projection structure by ID.
-     * @param id Structure ID.
-     * @return Pointer to structure, or nullptr if invalid ID.
-     */
-    NoProjectionStructure* GetNoProjectionStructureMutable(int id);
-
-    /**
      * @brief Get all no-projection structures.
      * @return Const reference to structures vector.
      */
@@ -808,13 +648,6 @@ public:
      * @param id Structure ID to remove.
      */
     void RemoveNoProjectionStructure(int id);
-
-    /**
-     * @brief Clear all no-projection structures.
-     *
-     * Also clears all structureId assignments from tiles.
-     */
-    void ClearNoProjectionStructures();
 
     /**
      * @brief Get the structure ID assigned to a tile.
@@ -899,24 +732,6 @@ public:
         bool noProjection;  ///< True if tile should render without perspective distortion
         bool ySortMinus;    ///< True if player should render behind this tile at same Y
     };
-
-    /**
-     * @brief Get Y-sort-plus flag at tile coordinates for a specific layer.
-     * @param x Tile X coordinate.
-     * @param y Tile Y coordinate.
-     * @param layer Layer index (0-based, 0 to layer_count-1).
-     * @return true if tile should be rendered in Y-sort-plus pass.
-     */
-    bool GetYSortPlus(int x, int y, int layer = 1) const;
-
-    /**
-     * @brief Set Y-sort-plus flag at tile coordinates for a specific layer.
-     * @param x Tile X coordinate.
-     * @param y Tile Y coordinate.
-     * @param ySortPlus true to render in Y-sort-plus pass.
-     * @param layer Layer index (0-based, 0 to layer_count-1).
-     */
-    void SetYSortPlus(int x, int y, bool ySortPlus, int layer = 1);
 
     /**
      * @brief Collect all visible Y-sort-plus tiles for rendering.

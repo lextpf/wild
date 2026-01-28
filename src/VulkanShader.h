@@ -68,18 +68,6 @@ public:
     static VkShaderModule CreateShaderModule(VkDevice device, const std::vector<uint32_t> &code);
 
     /**
-     * @brief Compile GLSL source to SPIR-V bytecode at runtime.
-     *
-     * @note This method requires the shaderc library. Currently unused;
-     *       the engine loads pre-compiled .spv files instead.
-     *
-     * @param glslCode   GLSL shader source code.
-     * @param shaderType Shader stage: "vertex" or "fragment".
-     * @return SPIR-V bytecode, or empty vector on compilation failure.
-     */
-    static std::vector<uint32_t> CompileGLSLToSPIRV(const std::string &glslCode, const std::string &shaderType);
-
-    /**
      * @brief Load pre-compiled vertex shader SPIR-V from file.
      *
      * Loads `shaders/sprite.vert.spv` from the working directory.

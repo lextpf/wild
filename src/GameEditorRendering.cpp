@@ -427,6 +427,10 @@ void Game::RenderNoProjectionAnchors()
             glm::vec2 screenRight(static_cast<float>(rightPixelX) - m_CameraPosition.x,
                                   static_cast<float>(bottomPixelY) - m_CameraPosition.y);
 
+            // Skip anchors behind the sphere in globe mode
+            if (m_Renderer->IsPointBehindSphere(screenLeft) && m_Renderer->IsPointBehindSphere(screenRight))
+                continue;
+
             // In 3D mode, project through perspective
             glm::vec2 anchorLeft = is3DMode ? m_Renderer->ProjectPoint(screenLeft) : screenLeft;
             glm::vec2 anchorRight = is3DMode ? m_Renderer->ProjectPoint(screenRight) : screenRight;
@@ -435,25 +439,31 @@ void Game::RenderNoProjectionAnchors()
             float markerSize = 6.0f;
             glm::vec4 anchorColor(0.0f, 1.0f, 0.0f, 1.0f);
 
-            // Bottom-left anchor
-            m_Renderer->DrawColoredRect(
-                glm::vec2(anchorLeft.x - markerSize, anchorLeft.y - 1.0f),
-                glm::vec2(markerSize * 2.0f, 2.0f),
-                anchorColor);
-            m_Renderer->DrawColoredRect(
-                glm::vec2(anchorLeft.x - 1.0f, anchorLeft.y - markerSize),
-                glm::vec2(2.0f, markerSize * 2.0f),
-                anchorColor);
+            // Bottom-left anchor (only if visible)
+            if (!m_Renderer->IsPointBehindSphere(screenLeft))
+            {
+                m_Renderer->DrawColoredRect(
+                    glm::vec2(anchorLeft.x - markerSize, anchorLeft.y - 1.0f),
+                    glm::vec2(markerSize * 2.0f, 2.0f),
+                    anchorColor);
+                m_Renderer->DrawColoredRect(
+                    glm::vec2(anchorLeft.x - 1.0f, anchorLeft.y - markerSize),
+                    glm::vec2(2.0f, markerSize * 2.0f),
+                    anchorColor);
+            }
 
-            // Bottom-right anchor
-            m_Renderer->DrawColoredRect(
-                glm::vec2(anchorRight.x - markerSize, anchorRight.y - 1.0f),
-                glm::vec2(markerSize * 2.0f, 2.0f),
-                anchorColor);
-            m_Renderer->DrawColoredRect(
-                glm::vec2(anchorRight.x - 1.0f, anchorRight.y - markerSize),
-                glm::vec2(2.0f, markerSize * 2.0f),
-                anchorColor);
+            // Bottom-right anchor (only if visible)
+            if (!m_Renderer->IsPointBehindSphere(screenRight))
+            {
+                m_Renderer->DrawColoredRect(
+                    glm::vec2(anchorRight.x - markerSize, anchorRight.y - 1.0f),
+                    glm::vec2(markerSize * 2.0f, 2.0f),
+                    anchorColor);
+                m_Renderer->DrawColoredRect(
+                    glm::vec2(anchorRight.x - 1.0f, anchorRight.y - markerSize),
+                    glm::vec2(2.0f, markerSize * 2.0f),
+                    anchorColor);
+            }
         }
     }
 
@@ -469,36 +479,49 @@ void Game::RenderNoProjectionAnchors()
         glm::vec2 screenRight(s.rightAnchor.x - m_CameraPosition.x,
                               s.rightAnchor.y - m_CameraPosition.y);
 
+        // Skip anchors behind the sphere in globe mode
+        if (m_Renderer->IsPointBehindSphere(screenLeft) && m_Renderer->IsPointBehindSphere(screenRight))
+            continue;
+
         // In 3D mode, project through perspective
         glm::vec2 anchorLeft = is3DMode ? m_Renderer->ProjectPoint(screenLeft) : screenLeft;
         glm::vec2 anchorRight = is3DMode ? m_Renderer->ProjectPoint(screenRight) : screenRight;
 
-        // Left anchor cross
-        m_Renderer->DrawColoredRect(
-            glm::vec2(anchorLeft.x - defMarkerSize, anchorLeft.y - 1.0f),
-            glm::vec2(defMarkerSize * 2.0f, 2.0f),
-            definedAnchorColor);
-        m_Renderer->DrawColoredRect(
-            glm::vec2(anchorLeft.x - 1.0f, anchorLeft.y - defMarkerSize),
-            glm::vec2(2.0f, defMarkerSize * 2.0f),
-            definedAnchorColor);
+        // Left anchor cross (only if visible)
+        if (!m_Renderer->IsPointBehindSphere(screenLeft))
+        {
+            m_Renderer->DrawColoredRect(
+                glm::vec2(anchorLeft.x - defMarkerSize, anchorLeft.y - 1.0f),
+                glm::vec2(defMarkerSize * 2.0f, 2.0f),
+                definedAnchorColor);
+            m_Renderer->DrawColoredRect(
+                glm::vec2(anchorLeft.x - 1.0f, anchorLeft.y - defMarkerSize),
+                glm::vec2(2.0f, defMarkerSize * 2.0f),
+                definedAnchorColor);
+        }
 
-        // Right anchor cross
-        m_Renderer->DrawColoredRect(
-            glm::vec2(anchorRight.x - defMarkerSize, anchorRight.y - 1.0f),
-            glm::vec2(defMarkerSize * 2.0f, 2.0f),
-            definedAnchorColor);
-        m_Renderer->DrawColoredRect(
-            glm::vec2(anchorRight.x - 1.0f, anchorRight.y - defMarkerSize),
-            glm::vec2(2.0f, defMarkerSize * 2.0f),
-            definedAnchorColor);
+        // Right anchor cross (only if visible)
+        if (!m_Renderer->IsPointBehindSphere(screenRight))
+        {
+            m_Renderer->DrawColoredRect(
+                glm::vec2(anchorRight.x - defMarkerSize, anchorRight.y - 1.0f),
+                glm::vec2(defMarkerSize * 2.0f, 2.0f),
+                definedAnchorColor);
+            m_Renderer->DrawColoredRect(
+                glm::vec2(anchorRight.x - 1.0f, anchorRight.y - defMarkerSize),
+                glm::vec2(2.0f, defMarkerSize * 2.0f),
+                definedAnchorColor);
+        }
 
-        // Connecting line between anchors
-        float lineY = (anchorLeft.y + anchorRight.y) * 0.5f;
-        m_Renderer->DrawColoredRect(
-            glm::vec2(anchorLeft.x, lineY - 1.0f),
-            glm::vec2(anchorRight.x - anchorLeft.x, 2.0f),
-            glm::vec4(0.0f, 1.0f, 1.0f, 0.5f));
+        // Connecting line between anchors (only if both visible)
+        if (!m_Renderer->IsPointBehindSphere(screenLeft) && !m_Renderer->IsPointBehindSphere(screenRight))
+        {
+            float lineY = (anchorLeft.y + anchorRight.y) * 0.5f;
+            m_Renderer->DrawColoredRect(
+                glm::vec2(anchorLeft.x, lineY - 1.0f),
+                glm::vec2(anchorRight.x - anchorLeft.x, 2.0f),
+                glm::vec4(0.0f, 1.0f, 1.0f, 0.5f));
+        }
     }
 }
 
@@ -1104,7 +1127,7 @@ void Game::RenderLayer2Overlays()
     {
         for (int x = startX; x < endX; ++x)
         {
-            int tileID = m_Tilemap.GetTile2(x, y);
+            int tileID = m_Tilemap.GetLayerTile(x, y, 1);
             if (tileID >= 0)
             {
                 // Calculate tile position in screen space
@@ -1142,7 +1165,7 @@ void Game::RenderLayer3Overlays()
     {
         for (int x = startX; x < endX; ++x)
         {
-            int tileID = m_Tilemap.GetTile3(x, y);
+            int tileID = m_Tilemap.GetLayerTile(x, y, 2);
             if (tileID >= 0)
             {
                 // Calculate tile position in screen space
@@ -1180,7 +1203,7 @@ void Game::RenderLayer4Overlays()
     {
         for (int x = startX; x < endX; ++x)
         {
-            int tileID = m_Tilemap.GetTile4(x, y);
+            int tileID = m_Tilemap.GetLayerTile(x, y, 3);
             if (tileID >= 0)
             {
                 // Calculate tile position in screen space

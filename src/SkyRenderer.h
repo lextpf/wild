@@ -478,18 +478,6 @@ private:
      */
     glm::vec2 GetLightSourcePosition(float arc, int screenWidth, int screenHeight) const;
 
-    /**
-     * @brief Render a generic glow sprite at a position.
-     *
-     * Helper for rendering atmospheric glow effects.
-     *
-     * @param renderer Renderer interface.
-     * @param position Screen-space center position.
-     * @param size     Glow diameter in pixels.
-     * @param color    RGBA color with alpha for intensity.
-     */
-    void RenderLightGlow(IRenderer& renderer, glm::vec2 position, float size, glm::vec4 color);
-
     /// @}
 
     /// @name Procedural Textures

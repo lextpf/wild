@@ -825,30 +825,46 @@ void Game::ProcessInput(float deltaTime)
         f3KeyPressed = false;
     }
 
-    // Cycle through time of day: day -> evening -> night -> morning -> day...
+    // Cycle through all 8 time periods
     static bool f4KeyPressed = false;
-    static int timeOfDayCycle = 0; // 0=day, 1=evening, 2=night, 3=morning
+    static int timeOfDayCycle = 0;
     if (glfwGetKey(m_Window, GLFW_KEY_F4) == GLFW_PRESS && !f4KeyPressed)
     {
-        timeOfDayCycle = (timeOfDayCycle + 1) % 4;
+        timeOfDayCycle = (timeOfDayCycle + 1) % 8;
         const char *periodName = "";
         switch (timeOfDayCycle)
         {
-        case 0:
-            m_TimeManager.SetTime(12.0f);
-            periodName = "Day (12:00)";
-            break;
-        case 1:
-            m_TimeManager.SetTime(20.0f);
-            periodName = "Evening (20:00)";
-            break;
-        case 2:
-            m_TimeManager.SetTime(0.0f);
-            periodName = "Night (00:00)";
-            break;
-        case 3:
+        case 0: // Dawn (05:00-07:00)
             m_TimeManager.SetTime(6.0f);
-            periodName = "Morning (06:00)";
+            periodName = "Dawn (06:00)";
+            break;
+        case 1: // Morning (07:00-10:00)
+            m_TimeManager.SetTime(8.5f);
+            periodName = "Morning (08:30)";
+            break;
+        case 2: // Midday (10:00-16:00)
+            m_TimeManager.SetTime(13.0f);
+            periodName = "Midday (13:00)";
+            break;
+        case 3: // Afternoon (16:00-18:00)
+            m_TimeManager.SetTime(17.0f);
+            periodName = "Afternoon (17:00)";
+            break;
+        case 4: // Dusk (18:00-20:00)
+            m_TimeManager.SetTime(19.0f);
+            periodName = "Dusk (19:00)";
+            break;
+        case 5: // Evening (20:00-22:00)
+            m_TimeManager.SetTime(21.0f);
+            periodName = "Evening (21:00)";
+            break;
+        case 6: // Night (22:00-04:00)
+            m_TimeManager.SetTime(1.0f);
+            periodName = "Night (01:00)";
+            break;
+        case 7: // LateNight (04:00-05:00)
+            m_TimeManager.SetTime(4.5f);
+            periodName = "Late Night (04:30)";
             break;
         }
         std::cout << "Time of day: " << periodName << std::endl;

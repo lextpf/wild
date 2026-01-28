@@ -24,13 +24,6 @@ VkShaderModule VulkanShader::CreateShaderModule(VkDevice device, const std::vect
     return shaderModule;
 }
 
-std::vector<uint32_t> VulkanShader::CompileGLSLToSPIRV(const std::string &glslCode, const std::string &shaderType)
-{
-    // Placeholder - full implementation requires glslangValidator or shaderc
-    std::cerr << "Warning: GLSL to SPIR-V compilation not implemented. Use pre-compiled shaders." << std::endl;
-    return {};
-}
-
 // Load SPIR-V file
 static std::vector<uint32_t> ReadSPIRVFile(const std::string &filename)
 {

@@ -727,24 +727,7 @@ private:
     glm::vec2 ComputeSprintCornerEject(const class Tilemap *tilemap,
                                        const std::vector<glm::vec2> *npcPositions,
                                        glm::vec2 normalizedDir) const;
-    
-    /**
-     * @brief Check for wall tile in a given direction (strict).
-     * 
-     * Tests if there's a blocking tile directly adjacent to the player's
-     * hitbox in the specified direction. No corner tolerance.
-     * 
-     * @par Adjacent Tile Detection
-     * For direction (dx, dy), checks tiles along the edge of the hitbox
-     * one pixel past the boundary.
-     * 
-     * @param tilemap Tilemap for collision queries.
-     * @param dirX Direction X component (-1, 0, or 1).
-     * @param dirY Direction Y component (-1, 0, or 1).
-     * @return true if wall found in direction.
-     */
-    bool HasWallInDirection(const class Tilemap *tilemap, int dirX, int dirY) const;
-    
+
     /**
      * @brief Determine slide direction when blocked at a corner.
      * 

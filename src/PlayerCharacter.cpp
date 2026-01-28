@@ -997,73 +997,6 @@ glm::vec2 PlayerCharacter::ComputeSprintCornerEject(const Tilemap *tilemap,
     return bestOffset;
 }
 
-// Check if there's a wall tile directly adjacent to the player in a given direction
-// This is a STRICT check with no corner tolerance - used to determine which way is blocked
-bool PlayerCharacter::HasWallInDirection(const Tilemap *tilemap, int dirX, int dirY) const
-{
-    if (!tilemap)
-        return false;
-
-    const float TILE_W = static_cast<float>(tilemap->GetTileWidth());
-    const float TILE_H = static_cast<float>(tilemap->GetTileHeight());
-    constexpr float HALF_W = HITBOX_WIDTH * 0.5f;
-    constexpr float BOX_H = HITBOX_HEIGHT;
-
-    // Calculate hitbox bounds
-    float minX = m_Position.x - HALF_W;
-    float maxX = m_Position.x + HALF_W;
-    float maxY = m_Position.y;
-    float minY = m_Position.y - BOX_H;
-
-    auto tileBlocked = [&](int tx, int ty)
-    {
-        if (tx < 0 || ty < 0 || tx >= tilemap->GetMapWidth() || ty >= tilemap->GetMapHeight())
-            return true;
-        return tilemap->GetTileCollision(tx, ty);
-    };
-
-    // Check tiles adjacent to the hitbox in the specified direction
-    if (dirY < 0) // Checking upward
-    {
-        int tileY = static_cast<int>(std::floor((minY - 1.0f) / TILE_H));
-        int tileX0 = static_cast<int>(std::floor((minX + 1.0f) / TILE_W));
-        int tileX1 = static_cast<int>(std::floor((maxX - 1.0f) / TILE_W));
-        for (int tx = tileX0; tx <= tileX1; ++tx)
-            if (tileBlocked(tx, tileY))
-                return true;
-    }
-    else if (dirY > 0) // Checking downward
-    {
-        int tileY = static_cast<int>(std::floor((maxY + 1.0f) / TILE_H));
-        int tileX0 = static_cast<int>(std::floor((minX + 1.0f) / TILE_W));
-        int tileX1 = static_cast<int>(std::floor((maxX - 1.0f) / TILE_W));
-        for (int tx = tileX0; tx <= tileX1; ++tx)
-            if (tileBlocked(tx, tileY))
-                return true;
-    }
-
-    if (dirX < 0) // Checking leftward
-    {
-        int tileX = static_cast<int>(std::floor((minX - 1.0f) / TILE_W));
-        int tileY0 = static_cast<int>(std::floor((minY + 1.0f) / TILE_H));
-        int tileY1 = static_cast<int>(std::floor((maxY - 1.0f) / TILE_H));
-        for (int ty = tileY0; ty <= tileY1; ++ty)
-            if (tileBlocked(tileX, ty))
-                return true;
-    }
-    else if (dirX > 0) // Checking rightward
-    {
-        int tileX = static_cast<int>(std::floor((maxX + 1.0f) / TILE_W));
-        int tileY0 = static_cast<int>(std::floor((minY + 1.0f) / TILE_H));
-        int tileY1 = static_cast<int>(std::floor((maxY - 1.0f) / TILE_H));
-        for (int ty = tileY0; ty <= tileY1; ++ty)
-            if (tileBlocked(tileX, ty))
-                return true;
-    }
-
-    return false;
-}
-
 glm::vec2 PlayerCharacter::GetCornerSlideDirection(
     const glm::vec2 &testPos,
     const Tilemap *tilemap,
@@ -1247,8 +1180,9 @@ glm::vec2 PlayerCharacter::GetCornerSlideDirection(
         int fdx = signi(forward.x);
         int fdy = signi(forward.y);
 
-        for (float mag = 1.0f; mag <= maxProbe; mag += 1.0f)
+        for (int magInt = 1; magInt <= static_cast<int>(maxProbe); ++magInt)
         {
+            float mag = static_cast<float>(magInt);
             glm::vec2 offset = dir * mag;
 
             // slide step must be safe
@@ -1972,8 +1906,9 @@ glm::vec2 PlayerCharacter::TrySlideMovement(glm::vec2 desiredMovement, glm::vec2
                                     ? glm::vec2(desiredMovement.x, 0.0f)
                                     : glm::vec2(0.0f, desiredMovement.y);
 
-        for (float slideAmount = 1.0f; slideAmount <= 16.0f; slideAmount += 1.0f)
+        for (int slideAmountInt = 1; slideAmountInt <= 16; ++slideAmountInt)
         {
+            float slideAmount = static_cast<float>(slideAmountInt);
             glm::vec2 slideOffset = horizontalPrimary
                                         ? glm::vec2(0.0f, dir.y * slideAmount)
                                         : glm::vec2(dir.x * slideAmount, 0.0f);

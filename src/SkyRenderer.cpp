@@ -457,18 +457,6 @@ glm::vec2 SkyRenderer::GetLightSourcePosition(float arc, int screenWidth, int sc
     return glm::vec2(x, y);
 }
 
-void SkyRenderer::RenderLightGlow(IRenderer &renderer, glm::vec2 position, float size, glm::vec4 color)
-{
-    // Single subtle glow layer
-    renderer.DrawSpriteAlpha(
-        m_GlowTexture,
-        position - glm::vec2(size * 0.5f),
-        glm::vec2(size),
-        0.0f,
-        glm::vec4(color.r, color.g, color.b, color.a * 0.5f),
-        true);
-}
-
 void SkyRenderer::RenderStars(IRenderer &renderer, const TimeManager &time, int screenWidth, int screenHeight)
 {
     float visibility = time.GetStarVisibility();
