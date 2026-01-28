@@ -481,7 +481,8 @@ public:
      *
      * Given a building defined by base anchors A (left) and B (right) in screen space,
      * this computes the projected screen position for a vertex at parametric coordinates
-     * (u, v) where u ∈ [0,1] spans the base width and v ∈ [0,1] spans the building height.
+     * (u, v) where @f$ u \in [0,1] @f$ spans the base width and @f$ v \in [0,1] @f$
+     * spans the building height.
      *
      * The base is projected onto the sphere surface (following world tile projection).
      * Heights rise straight up from the projected base with perspective-correct scaling.
