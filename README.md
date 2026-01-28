@@ -1,7 +1,7 @@
 <div align="center">
 
 # wild
-**A modern 2D game engine built with C++23.**
+**A modern 2.5D game engine built with C++23.**
 
 🏠 [Mainpage](./docs/MAINPAGE.md) | 🧱 [Building](./docs/BUILDING.md) | 🏛️ [Architecture](./docs/ARCHITECTURE.md) | 🤝 [Contributing](./CONTRIBUTING.md)
 
@@ -11,14 +11,14 @@
 ![CMake](https://img.shields.io/badge/CMake-3.10%2B-064F8C?style=flat&logo=cmake&logoColor=white)
 ![OpenGL](https://img.shields.io/badge/OpenGL-v4.6-orange?style=flat&logo=opengl&logoColor=white)
 ![Vulkan](https://img.shields.io/badge/Vulkan-v1.4-red?style=flat&logo=vulkan&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-blue?logo=opensourceinitiative&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue?logo=opensourceinitiative&logoColor=white)
 <br/>
 [![build](https://github.com/lextpf/wild/actions/workflows/build.yml/badge.svg)](https://github.com/lextpf/wild/actions/workflows/build.yml)
 [![tests](https://github.com/lextpf/wild/actions/workflows/test.yml/badge.svg)](https://github.com/lextpf/wild/actions/workflows/test.yml)
 </div>
-A modern 2D game engine built with C++23, featuring dual OpenGL 4.6 and Vulkan 1.4 rendering backends that can be switched at runtime.
-It includes dynamic world simulation with a full day/night cycle, weather effects, and npc interactions, alongside a built-in level editor
-for rapid content creation. Designed for tile-based RPGs with a focus on performance, flexibility, and visual polish.
+
+**A modern 2.5D game engine** built with **C++23**, featuring dual *OpenGL 4.6* and *Vulkan 1.4* rendering backends that can be switched at runtime. It includes *dynamic world simulation* with a full day/night cycle, weather effects, and *NPC interactions*, alongside a **built-in level editor** for rapid content creation. Designed for **tile-based RPGs** with a focus on *performance*, *flexibility*, and **visual polish**.
+
 <div align="center">
 <br>
 
@@ -422,6 +422,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
