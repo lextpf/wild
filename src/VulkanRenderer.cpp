@@ -2295,6 +2295,124 @@ void VulkanRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
     m_CurrentVertexCount += 6;
 }
 
+void VulkanRenderer::DrawWarpedQuad(const Texture& texture, const glm::vec2 corners[4],
+                                    glm::vec2 texCoord, glm::vec2 texSize,
+                                    glm::vec3 color, bool flipY)
+{
+    // Warped quads are pre-transformed - corners already include projection
+    // We draw them directly without additional perspective transformation
+    if (m_GraphicsPipeline == VK_NULL_HANDLE || m_DescriptorSetLayout == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    // Get texture resources
+    TextureResources& texRes = GetOrCreateTexture(texture);
+    if (texRes.imageView == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    VkDescriptorSet descriptorSet = GetOrCreateDescriptorSet(texRes.imageView);
+    if (descriptorSet == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    VkCommandBuffer commandBuffer = m_CommandBuffers[m_CurrentFrame];
+
+    // Calculate UV coordinates from pixel coordinates
+    float texW = static_cast<float>(texture.GetWidth());
+    float texH = static_cast<float>(texture.GetHeight());
+
+    float u0 = texCoord.x / texW;
+    float u1 = (texCoord.x + texSize.x) / texW;
+
+    float v0, v1;
+    if (flipY)
+    {
+        // Flip Y for textures loaded with stb_image
+        float finalTexYTop = texH - texCoord.y;
+        float finalTexYBottom = texH - (texCoord.y + texSize.y);
+        v0 = finalTexYBottom / texH;
+        v1 = finalTexYTop / texH;
+    }
+    else
+    {
+        v0 = texCoord.y / texH;
+        v1 = (texCoord.y + texSize.y) / texH;
+    }
+
+    // Create vertex data (6 vertices for 2 triangles)
+    // Corner order: [TL, TR, BR, BL]
+    // UV mapping: TL/TR (top of quad) -> visual top, BL/BR (bottom) -> visual bottom
+    // With flipY: v0=visual top, v1=visual bottom, so swap v for correct orientation
+    struct Vertex
+    {
+        float pos[2];
+        float tex[2];
+    };
+
+    Vertex vertices[6] = {
+        // Triangle 1: TL, BR, BL
+        {corners[0].x, corners[0].y, u0, v1},  // TL gets visual top
+        {corners[2].x, corners[2].y, u1, v0},  // BR gets visual bottom
+        {corners[3].x, corners[3].y, u0, v0},  // BL gets visual bottom
+        // Triangle 2: TL, TR, BR
+        {corners[0].x, corners[0].y, u0, v1},  // TL
+        {corners[1].x, corners[1].y, u1, v1},  // TR gets visual top
+        {corners[2].x, corners[2].y, u1, v0}   // BR
+    };
+
+    // Check if we have space in the vertex buffer
+    uint32_t maxVertices = static_cast<uint32_t>(m_VertexBufferSize / sizeof(Vertex));
+    if (m_CurrentVertexCount + 6 > maxVertices)
+    {
+        return;
+    }
+
+    // Update vertex buffer directly
+    VkDeviceSize vertexDataSize = sizeof(vertices);
+    Vertex *mappedVertices = static_cast<Vertex *>(m_VertexBuffersMapped[m_CurrentFrame]);
+    memcpy(&mappedVertices[m_CurrentVertexCount], vertices, vertexDataSize);
+
+    // Push constants - use identity model since vertices are pre-transformed
+    struct CombinedPushConstants
+    {
+        glm::mat4 projection;
+        glm::mat4 model;
+        glm::vec3 spriteColor;
+        float useColorOnly;
+        glm::vec4 colorOnly;
+        float spriteAlpha;
+        float _padding[3];
+        glm::vec3 ambientColor;
+        float _padding2;
+    } pushConstants;
+
+    pushConstants.projection = m_Projection;
+    pushConstants.model = glm::mat4(1.0f);  // Identity - vertices already transformed
+    pushConstants.spriteColor = color;
+    pushConstants.useColorOnly = 0.0f;  // false - use texture
+    pushConstants.colorOnly = glm::vec4(0.0f);
+    pushConstants.spriteAlpha = 1.0f;
+    pushConstants.ambientColor = m_AmbientColor;
+
+    vkCmdPushConstants(commandBuffer, m_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, 192, &pushConstants);
+
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout,
+                            0, 1, &descriptorSet, 0, nullptr);
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_VertexBuffers[m_CurrentFrame], offsets);
+
+    vkCmdDraw(commandBuffer, 6, 1, m_CurrentVertexCount, 0);
+    ++m_DrawCallCount;
+
+    m_CurrentVertexCount += 6;
+}
+
 VkDescriptorSet VulkanRenderer::GetOrCreateDescriptorSet(VkImageView imageView)
 {
     // Check cache first

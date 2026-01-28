@@ -311,6 +311,31 @@ public:
     virtual void DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::vec4 color, bool additive = false) = 0;
 
     /**
+     * @brief Draw a texture region onto an arbitrary quad defined by 4 corner positions.
+     *
+     * This method renders a sprite with full control over each corner's screen position,
+     * enabling warped/deformed quads for spherical projection of buildings. The corners
+     * are in screen space (already transformed) and NO additional perspective is applied.
+     *
+     * @par Corner Order
+     * @code
+     * corners[0] (TL)----corners[1] (TR)
+     *      |                   |
+     * corners[3] (BL)----corners[2] (BR)
+     * @endcode
+     *
+     * @param texture  Texture containing the sprite.
+     * @param corners  Array of 4 screen-space positions [TL, TR, BR, BL].
+     * @param texCoord Top-left corner of texture region in pixels.
+     * @param texSize  Size of texture region in pixels.
+     * @param color    Color tint (default: white = no tint).
+     * @param flipY    Flip vertical UV coordinates (default: true for OpenGL).
+     */
+    virtual void DrawWarpedQuad(const Texture& texture, const glm::vec2 corners[4],
+                                glm::vec2 texCoord, glm::vec2 texSize,
+                                glm::vec3 color = glm::vec3(1.0f), bool flipY = true) = 0;
+
+    /**
      * @brief Set the projection matrix.
      * 
      * Updates the GPU uniform for coordinate transformation.
@@ -449,6 +474,101 @@ public:
         }
 
         return glm::vec2(static_cast<float>(resultX), static_cast<float>(resultY));
+    }
+
+    /**
+     * @brief Compute screen position for a sphere-conforming building vertex.
+     *
+     * Given a building defined by base anchors A (left) and B (right) in screen space,
+     * this computes the projected screen position for a vertex at parametric coordinates
+     * (u, v) where u ∈ [0,1] spans the base width and v ∈ [0,1] spans the building height.
+     *
+     * The base is projected onto the sphere surface (following world tile projection).
+     * Heights rise straight up from the projected base with perspective-correct scaling.
+     * A blend factor controls how much the building conforms to sphere vs rises rigidly.
+     *
+     * @param baseLeft    Screen-space position of building's bottom-left anchor (A).
+     * @param baseRight   Screen-space position of building's bottom-right anchor (B).
+     * @param u           Parametric position along base width [0=left, 1=right].
+     * @param v           Parametric position along height [0=base, 1=top].
+     * @param heightWorld Building height in world/screen units (pixels at base).
+     * @return Projected screen-space position for this vertex.
+     */
+    glm::vec2 ComputeBuildingVertex(const glm::vec2& baseLeft, const glm::vec2& baseRight,
+                                    float u, float v, float heightWorld) const
+    {
+        PerspectiveState s = GetPerspectiveState();
+
+        // Linear interpolation along base for the base point at parameter u
+        glm::vec2 basePoint = baseLeft + u * (baseRight - baseLeft);
+
+        if (!s.enabled)
+        {
+            // No projection: simple 2D extrusion (v goes upward, negative Y in screen space)
+            return glm::vec2(basePoint.x, basePoint.y - v * heightWorld);
+        }
+
+        // Project the base point to get its position on the sphere surface
+        glm::vec2 projectedBase = ProjectPoint(basePoint);
+
+        if (v < 0.0001f)
+        {
+            // At base level, just return the projected base (pinned to sphere)
+            return projectedBase;
+        }
+
+        float height = v * heightWorld;
+
+        // Compute height scale factor based on vanishing point perspective
+        // This makes buildings near horizon appear shorter (proper perspective)
+        float heightScale = 1.0f;
+        bool hasVanishing = (s.mode == ProjectionMode::VanishingPoint || s.mode == ProjectionMode::Fisheye);
+
+        if (hasVanishing)
+        {
+            float horizonY = s.horizonY;
+            float screenHeight = s.viewHeight;
+            float horizonScale = s.horizonScale;
+
+            float denom = screenHeight - horizonY;
+            if (denom > 1e-5f)
+            {
+                float t = (projectedBase.y - horizonY) / denom;
+                t = std::max(0.0f, std::min(1.0f, t));
+                heightScale = horizonScale + (1.0f - horizonScale) * t;
+            }
+        }
+
+        // Apply scaled height - rise straight up from projected base
+        float scaledHeight = height * heightScale;
+
+        // For globe mode, also compute where this point would be if fully projected
+        // (conforming completely to sphere). Blend between rigid and conforming.
+        bool hasGlobe = (s.mode == ProjectionMode::Globe || s.mode == ProjectionMode::Fisheye);
+
+        if (hasGlobe)
+        {
+            // Fully conforming position: project the unprojected height position
+            glm::vec2 unprojectedAtHeight(basePoint.x, basePoint.y - height);
+            glm::vec2 fullyConforming = ProjectPoint(unprojectedAtHeight);
+
+            // Rigid position: straight up from projected base with scaled height
+            glm::vec2 rigidUp(projectedBase.x, projectedBase.y - scaledHeight);
+
+            // Blend: 0 = fully rigid (straight up), 1 = fully conforming (follows sphere)
+            // 0.25 gives buildings that stand mostly upright with subtle sphere conforming
+            float conformBlend = 0.25f;
+
+            float finalX = rigidUp.x + conformBlend * (fullyConforming.x - rigidUp.x);
+            float finalY = rigidUp.y + conformBlend * (fullyConforming.y - rigidUp.y);
+
+            return glm::vec2(finalX, finalY);
+        }
+        else
+        {
+            // Vanishing point only: just rise straight up with scaled height
+            return glm::vec2(projectedBase.x, projectedBase.y - scaledHeight);
+        }
     }
 
     /**

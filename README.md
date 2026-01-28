@@ -20,7 +20,7 @@ for rapid content creation. Designed for tile-based RPGs with a focus on perform
 <div align="center">
 <br>
 
-![Game](./preview.png)
+![Game](./PREVIEW.png)
 
 </div>
 

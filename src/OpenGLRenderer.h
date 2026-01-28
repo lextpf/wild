@@ -139,6 +139,9 @@ public:
                          glm::vec2 uvMin, glm::vec2 uvMax, float rotation,
                          glm::vec4 color, bool additive = false) override;
     void DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::vec4 color, bool additive = false) override;
+    void DrawWarpedQuad(const Texture& texture, const glm::vec2 corners[4],
+                        glm::vec2 texCoord, glm::vec2 texSize,
+                        glm::vec3 color = glm::vec3(1.0f), bool flipY = true) override;
 
     void SetProjection(glm::mat4 projection) override;
     void SetViewport(int x, int y, int width, int height) override;

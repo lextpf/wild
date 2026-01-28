@@ -1195,6 +1195,81 @@ void OpenGLRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
     m_RectBatchVertices.push_back({corners[2].x, corners[2].y, 1.0f, 1.0f, r, g, b, a});
 }
 
+void OpenGLRenderer::DrawWarpedQuad(const Texture& texture, const glm::vec2 corners[4],
+                                    glm::vec2 texCoord, glm::vec2 texSize,
+                                    glm::vec3 color, bool flipY)
+{
+    // Warped quads are pre-transformed by the caller (sphere projection already applied)
+    // We add them directly to the sprite batch without additional perspective transformation
+
+    // Flush other batch types first
+    if (!m_RectBatchVertices.empty())
+        FlushRectBatch();
+    if (!m_ParticleBatchVertices.empty())
+        FlushParticleBatch();
+
+    unsigned int texID = texture.GetID();
+
+    // Flush sprite batch if texture changed
+    if (m_CurrentBatchTexture != 0 && m_CurrentBatchTexture != texID)
+    {
+        FlushBatch();
+    }
+
+    // Check batch capacity
+    if (m_BatchVertices.size() >= MAX_BATCH_SPRITES * VERTICES_PER_SPRITE)
+    {
+        FlushBatch();
+    }
+
+    m_CurrentBatchTexture = texID;
+
+    // Calculate UV coordinates from pixel coordinates
+    float texW = static_cast<float>(texture.GetWidth());
+    float texH = static_cast<float>(texture.GetHeight());
+
+    float u0 = texCoord.x / texW;
+    float u1 = (texCoord.x + texSize.x) / texW;
+
+    float v0, v1;
+    if (flipY)
+    {
+        // OpenGL: flip Y for textures loaded with stb_image
+        float finalTexYTop = texH - texCoord.y;
+        float finalTexYBottom = texH - (texCoord.y + texSize.y);
+        v0 = finalTexYBottom / texH;  // Top vertex uses bottom V
+        v1 = finalTexYTop / texH;     // Bottom vertex uses top V
+    }
+    else
+    {
+        v0 = texCoord.y / texH;
+        v1 = (texCoord.y + texSize.y) / texH;
+    }
+
+    // Map UV coordinates to corners: [TL, TR, BR, BL]
+    // TL (screen top) -> texture top, BR (screen bottom) -> texture bottom
+    // With flipY, v0=visual top, v1=visual bottom, so:
+    // TL/TR (top of quad) -> v1 (bottom of texture = visual top after flip)
+    // BL/BR (bottom of quad) -> v0 (top of texture = visual bottom after flip)
+    glm::vec2 uvs[4] = {
+        {u0, v1},  // TL - top of quad gets visual top of texture
+        {u1, v1},  // TR
+        {u1, v0},  // BR - bottom of quad gets visual bottom of texture
+        {u0, v0}   // BL
+    };
+
+    // Assemble quad as two triangles (6 vertices)
+    // Triangle 1: TL, BR, BL
+    m_BatchVertices.push_back({corners[0].x, corners[0].y, uvs[0].x, uvs[0].y});
+    m_BatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y});
+    m_BatchVertices.push_back({corners[3].x, corners[3].y, uvs[3].x, uvs[3].y});
+
+    // Triangle 2: TL, TR, BR
+    m_BatchVertices.push_back({corners[0].x, corners[0].y, uvs[0].x, uvs[0].y});
+    m_BatchVertices.push_back({corners[1].x, corners[1].y, uvs[1].x, uvs[1].y});
+    m_BatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y});
+}
+
 void OpenGLRenderer::FlushRectBatch()
 {
     if (m_RectBatchVertices.empty())
