@@ -22,7 +22,7 @@ for rapid content creation. Designed for tile-based RPGs with a focus on perform
 <div align="center">
 <br>
 
-![Game](./PREVIEW.png)
+![Game](./preview.png)
 
 </div>
 
@@ -422,6 +422,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
