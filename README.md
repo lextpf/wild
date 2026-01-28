@@ -13,6 +13,10 @@
 ![Vulkan](https://img.shields.io/badge/Vulkan-v1.4-red?style=flat&logo=vulkan&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?logo=opensourceinitiative&logoColor=white)
 <br/>
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lextpf_wild&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lextpf_wild)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=lextpf_wild&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=lextpf_wild)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=lextpf_wild&metric=bugs)](https://sonarcloud.io/summary/new_code?id=lextpf_wild)
+<br/>
 [![build](https://github.com/lextpf/wild/actions/workflows/build.yml/badge.svg)](https://github.com/lextpf/wild/actions/workflows/build.yml)
 [![tests](https://github.com/lextpf/wild/actions/workflows/test.yml/badge.svg)](https://github.com/lextpf/wild/actions/workflows/test.yml)
 </div>
@@ -422,6 +426,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
