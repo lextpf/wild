@@ -1,0 +1,9 @@
+# Build outputs
+build/
+build_tests/
+
+# Assets
+assets/
+
+# Generated documentation
+docs/html/
