@@ -25,7 +25,7 @@
 
 ```
 /* ================================================================================================== *
- *                                                                                                                         
+ *                                                                                                    
  *                                                               ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠳⣶⡤
  *                                                               ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠠⣾⣦⡀
  *                                                               ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣈⣻⡧⢀
@@ -38,8 +38,8 @@
  *                ###   ###   ########### ########## #########   ⠀⠀⠀⠀⢸⡏⣾⡿⠁⠀⠀⠀⢿⣼⣷⠁
  *                                                               ⠀⠀⠀⠀⠘⠷⢿⣧⡀⠀⠀⠀⠈⠛⢿⣆
  *                                                               ⠀⠀⠀⠀⠀⠀⠀⠉⠉⠀⠀⠀⠀⠀⠀⠈
- *                                               << G A M E   E N G I N E >>                                                
- *                                                                                                                          
+ *                                               << G A M E   E N G I N E >>                          
+ *                                                                                                    
  * ================================================================================================== */
 ```
 
@@ -446,6 +446,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
