@@ -24,23 +24,23 @@
 **A modern 2.5D game engine** built with **C++23**, featuring dual *OpenGL 4.6* and *Vulkan 1.4* rendering backends that can be switched at runtime. It includes *dynamic world simulation* with a full day/night cycle, weather effects, and *NPC interactions*, alongside a **built-in level editor** for rapid content creation. Designed for **tile-based RPGs** with a focus on *performance*, *flexibility*, and **visual polish**.
 
 ```
-/* ================================================================================================ *
+/* ============================================================================================== *
+ *                                                                                                
+ *                                                           ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠳⣶⡤
+ *                                                           ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠠⣾⣦⡀
+ *                                                           ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣈⣻⡧⢀
+ *          :::       ::: ::::::::::: :::        :::::::::   ⢷⣦⣤⡀⠀⢀⣠⣤⡆⢰⣶⣶⣾⣿⣿⣷⣕⣡⡀
+ *          :+:       :+:     :+:     :+:        :+:    :+:  ⠘⣿⣿⠇⠀⣦⡀⠉⠉⠈⠉⠁⢸⣿⣿⣿⣿⡿⠃
+ *          +:+       +:+     +:+     +:+        +:+    +:+  ⠀⠀⠀⣀⣴⣿⣿⣄⣀⣀⣀⢀⣼⣿⣿⣿⠁
+ *          +#+  +:+  +#+     +#+     +#+        +#+    +:+  ⠀⠀⠀⠀⠉⢩⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀
+ *          +#+ +#+#+ +#+     +#+     +#+        +#+    +#+  ⠀⠀⠀⠀⠀⣸⣿⣿⡿⢻⣿⣿⣿⣿⡿⢿⠇
+ *           #+#+# #+#+#      #+#     #+#        #+#    #+#  ⠀⠀⠀⠀⢰⣿⣿⣿⠰⠙⠁⠈⣿⣿⠱⠘
+ *            ###   ###   ########### ########## #########   ⠀⠀⠀⠀⢸⡏⣾⡿⠁⠀⠀⠀⢿⣼⣷⠁
+ *                                                           ⠀⠀⠀⠀⠘⠷⢿⣧⡀⠀⠀⠀⠈⠛⢿⣆
+ *                                                           ⠀⠀⠀⠀⠀⠀⠀⠉⠉⠀⠀⠀⠀⠀⠀⠈
+ *                                  << G A M E   E N G I N E >>                        
  *                                                                                                  
- *                                                             ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠳⣶⡤
- *                                                             ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠠⣾⣦⡀
- *                                                             ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣈⣻⡧⢀
- *            :::       ::: ::::::::::: :::        :::::::::   ⢷⣦⣤⡀⠀⢀⣠⣤⡆⢰⣶⣶⣾⣿⣿⣷⣕⣡⡀
- *            :+:       :+:     :+:     :+:        :+:    :+:  ⠘⣿⣿⠇⠀⣦⡀⠉⠉⠈⠉⠁⢸⣿⣿⣿⣿⡿⠃
- *            +:+       +:+     +:+     +:+        +:+    +:+  ⠀⠀⠀⣀⣴⣿⣿⣄⣀⣀⣀⢀⣼⣿⣿⣿⠁
- *            +#+  +:+  +#+     +#+     +#+        +#+    +:+  ⠀⠀⠀⠀⠉⢩⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀
- *            +#+ +#+#+ +#+     +#+     +#+        +#+    +#+  ⠀⠀⠀⠀⠀⣸⣿⣿⡿⢻⣿⣿⣿⣿⡿⢿⠇
- *             #+#+# #+#+#      #+#     #+#        #+#    #+#  ⠀⠀⠀⠀⢰⣿⣿⣿⠰⠙⠁⠈⣿⣿⠱⠘
- *              ###   ###   ########### ########## #########   ⠀⠀⠀⠀⢸⡏⣾⡿⠁⠀⠀⠀⢿⣼⣷⠁
- *                                                             ⠀⠀⠀⠀⠘⠷⢿⣧⡀⠀⠀⠀⠈⠛⢿⣆
- *                                                             ⠀⠀⠀⠀⠀⠀⠀⠉⠉⠀⠀⠀⠀⠀⠀⠈
- *                                   << G A M E   E N G I N E >>                        
- *                                                                                                    
- * ================================================================================================ */
+ * ============================================================================================== */
 ```
 
 <div align="center">
@@ -446,6 +446,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
