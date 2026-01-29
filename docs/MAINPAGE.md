@@ -44,16 +44,6 @@ flowchart LR
 
 ## Core Systems
 
-| Component               | Responsibility |
-|-------------------------|-----------------------------------------------------------|
-| @ref Game               | Main loop orchestration, input handling, state management |
-| @ref IRenderer          | Abstract rendering interface (OpenGL/Vulkan)              |
-| @ref Tilemap            | Tile storage, collision map, navigation map               |
-| @ref TimeManager        | Day/night cycle, ambient lighting                         |
-| @ref SkyRenderer        | Stars, sun, moon, atmospheric effects                     |
-| @ref PlayerCharacter    | Player entity, movement, animation                        |
-| @ref NonPlayerCharacter | NPC behavior, patrol routes, dialogue                     |
-
 @see [Architecture](ARCHITECTURE.md) for detailed system design and game loop.
 
 ---
@@ -99,20 +89,21 @@ Complete day/night cycle with 8 time periods, sun/moon arcs, star visibility, an
 
 ### Core Classes
 
-| Class                   | Purpose                      |
-|-------------------------|------------------------------|
-| @ref Game               | Main loop orchestration      |
-| @ref IRenderer          | Abstract rendering interface |
-| @ref OpenGLRenderer     | OpenGL 4.6 implementation    |
-| @ref VulkanRenderer     | Vulkan 1.4 implementation    |
-| @ref Tilemap            | World tiles and layers       |
-| @ref TimeManager        | Day/night cycle              |
-| @ref SkyRenderer        | Stars, sun, moon, rays       |
-| @ref PlayerCharacter    | Player entity                |
-| @ref NonPlayerCharacter | NPC entity                   |
-| @ref PatrolRoute        | NPC patrol paths             |
-| @ref DialogueManager    | Conversation system          |
-| @ref GameStateManager   | Game flags and state         |
+| Class                   | Responsibility                                            |
+|-------------------------|-----------------------------------------------------------|
+| @ref Game               | Main loop orchestration, input handling, state management |
+| @ref IRenderer          | Abstract rendering interface (OpenGL/Vulkan)              |
+| @ref OpenGLRenderer     | OpenGL 4.6 backend implementation                         |
+| @ref VulkanRenderer     | Vulkan 1.4 backend implementation                         |
+| @ref Tilemap            | Tile storage, collision map, navigation map               |
+| @ref TimeManager        | Day/night cycle, ambient lighting                         |
+| @ref SkyRenderer        | Stars, sun, moon, atmospheric effects                     |
+| @ref PlayerCharacter    | Player entity, movement, animation                        |
+| @ref NonPlayerCharacter | NPC behavior, patrol routes, dialogue                     |
+| @ref PatrolRoute        | NPC patrol path generation and traversal                  |
+| @ref DialogueManager    | Branching conversation system                             |
+| @ref GameStateManager   | Game flags, quest state, persistence                      |
+| @ref ParticleSystem     | Visual effects (fireflies, dust, etc.)                    |
 
 ### Key Interfaces
 

@@ -160,13 +160,9 @@ build/
 
 ## Troubleshooting
 
-### CMake Errors
+### Dependency Errors
 
-| Error                 | Solution                                    |
-|-----------------------|---------------------------------------------|
-| "Could not find GLFW" | Run setup script or install GLFW manually   |
-| "Could not find GLM"  | Download GLM to `external/glm/`             |
-| "Could not find GLAD" | Generate GLAD and place in `external/glad/` |
+If CMake reports missing dependencies (GLFW, GLM, GLAD, stb_image), see the [Setup Guide - Troubleshooting](SETUP.md#troubleshooting) section for solutions.
 
 ### Vulkan Errors
 

@@ -357,63 +357,22 @@ stateDiagram-v2
 
 **Position Convention:**
 
-All entities use **bottom-center anchoring**:
+All entities use **bottom-center anchoring** for their position. This simplifies Y-sorting: entities with higher Y values (lower on screen) render in front.
 
-```
-    +-------+
-    |       |
-    |   X   |  <-- Sprite center
-    |       |
-    +---*---+  <-- Position point (bottom-center)
-        |
-      (x,y)
-```
-
-This simplifies Y-sorting: entities with higher Y values (lower on screen) render in front.
+@see [Collision & Pathfinding - Entity Hitboxes](COLLISION.md#entity-hitboxes) for hitbox dimensions and AABB collision details.
 
 ### Time System
 
-`TimeManager` drives the day/night cycle and provides time-based queries:
+`TimeManager` drives the day/night cycle and provides time-based queries for ambient lighting, celestial body positions, and atmospheric effects.
 
-\htmlonly
-<pre class="mermaid">
----
-config:
-  layout: elk
----
-graph LR
-  classDef night fill:#1a1a2e,stroke:#4a4a6a,color:#e2e8f0
-  classDef dawn fill:#614385,stroke:#9b59b6,color:#e2e8f0
-  classDef day fill:#f39c12,stroke:#e67e22,color:#1a1a2e
-  classDef dusk fill:#c0392b,stroke:#e74c3c,color:#e2e8f0
+**Core Responsibilities:**
+- Track game time (0.0-24.0 hours)
+- Compute sun/moon arc positions
+- Calculate star visibility
+- Interpolate ambient light colors
+- Drive `SkyRenderer` for celestial rendering
 
-  subgraph Cycle["24-Hour Cycle"]
-    N["Night<br/>20:00-05:00"]:::night
-    D["Dawn<br/>05:00-07:00"]:::dawn
-    Y["Day<br/>07:00-18:00"]:::day
-    K["Dusk<br/>18:00-20:00"]:::dusk
-  end
-
-  N --> D --> Y --> K --> N
-
-</pre>
-\endhtmlonly
-
-**Key Calculations:**
-
-Sun arc (0 at sunrise, 0.5 at noon, 1 at sunset):
-$$
-sunArc = \frac{time - 6.0}{20.0 - 6.0}
-$$
-
-Star visibility (1 at night, 0 during day):
-$$
-starVisibility = \begin{cases}
-1.0 & \text{if } time < 5.0 \text{ or } time > 21.0 \\
-1.0 - \frac{time - 5.0}{2.0} & \text{if } 5.0 \leq time < 7.0 \\
-0.0 & \text{otherwise}
-\end{cases}
-$$
+@see [Time System](TIME_SYSTEM.md) for detailed time period definitions, celestial mechanics formulas, and ambient color calculations.
 
 ### Dialogue System
 
