@@ -23,6 +23,23 @@
 
 **A modern 2.5D game engine** built with **C++23**, featuring dual *OpenGL 4.6* and *Vulkan 1.4* rendering backends that can be switched at runtime. It includes *dynamic world simulation* with a full day/night cycle, weather effects, and *NPC interactions*, alongside a **built-in level editor** for rapid content creation. Designed for **tile-based RPGs** with a focus on *performance*, *flexibility*, and **visual polish**.
 
+<div align="center">
+<br>
+
+![Game](./PREVIEW.png)
+
+</div>
+
+> [!IMPORTANT]
+> **Assets Not Included**
+>
+> This engine ships without game assets (sprites, tilesets, fonts, maps). To run the engine, you will need to provide your own:
+> - Source free/open-licensed sprites and tilesets (e.g., from [OpenGameArt](https://opengameart.org/), [itch.io](https://itch.io/game-assets/free))
+> - Place them in the `assets/` directory following the structure in [Project Structure](#project-structure)
+> - Wire them into the engine by adjusting the loading paths (e.g., Game.cpp L233, L273)
+>
+> **The engine will not run without valid assets in place.**
+
 ```
 /* ============================================================================================== *
  *                                                                                                
@@ -42,23 +59,6 @@
  *                                                                                                  
  * ============================================================================================== */
 ```
-
-<div align="center">
-<br>
-
-![Game](./PREVIEW.png)
-
-</div>
-
-> [!IMPORTANT]
-> **Assets Not Included**
->
-> This engine ships without game assets (sprites, tilesets, fonts, maps). To run the engine, you will need to provide your own:
-> - Source free/open-licensed sprites and tilesets (e.g., from [OpenGameArt](https://opengameart.org/), [itch.io](https://itch.io/game-assets/free))
-> - Place them in the `assets/` directory following the structure in [Project Structure](#project-structure)
-> - Wire them into the engine by adjusting the loading paths (e.g., Game.cpp L233, L273)
->
-> **The engine will not run without valid assets in place.**
 
 ## Features
 
@@ -446,6 +446,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
