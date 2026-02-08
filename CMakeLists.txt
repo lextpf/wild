@@ -13,6 +13,21 @@ endif()
 
 project(wild)
 
+# Parse version from Version.h
+file(STRINGS "${CMAKE_SOURCE_DIR}/src/Version.h" _ver_major REGEX "#define WILD_VERSION_MAJOR")
+file(STRINGS "${CMAKE_SOURCE_DIR}/src/Version.h" _ver_minor REGEX "#define WILD_VERSION_MINOR")
+file(STRINGS "${CMAKE_SOURCE_DIR}/src/Version.h" _ver_patch REGEX "#define WILD_VERSION_PATCH")
+file(STRINGS "${CMAKE_SOURCE_DIR}/src/Version.h" _ver_release REGEX "#define WILD_VERSION_RELEASE")
+string(REGEX REPLACE ".*#define WILD_VERSION_MAJOR[ \t]+([0-9]+).*" "\\1" WILD_VERSION_MAJOR "${_ver_major}")
+string(REGEX REPLACE ".*#define WILD_VERSION_MINOR[ \t]+([0-9]+).*" "\\1" WILD_VERSION_MINOR "${_ver_minor}")
+string(REGEX REPLACE ".*#define WILD_VERSION_PATCH[ \t]+([0-9]+).*" "\\1" WILD_VERSION_PATCH "${_ver_patch}")
+string(REGEX REPLACE ".*#define WILD_VERSION_RELEASE[ \t]+([0-9]+).*" "\\1" WILD_VERSION_RELEASE "${_ver_release}")
+set(WILD_VERSION_STRING "${WILD_VERSION_MAJOR}.${WILD_VERSION_MINOR}.${WILD_VERSION_PATCH}.${WILD_VERSION_RELEASE}")
+message(STATUS "Wild version: ${WILD_VERSION_STRING}")
+
+# Generate Doxyfile from template
+configure_file("${CMAKE_SOURCE_DIR}/Doxyfile.in" "${CMAKE_BINARY_DIR}/Doxyfile" @ONLY)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
