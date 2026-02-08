@@ -138,7 +138,7 @@ flowchart TB
   classDef proj fill:#4a3520,stroke:#f59e0b,stroke-width:2.5px,color:#e2e8f0,font-weight:800
   classDef fx fill:#2e1f5e,stroke:#8b5cf6,stroke-width:2.5px,color:#e2e8f0,font-weight:800
 
-  subgraph Pipeline["Rendering Pipeline 🎨🧩"]
+  subgraph Pipeline["Rendering Pipeline 🎨"]
     B["Sprite Batching 📦<br/>Draw Call Optimization 🚀"]:::batch
     Y["Y-Sorting 🧭<br/>Depth Ordering 🪜"]:::sort
     P["Perspective 👁️‍🗨️<br/>World Curvature 🌍"]:::proj
@@ -427,7 +427,7 @@ Contributions are welcome! Please read the [Contributing Guidelines](CONTRIBUTIN
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. ~~Run tests and~~ Ensure the build passes
+4. ~~Run tests and~~ ensure the build passes
 5. Commit with descriptive messages
 6. Push to your fork and open a Pull Request
 
@@ -446,6 +446,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Codex](https://openai.com/index/openai-codex/) - AI coding assistant by OpenAI
 - [DeviantArt](https://www.deviantart.com/) - Pixel art for characters and tilesets
 - [Sora](https://openai.com/sora/) - Particle effect generation
+
 
 
 
