@@ -1,239 +1,518 @@
-# Contributing to Wild Engine
+# Contributing Guide
 
-Thank you for your interest in contributing to Wild! This document provides guidelines and coding standards to help you get started.
+This guide defines contribution standards for the project's authors and co-authors, with or without AI assistance.
+
+---
 
 ## Getting Started
 
 1. **Fork the repository** on GitHub.
 2. **Clone your fork** locally.
-3. **Set up the development environment** (see [docs/SETUP.md](docs/SETUP.md)).
-4. **Build the project** (see [docs/BUILDING.md](docs/BUILDING.md)).
-5. Use MSVC with C++23 enabled. Builds must pass for both OpenGL and Vulkan paths where applicable.
+3. **Build the project** with `.\build.bat`
 
-## How to Contribute
 
-### Reporting Bugs
+## Language & Build
 
-Before submitting a bug report:
-- Check if the issue already exists in [GitHub Issues](https://github.com/lextpf/wild/issues)
-- Try to reproduce with the latest version
+|            Item | Standard                         |
+|-----------------|----------------------------------|
+|        Language | C++23 (`CMAKE_CXX_STANDARD 23`)  |
+|        Compiler | MSVC 2022 (primary)              |
+|    Build system | CMake 3.10+                      |
+| Package manager | vcpkg                            |
+|         Testing | Google Test with CTest discovery |
 
-When reporting, include:
-- Steps to reproduce the issue
-- Expected behavior vs actual behavior
-- Your OS, GPU, and driver version
-- Screenshots or error logs if applicable
+---
 
-### Suggesting Features
+## Naming Conventions
 
-Feature requests are welcome! Please:
-- Check existing issues to avoid duplicates
-- Describe the use case and why it would be valuable
-- Be open to discussion about implementation approaches
+|                Element |          Style          | Examples                                 |
+|------------------------|-------------------------|------------------------------------------|
+|                  Files |       PascalCase        | `Renderer.h`, `Settings.cpp`             |
+|      Classes / Structs |       PascalCase        | `Game`, `TierDefinition`                 |
+|                  Enums |       PascalCase        | `enum class Direction`                   |
+|            Enum values |       PascalCase        | `Direction::Up`                          |
+|    Functions / Methods |       PascalCase        | `Initialize()`, `LoadFromFile()`         |
+|             Namespaces |       PascalCase        | `Settings`, `Renderer`                   |
+|        Local variables |        camelCase        | `deltaTime`, `tileX`                     |
+|             Parameters |        camelCase        | `float distance`                         |
+|       Member variables |    `m_` + PascalCase    | `m_Window`, `m_Width`                    |
+|       Static variables |       `s_` prefix       | `s_count`                                |
+|       Global variables |       `g_` prefix       | `g_device`                               |
+|     Constants / Macros |    UPPER_SNAKE_CASE     | `MAX_DISTANCE`, `TWO_PI`                 |
+| Compile-time constants |   `static constexpr`    | `static constexpr int SIZE = 16;`        |
+|           Type aliases | PascalCase with `using` | `using IndexMap = std::unordered_map<>;` |
 
-### Submitting Code
+### Struct members
 
-1. **Create a feature branch**: `git checkout -b feature/your-feature-name`
-2. **Make your changes** following the coding standards below
-3. **Test thoroughly** - both OpenGL and Vulkan backends, editor mode, overlays, time-of-day toggles
-4. **Commit with clear messages**: `git commit -m "Add feature: description"`
-5. **Push to your fork**: `git push origin feature/your-feature-name`
-6. **Open a Pull Request** with a clear description of your changes
-
-## Coding Standards
-
-### Language
-
-- **C++23** - prefer standard library facilities (ranges, `std::optional`, `std::string_view`) where appropriate.
-- Compile with warnings enabled and treat warnings as errors when possible.
-- Keep code ASCII unless there is a clear, intentional reason (e.g., emoji in docs).
-
-### Naming Conventions
-
-| Element           | Style                        | Example                          |
-|-------------------|------------------------------|----------------------------------|
-| Classes/Structs   | PascalCase                   | `PlayerCharacter`, `TimeManager` |
-| Enums             | PascalCase with `enum class` | `enum class TimePeriod`          |
-| Enum values       | PascalCase                   | `TimePeriod::Dawn`               |
-| Methods/Functions | PascalCase                   | `GetPosition()`, `Initialize()`  |
-| Member variables  | m_PascalCase                 | `m_Position`, `m_CurrentTime`    |
-| Local variables   | camelCase                    | `deltaTime`, `tileIndex`         |
-| Parameters        | camelCase                    | `float deltaTime`, `int tileX`   |
-
-### Brace Style
-
-We use **Allman style** - opening braces on their own line:
+Plain structs used as data holders use **camelCase** with no prefix:
 
 ```cpp
-void Game::Update(float deltaTime)
+struct Particle
 {
-    if (m_EditorMode)
+    glm::vec2 startPosition;
+    glm::vec2 moveDirection;
+    float maxLifetime;
+};
+```
+
+### Prefer structs with named fields over pairs / tuples
+
+Named fields are far easier to read than `.first` / `.second` or
+`std::get<>()`. Use a small struct instead.
+
+---
+
+## Formatting
+
+### Indentation
+
+4 spaces. No tabs.
+
+### Brace style
+
+**Allman** &mdash; opening brace on its own line for all constructs
+(namespaces, classes, functions, and control flow):
+
+```cpp
+namespace Occlusion
+{
+    bool IsBehindCamera(const RE::NiPoint3& worldPos)
     {
-        UpdateEditor(deltaTime);
-    }
-    else
-    {
-        UpdateGameplay(deltaTime);
+        if (distance < 0.001f)
+        {
+            return false;
+        }
+
+        return dot > 0.0f;
     }
 }
 ```
 
-### Include Order
+### Always use braces
 
-Organize includes in this order, with blank lines between groups:
+Even for single-statement bodies. This prevents bugs when lines are
+added later:
 
 ```cpp
-#include "Game.h"              // 1. Corresponding header (for .cpp)
+// Good
+if (done)
+{
+    return;
+}
 
-#include "PlayerCharacter.h"   // 2. Project headers
-#include "Tilemap.h"
-
-#include <GLFW/glfw3.h>        // 3. External libraries
-#include <glm/glm.hpp>
-
-#include <iostream>            // 4. Standard library
-#include <vector>
+// Bad
+if (done)
+    return;
 ```
 
-### Header Files
+### Constructor initializer lists
 
-- Use `#pragma once` for header guards
-- Put Doxygen documentation in headers, not in .cpp files
-- Keep headers minimal - forward declare when possible
-- Avoid including heavy headers in other headers (prefer forward declarations)
+Leading comma, one member per line, aligned:
+
+```cpp
+Game::Game()
+    : m_Window(nullptr)
+    , m_ScreenWidth(1360)
+    , m_CameraZoom(1.0f)
+{
+}
+```
+
+### Spacing
+
+- Space after keywords: `if (`, `for (`, `while (`, `switch (`
+- No space between function name and `(`: `Update(deltaTime)`
+- Spaces around binary operators: `a + b`, `x = y`
+- Space after commas: `Foo(a, b, c)`
+- Space inside angle-bracket casts: `reinterpret_cast<T*>(ptr)`
+- No space inside parentheses: `Foo(a, b)` not `Foo( a, b )`
+
+### Boolean expressions
+
+When a boolean expression spans multiple lines, break **before** the
+operator:
+
+```cpp
+if (longConditionA
+    && longConditionB
+    && longConditionC)
+{
+    ...
+}
+```
+
+### Return values
+
+Do not wrap return values in parentheses:
+
+```cpp
+return result;      // Good
+return (result);    // Bad
+```
+
+### Floating-point literals
+
+Omit the leading zero for fractional literals:
+
+```cpp
+float x = .5f;     // Good
+float x = 0.5f;    // Bad
+```
+
+### Pointer and reference declarations
+
+Attach `*` and `&` to the **type**:
+
+```cpp
+int* ptr = nullptr;
+const std::string& name = GetName();
+```
+
+---
+
+## Header Files
+
+Every header starts with `#pragma once`. Do not use `#ifndef` guards.
 
 ```cpp
 #pragma once
 
+// includes...
+```
+
+### Forward declarations
+
+Avoid forward declarations when possible; prefer including the header.
+Forward declarations hide dependencies and can silently change code
+meaning. Use them only to break circular includes.
+
+### Inline functions
+
+Only define functions inline when they are short (roughly 10 lines or
+fewer). Longer definitions belong in `.cpp` files.
+
+---
+
+## Include Order
+
+Group includes in this order, separated by a blank line between groups.
+Alphabetize within each group.
+
+1. **Corresponding header** (`.cpp` files only)
+2. **Project headers**
+3. **External / third-party library headers**
+4. **Standard library headers**
+
+```cpp
+#include "Occlusion.h"          // 1. corresponding header
+
+#include "Settings.h"           // 2. project headers
+#include "TextEffects.h"
+
+#include <RE/A/Actor.h>         // 3. external libraries
 #include <glm/glm.hpp>
 
-class Tilemap;  // Forward declaration instead of #include
+#include <atomic>               // 4. standard library
+#include <string>
+#include <vector>
+```
 
+---
+
+## Scoping
+
+### Namespaces
+
+- **Never** use `using namespace` in header files.
+- `using namespace` is acceptable in `.cpp` files only at function scope
+  or within an unnamed namespace, and only for well-known libraries
+  (e.g. `std::literals`).
+
+### Local variables
+
+- Declare variables in the **narrowest scope** possible, as close to
+  first use as practical.
+- **Initialize at declaration**; never declare first and assign later.
+- Prefer declaring loop variables inside the `for` / `while` statement.
+
+### Internal linkage
+
+Functions and variables used only within a single `.cpp` file should
+have internal linkage. Use an unnamed namespace or `static`:
+
+```cpp
+namespace
+{
+    float ComputeWeight(float x)
+    {
+        return x * x;
+    }
+}  // namespace
+```
+
+### Static and global variables
+
+- Objects with static storage duration must be **trivially destructible**
+  unless they are function-local statics.
+- Prefer `constexpr` or `constinit` for static/global initialization.
+- Global strings should be `constexpr std::string_view` or `const char*`
+  pointing to a literal, not `std::string`.
+
+---
+
+## Classes
+
+### Constructors
+
+- Avoid virtual method calls in constructors.
+- If initialization can fail, use a factory function or a separate
+  `Initialize()` method that returns `bool`.
+
+### Implicit conversions
+
+Mark single-argument constructors and conversion operators **`explicit`**
+to prevent unintended type conversions:
+
+```cpp
+explicit Texture(const std::string& path);
+```
+
+Copy and move constructors are exempt from this rule.
+
+### Copyable and movable types
+
+Be explicit about copy/move semantics:
+
+- **Copyable**: Default or define both copy constructor and assignment.
+- **Move-only**: Define move operations; delete copy operations.
+- **Neither**: Delete both.
+
+```cpp
+// Move-only resource
+Texture(Texture&& other) noexcept;
+Texture& operator=(Texture&& other) noexcept;
+Texture(const Texture&) = delete;             // Deleted
+Texture& operator=(const Texture&) = delete;  // Deleted
+```
+
+### Structs vs. classes
+
+- Use `struct` for passive data containers with all-public fields and no
+  invariants.
+- Use `class` for types with methods, invariants, or private state.
+
+### Operator overloading
+
+- Overload only when semantics are obvious and unsurprising.
+- **Never** overload `&&`, `||`, `,` (comma), or unary `&`.
+
+---
+
+## Functions
+
+### Inputs and outputs
+
+- Prefer **return values** over output parameters.
+- Parameter order: inputs first, then outputs.
+- Non-optional input: `const T&` (or `T` for cheap-to-copy types).
+- Non-optional output / in-out: `T&`.
+- Optional input: `const T*` (nullable) or `std::optional<T>`.
+- Optional output: `T*` (nullable).
+
+### Trailing return type
+
+Use `auto Foo() -> ReturnType` only when the ordinary syntax is
+impractical (e.g. complex template return types). Lambdas may always use
+trailing return types.
+
+---
+
+## Ownership & Smart Pointers
+
+- Prefer **single, fixed ownership**. Transfer ownership explicitly via
+  smart pointers.
+- `std::unique_ptr` for exclusive ownership (factory returns, member
+  resources).
+- `std::shared_ptr` only with strong justification (e.g. expensive
+  immutable objects shared across subsystems). Beware of cyclic
+  references.
+- Raw pointers for **non-owning** references only.
+- Never use `std::auto_ptr`.
+
+---
+
+## Documentation
+
+### Where documentation lives
+
+- **Header files** (`.h`): Doxide comments for every public class,
+  method, enum, and non-trivial member.
+- **Implementation files** (`.cpp`): Only `//` comments for non-obvious
+  logic. No Doxide blocks.
+
+### Comment styles
+
+In **header files**, the following styles are supported before a
+declaration:
+
+```cpp
+/** ... */
+/*! ... */
+/// ...
+//! ...
+```
+
+For end-of-line documentation placed after a declaration:
+
+```cpp
+/**< ... */
+/*!< ... */
+///< ...
+//!< ...
+```
+
+In **`.cpp` files**, use `//` exclusively.
+
+### Class / namespace documentation
+
+```cpp
 /**
  * @class PlayerCharacter
- * @brief Represents the player-controlled character.
+ * @brief Handles player movement, animation, and collision.
+ * @author Alex (https://github.com/lextpf)
+ * @ingroup Player
+ *
+ * Detailed description of responsibilities.
+ *
+ * @see NonPlayerCharacter, Tilemap
  */
-class PlayerCharacter
-{
-    // ...
-};
+class PlayerCharacter { ... };
 ```
 
-### Constructor Initialization Lists
-
-Initialize members one per line with comments explaining non-obvious values:
-
-```cpp
-Game::Game()
-    : m_Window(nullptr)           // GLFW window handle
-    , m_ScreenWidth(1360)         // 17 tiles * 16px * 5 scale
-    , m_ScreenHeight(960)         // 12 tiles * 16px * 5 scale
-    , m_CameraPosition(0.0f)      // Start at origin
-{
-}
-```
-
-### Documentation
-
-**In header files**, use Doxygen comments for public APIs:
+### Method documentation
 
 ```cpp
 /**
- * @brief Gets the current time of day.
- * @return Current time in hours (0.0-24.0)
+ * Load a tilemap from a JSON file.
+ *
+ * @param path Filesystem path to the JSON map file.
+ * @return `true` if the map loaded successfully.
+ *
+ * @pre The renderer must be initialized before calling this.
  */
-float GetCurrentTime() const;
+bool LoadFromFile(const std::string& path);
 ```
 
-Use `///` for brief enum/member documentation:
+### Doxide commands
+
+Use Markdown wherever possible. Doxide provides a small set of commands
+for organizing and annotating documentation:
+
+| Command | Purpose |
+|---------|---------|
+|    `@param name` | Document a parameter and its direction |
+|   `@tparam name` | Document a template parameter |
+|        `@return` | Document the return value |
+| `@pre` / `@post` | Document pre- or post-conditions |
+|    `@throw name` | Document a thrown exception |
+|           `@see` | Add "see also" references (format with Markdown links) |
+|   `@anchor name` | Insert a link target for `[text](#name)` |
+|  `@ingroup name` | Add the entity to a named group |
+|             `@@` | Escape: produces a literal `@` |
+|             `@/` | Escape: produces a literal `/` |
+
+### Legacy commands supported by Doxide
+
+Doxide replaces these with their Markdown equivalents during processing.
+Both forms are accepted; use whichever reads best in context.
+
+|                                                   Command(s) | Doxide behaviour       | Markdown equivalent        |
+|--------------------------------------------------------------|------------------------|----------------------------|
+|                             `@e word`, `@em word`, `@a word` | Replaced with Markdown | `*word*`                   |
+|                                                    `@b word` | Replaced with Markdown | `**word**`                 |
+|                                         `@c word`, `@p word` | Replaced with Markdown | `` `word` ``               |
+|                                                `@f$ ... @f$` | Replaced with Markdown | `$ ... $` (inline math)    |
+|                                                `@f[ ... @f]` | Replaced with Markdown | `$$ ... $$` (display math) |
+|                                                `@li`, `@arg` | Replaced with Markdown | `- ` (list item)           |
+|           `@code ... @endcode`, `@verbatim ... @endverbatim` | Replaced with Markdown | ```` ``` ... ``` ````      |
+| `@bug`, `@example`, `@note`, `@todo`, `@warning`, `@remarks` | Replaced with Markdown | `!!! type` (admonition)    |
+|                                             `@ref name text` | Replaced with Markdown | `[text](#name)`            |
+|                                     `@image format file alt` | Ignored                | `![alt](file)`             |
+|                                        `@returns`, `@result` | Treated as `@return`   | Use `@return`              |
+|                                      `@throws`, `@exception` | Treated as `@throw`    | Use `@throw`               |
+|                                                        `@sa` | Treated as `@see`      | Use `@see`                 |
+
+We still use `@brief`, `@class`, `@struct`, `@union`, `@enum`, and `@namespace` for readability and
+forward-compatibility.
+
+Commands we do **not** use: `@short`, `@file`, `@defgroup`, `@def`,
+`@fn`, `@var` and `@internal`.
+
+### Enum and member documentation
+
+Use trailing doc comments for brief inline docs:
 
 ```cpp
-enum class TimePeriod
+enum class ParticleStyle
 {
-    Dawn,       ///< 05:00-07:00 - Sunrise transition
-    Morning,    ///< 07:00-10:00 - Early day
+    Stars,    ///< Twinkling star points
+    Sparks,   ///< Fast, erratic fire-like sparks
+    Wisps,    ///< Slow, flowing ethereal wisps
 };
 ```
 
-**In .cpp files**, use regular `//` comments for implementation details:
+### Grouped members
+
+Use `/// @ingroup` or `/// @name` / `/// @{` ... `/// @}` to group
+related members:
 
 ```cpp
-// Calculate smoothing alpha for ~0.15 second settle time
-float alpha = 1.0f - std::exp(-deltaTime / 0.033f);
+/// @name Lifecycle
+/// @{
+bool Initialize();
+void Run();
+void Shutdown();
+/// @}
 ```
 
-### Modern C++ Guidelines
+### Rich documentation
 
-- Prefer `enum class` over plain `enum`
-- Use `nullptr` instead of `NULL`
-- Use `auto` when the type is obvious or unwieldy
-- Prefer range-based for loops
-- Use smart pointers for ownership (`std::unique_ptr`, `std::shared_ptr`)
-- Mark things `const` and `constexpr` when possible
-- Prefer `std::string_view` for non-owning string parameters
-- Use `std::optional` for nullable return values and avoid magic sentinels
+Use Markdown freely in documentation comments: tables, links, images,
+admonitions, and math.
 
-### Things to Avoid
+**Material Design Icons** can be used in headings and text.
 
-- Don't use raw `new`/`delete` - use smart pointers or containers
-- Don't cast the renderer to a specific backend type - use the `IRenderer` interface
-- Don't add platform-specific code without `#ifdef` guards
-- Don't commit debug code (sleep calls, excessive logging, etc.)
-- Don't introduce frame-time spin-waits; if you must wait, use platform timers/event waits
+**Mermaid diagrams** are supported for architecture and flow
+visualizations:
 
-## Architecture Guidelines
+````cpp
+/**
+ * Manages the game's day/night cycle.
+ *
+ * ```mermaid
+ * stateDiagram-v2
+ *     Dawn --> Midday
+ *     Midday --> Dusk
+ *     Dusk --> Night
+ *     Night --> Dawn
+ * ```
+ */
+````
 
-### Renderer Abstraction
+### Inline comments
 
-All rendering goes through `IRenderer`. Never access OpenGL/Vulkan directly from game code:
+- Explain *why*, not *what*.
+- Keep them short and on the same line when possible.
+- Use `//` style exclusively in `.cpp` files.
+
+### TODO comments
+
+Mark incomplete or temporary work with a `TODO` and attribution:
 
 ```cpp
-// Good - uses abstraction
-m_Renderer->DrawSprite(texture, position, size);
-
-// Bad - breaks abstraction
-glBindTexture(GL_TEXTURE_2D, textureId);
+// TODO: Replace with spatial hash once tile count exceeds 10k.
 ```
-
-### Coordinate System
-
-- **Origin**: Top-left corner
-- **Y-axis**: Increases downward
-- **Units**: Pixels (world space)
-- **Entity positions**: Bottom-center of sprite
-
-### Adding New Features
-
-1. **Discuss first** - Open an issue to discuss the approach
-2. **Keep it focused** - One feature per PR
-3. **Update documentation** - Add Doxygen comments, update relevant .md files
-4. **Test both renderers** - Press F1 to switch between OpenGL and Vulkan
-
-## Testing Your Changes
-
-Before submitting a PR:
-
-1. **Build successfully** with `.\build.bat` (Windows) or CMake
-2. **Run the game** and verify your changes work
-3. **Test both renderers** - Press F1 to switch
-4. **Test editor mode** - Press E if your changes affect it
-5. **Check debug overlays** - Press F3 to verify rendering
-6. **Test different times of day** - Press F5 to cycle time periods
-7. **Check no-projection visuals** if your change touches anchors, projection, or stacking
-
-## Code Review Process
-
-1. A maintainer will review your PR
-2. Address any feedback or questions
-3. Once approved, your PR will be merged
-
-## Questions?
-
-- Open a [GitHub Issue](https://github.com/lextpf/wild/issues) for bugs or features
-- Start a [GitHub Discussion](https://github.com/lextpf/wild/discussions) for questions
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
-
-Thank you for helping improve Wild!
