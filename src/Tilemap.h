@@ -244,7 +244,7 @@ public:
     /**
      * @brief Construct an empty Tilemap.
      * 
-     * Call LoadTileset() and SetTilemapSize() before use.
+     * Call LoadCombinedTilesets() and SetTilemapSize() before use.
      */
     Tilemap();
 
@@ -252,29 +252,6 @@ public:
      * @brief Destructor releases tileset texture resources.
      */
     ~Tilemap();
-
-    /**
-     * @brief Load a single tileset image.
-     * 
-     * The tileset is divided into a grid of tiles based on the
-     * specified tile dimensions.
-     * 
-     * @par Tileset Layout
-     * @code
-     *   0   1   2   3   ...  (tile X)
-     * +---+---+---+---+---+
-     * | 0 | 1 | 2 | 3 |...| Row 0 (tile IDs 0-N)
-     * +---+---+---+---+---+
-     * |N+1|...|   |   |   | Row 1
-     * +---+---+---+---+---+
-     * @endcode
-     * 
-     * @param path Path to tileset PNG file.
-     * @param tileWidth Width of each tile in pixels (default: 16).
-     * @param tileHeight Height of each tile in pixels (default: 16).
-     * @return `true` if loaded successfully.
-     */
-    bool LoadTileset(const std::string &path, int tileWidth = 16, int tileHeight = 16);
 
     /**
      * @brief Load and combine multiple tileset images vertically.
@@ -306,38 +283,6 @@ public:
      * @param generateMap If true, fills with a default pattern.
      */
     void SetTilemapSize(int width, int height, bool generateMap = true);
-
-    /**
-     * @name Ground Layer (Index 0)
-     * @brief Primary background layer. Only layer with collision support.
-     * @{
-     */
-    /**
-     * @brief Set a tile on the Ground layer (index 0).
-     * @param x Tile column.
-     * @param y Tile row.
-     * @param tileID Tile ID from tileset (0 = empty).
-     */
-    void SetTile(int x, int y, int tileID);
-
-    /**
-     * @brief Get tile ID from the Ground layer (index 0).
-     * @param x Tile column.
-     * @param y Tile row.
-     * @return Tile ID (0 if empty or out of bounds).
-     */
-    int GetTile(int x, int y) const;
-    /** @} */
-
-    /**
-     * @name Additional Layer Tile Getters
-     * @brief Read-only access to other layer tiles (for editor display).
-     * @{
-     */
-    int GetTile2(int x, int y) const;
-    int GetTile3(int x, int y) const;
-    int GetTile4(int x, int y) const;
-    /** @} */
 
     /**
      * @name Corner Cutting Control
@@ -462,62 +407,6 @@ public:
     /** @} */
 
     /**
-     * @name Rotation Functions (Ground Layer)
-     * @brief Per-tile rotation for the Ground layer (index 0).
-     *
-     * Rotation is specified in degrees and applied during rendering.
-     * Commonly used values: 0, 90, 180, 270.
-     * @{
-     */
-    void SetTileRotation(int x, int y, float rotation);
-    float GetTileRotation(int x, int y) const;
-    /** @} */
-
-    /**
-     * @name Render Functions
-     * @brief Layer-specific rendering methods.
-     *
-     * Call these in the correct order for proper depth sorting:
-     * 1. Render()       - Ground (index 0)
-     * 2. RenderLayer2() - Ground Detail (index 1)
-     * 3. RenderLayer5() - Objects (index 2)
-     * 4. RenderLayer6() - Objects2 (index 3)
-     * 5. (Render NPCs - Y-sorted)
-     * 6. (Render Player - Y-sorted)
-     * 7. RenderLayer3() - Foreground (index 4)
-     * 8. RenderLayer4() - Foreground2 (index 5)
-     * 9. RenderLayer7() - Overlay (index 6)
-     * 10. RenderLayer8() - Overlay2 (index 7)
-     * @{
-     */
-
-    /**
-     * @brief Render Ground layer (index 0, background with collision).
-     *
-     * Only renders tiles visible on screen for efficiency. Uses separate
-     * camera positions for rendering and culling to support globe projection.
-     *
-     * @par Culling Algorithm
-     * @f[
-     * visible_x \in [\lfloor \frac{cullCam_x}{tileW} \rfloor - 1,
-     *                \lfloor \frac{cullCam_x + cullSize_x}{tileW} \rfloor + 1]
-     * @f]
-     *
-     * @param r Active renderer.
-     * @param renderCam Camera position for tile positioning (world coordinates).
-     * @param renderSize Visible world size for rendering.
-     * @param cullCam Camera position for visibility culling.
-     * @param cullSize Visible area size for culling calculations.
-     */
-    void Render(IRenderer& r, glm::vec2 renderCam, glm::vec2 renderSize, glm::vec2 cullCam, glm::vec2 cullSize);
-    /** @} */
-
-    // 3-parameter convenience wrapper (same camera for render and cull)
-    inline void Render(IRenderer& r, glm::vec2 cameraPos, glm::vec2 visibleWorldSize)
-    {
-        Render(r, cameraPos, visibleWorldSize, cameraPos, visibleWorldSize);
-    }
-
     /**
      * @name Accessors
      * @brief Query tilemap properties.
@@ -867,16 +756,6 @@ public:
         }
     }
 
-    /**
-     * @brief Clear all particle zones.
-     */
-    void ClearParticleZones() { m_ParticleZones.clear(); }
-
-    /**
-     * @brief Get the number of particle zones.
-     * @return Number of zones.
-     */
-    size_t GetParticleZoneCount() const { return m_ParticleZones.size(); }
     /** @} */
 
     /** @name Animated Tiles
@@ -981,30 +860,6 @@ public:
         }
     }
 
-    /**
-     * @brief Get current animation time.
-     */
-    float GetAnimationTime() const { return m_AnimationTime; }
-
-    /**
-     * @brief Get all animated tile definitions.
-     */
-    const std::vector<AnimatedTile>& GetAnimatedTiles() const { return m_AnimatedTiles; }
-
-    /**
-     * @brief Get count of animated tile definitions.
-     */
-    size_t GetAnimatedTileCount() const { return m_AnimatedTiles.size(); }
-
-    /**
-     * @brief Clear all animated tile definitions.
-     */
-    void ClearAnimatedTiles() {
-        m_AnimatedTiles.clear();
-        for (auto& layer : m_Layers) {
-            std::fill(layer.animationMap.begin(), layer.animationMap.end(), -1);
-        }
-    }
     /** @} */
 
     static inline void ComputeTileRange(

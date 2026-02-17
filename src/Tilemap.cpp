@@ -78,7 +78,7 @@ Tilemap::Tilemap()
     m_TileAnimationMap.assign(mapSize, -1);
 
     // Defer map generation until tileset is loaded
-    // GenerateDefaultMap() will be called from SetTilemapSize() after LoadTileset()
+    // GenerateDefaultMap() will be called from SetTilemapSize() after LoadCombinedTilesets()
 }
 
 Tilemap::~Tilemap()
@@ -91,78 +91,6 @@ Tilemap::~Tilemap()
             delete[] m_TilesetData;
         m_TilesetData = nullptr;
     }
-}
-
-bool Tilemap::LoadTileset(const std::string &path, int tileWidth, int tileHeight)
-{
-    m_TileWidth = tileWidth;
-    m_TileHeight = tileHeight;
-
-    // === Load #1: GPU texture for rendering ===
-    if (!m_TilesetTexture.LoadFromFile(path))
-    {
-        return false;
-    }
-
-    m_TilesetWidth = m_TilesetTexture.GetWidth();
-    m_TilesetHeight = m_TilesetTexture.GetHeight();
-    m_TilesPerRow = m_TilesetWidth / m_TileWidth;
-
-    std::cout << "Texture dimensions: " << m_TilesetWidth << "x" << m_TilesetHeight << std::endl;
-    std::cout << "Tile size: " << m_TileWidth << "x" << m_TileHeight << std::endl;
-    std::cout << "Tiles per row: " << m_TilesPerRow << std::endl;
-
-    // === Load #2: CPU pixel data for transparency checking ===
-    // Don't flip - we need raw pixel coordinates for IsTileTransparent()
-    stbi_set_flip_vertically_on_load(false);
-    m_TilesetData = stbi_load(path.c_str(), &m_TilesetDataWidth, &m_TilesetDataHeight, &m_TilesetChannels, 0);
-    m_TilesetDataFromStbi = true;  // Allocated by stbi_load, must use stbi_image_free
-
-    if (!m_TilesetData)
-    {
-        std::cerr << "ERROR: Could not load tileset data for transparency checking!" << std::endl;
-        std::cerr << "Path: " << path << std::endl;
-        m_TilesetChannels = 0;
-        m_TilesetDataWidth = 0;
-        m_TilesetDataHeight = 0;
-        return false;
-    }
-
-    std::cout << "Loaded tileset data: " << m_TilesetDataWidth << "x" << m_TilesetDataHeight
-              << " channels: " << m_TilesetChannels << std::endl;
-    std::cout << "Tiles per row (from data): " << (m_TilesetDataWidth / m_TileWidth)
-              << ", Total tiles: "
-              << (m_TilesetDataWidth / m_TileWidth) * (m_TilesetDataHeight / m_TileHeight) << std::endl;
-
-    // Debug: sample a pixel to verify data integrity
-    if (16 < m_TilesetDataWidth && 32 < m_TilesetDataHeight)
-    {
-        int testIndex = (32 * m_TilesetDataWidth + 16) * m_TilesetChannels;
-        if (testIndex >= 0 && testIndex < m_TilesetDataWidth * m_TilesetDataHeight * m_TilesetChannels)
-        {
-            if (m_TilesetChannels == 4)
-            {
-                std::cout << "Pixel at (16,32): RGBA("
-                          << (int)m_TilesetData[testIndex] << ","
-                          << (int)m_TilesetData[testIndex + 1] << ","
-                          << (int)m_TilesetData[testIndex + 2] << ","
-                          << (int)m_TilesetData[testIndex + 3] << ")" << std::endl;
-            }
-            else if (m_TilesetChannels == 3)
-            {
-                std::cout << "Pixel at (16,32): RGB("
-                          << (int)m_TilesetData[testIndex] << ","
-                          << (int)m_TilesetData[testIndex + 1] << ","
-                          << (int)m_TilesetData[testIndex + 2] << ")" << std::endl;
-            }
-        }
-    }
-
-    // Build transparency cache for all tiles
-    BuildTransparencyCache();
-
-    // Map generation is deferred to SetTilemapSize() or LoadMapFromJSON()
-    return true;
 }
 
 void Tilemap::BuildTransparencyCache()
@@ -449,23 +377,6 @@ void Tilemap::SetTilemapSize(int width, int height, bool generateMap)
         GenerateDefaultMap();
 }
 
-void Tilemap::SetTile(int x, int y, int tileID)
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 0)
-    {
-        m_Layers[0].tiles[static_cast<size_t>(y * m_MapWidth + x)] = tileID;
-    }
-}
-
-int Tilemap::GetTile(int x, int y) const
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 0)
-    {
-        return m_Layers[0].tiles[static_cast<size_t>(y * m_MapWidth + x)];
-    }
-    return -1; // Invalid sentinel value
-}
-
 void Tilemap::SetTileCollision(int x, int y, bool hasCollision)
 {
     m_CollisionMap.SetCollision(x, y, hasCollision);
@@ -512,32 +423,6 @@ bool Tilemap::GetNavigation(int x, int y) const
 {
     return m_NavigationMap.GetNavigation(x, y);
 }
-
-void Tilemap::SetTileRotation(int x, int y, float rotation)
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 0)
-    {
-        // Normalize rotation to [0, 360) range using modular arithmetic
-        while (rotation < 0.0f)
-            rotation += 360.0f;
-        while (rotation >= 360.0f)
-            rotation -= 360.0f;
-        m_Layers[0].rotation[static_cast<size_t>(y * m_MapWidth + x)] = rotation;
-    }
-}
-
-float Tilemap::GetTileRotation(int x, int y) const
-{
-    if (x >= 0 && x < m_MapWidth && y >= 0 && y < m_MapHeight && m_Layers.size() > 0)
-    {
-        return m_Layers[0].rotation[static_cast<size_t>(y * m_MapWidth + x)];
-    }
-    return 0.0f;
-}
-
-int Tilemap::GetTile2(int x, int y) const { int t = GetLayerTile(x, y, 1); return t < 0 ? 0 : t; }
-int Tilemap::GetTile3(int x, int y) const { int t = GetLayerTile(x, y, 2); return t < 0 ? 0 : t; }
-int Tilemap::GetTile4(int x, int y) const { int t = GetLayerTile(x, y, 3); return t < 0 ? 0 : t; }
 
 bool Tilemap::IsTileTransparent(int tileID) const
 {
@@ -1065,112 +950,6 @@ void Tilemap::RenderSingleTile(IRenderer &renderer, int x, int y, int layer, glm
         glm::vec2 renderSize(static_cast<float>(m_TileWidth), static_cast<float>(m_TileHeight));
         renderer.DrawSpriteRegion(m_TilesetTexture, screenPos, renderSize,
                                   texCoord, texSize, rotation, glm::vec3(1.0f), flipY);
-    }
-}
-
-// 4-parameter version: renderCam for positioning, cullCam/cullSize for visibility
-void Tilemap::Render(IRenderer &renderer,
-                     glm::vec2 renderCam, glm::vec2 /*renderSize*/,
-                     glm::vec2 cullCam, glm::vec2 cullSize)
-{
-    // Use cullCam/cullSize to determine which tiles are visible
-    int x0, y0, x1, y1;
-    ComputeTileRange(m_MapWidth, m_MapHeight, m_TileWidth, m_TileHeight, cullCam, cullSize, x0, y0, x1, y1);
-
-    // Pre-compute constants outside loop
-    const int dataTilesPerRow = m_TilesetDataWidth / m_TileWidth;
-    const int mapWidth = m_MapWidth;
-    const int tileW = m_TileWidth;
-    const int tileH = m_TileHeight;
-    const float tileWf = static_cast<float>(tileW);
-    const float tileHf = static_cast<float>(tileH);
-    const glm::vec2 texSize(tileWf, tileHf);
-    const float seamFix = renderer.GetPerspectiveState().enabled ? 0.1f : 0.05f;
-    const glm::vec2 tileSizeRender(16.0f + seamFix, 16.0f + seamFix);
-    const bool flipY = renderer.RequiresYFlip();
-    const glm::vec3 white(1.0f);
-    const TileLayer &layer = m_Layers[0];
-    const int *tiles = layer.tiles.data();
-    const float *rotations = layer.rotation.data();
-    const bool hasTransparencyCache = m_TransparencyCacheBuilt;
-    const std::vector<bool> &transparencyCache = m_TileTransparencyCache;
-    const int transparencyCacheSize = static_cast<int>(transparencyCache.size());
-    const std::vector<bool> &noProjection = layer.noProjection;
-    const std::vector<bool> &ySortPlus = layer.ySortPlus;
-
-    // Iterate over visible tiles
-    // Debug: track if we render any animated tiles (print once per second)
-    static float animDebugTimer = 0.0f;
-    static int animTilesRendered = 0;
-    animDebugTimer += 0.016f; // Approximate frame time
-    bool shouldPrintDebug = animDebugTimer > 1.0f;
-    if (shouldPrintDebug)
-    {
-        animDebugTimer = 0.0f;
-        animTilesRendered = 0;
-    }
-
-    for (int y = y0; y <= y1; ++y)
-    {
-        const int rowOffset = y * mapWidth;
-        const double tilePosYd = static_cast<double>(y) * tileH - static_cast<double>(renderCam.y);
-        const float tilePosY = static_cast<float>(tilePosYd);
-
-        for (int x = x0; x <= x1; ++x)
-        {
-            const int idx = rowOffset + x;
-            int tileID = tiles[idx];
-
-            // Skip empty tiles (negative means invalid/empty)
-            if (tileID < 0)
-                continue;
-
-            // Skip no-projection tiles (rendered separately without 3D perspective)
-            if (noProjection[idx])
-                continue;
-
-            // Skip Y-sorted tiles (rendered in sorted pass with entities)
-            if (ySortPlus[idx])
-                continue;
-
-            // Check for animated tile (per-layer animation map)
-            if (idx < static_cast<int>(layer.animationMap.size()))
-            {
-                int animId = layer.animationMap[idx];
-                if (animId >= 0 && animId < static_cast<int>(m_AnimatedTiles.size()))
-                {
-                    int origTileID = tileID;
-                    tileID = m_AnimatedTiles[animId].GetFrameAtTime(m_AnimationTime);
-                    animTilesRendered++;
-                    if (shouldPrintDebug && animTilesRendered == 1)
-                    {
-                        /*std::cout << "[DEBUG] Rendering anim tile: idx=" << idx
-                                  << " animId=" << animId << " time=" << m_AnimationTime
-                                  << " orig=" << origTileID << " frame=" << tileID << std::endl;*/
-                    }
-                }
-            }
-
-            // Skip fully transparent tiles using cache (no function call overhead)
-            if (hasTransparencyCache && tileID < transparencyCacheSize && transparencyCache[tileID])
-                continue;
-
-            // Calculate screen position
-            const double tilePosXd = static_cast<double>(x) * tileW - static_cast<double>(renderCam.x);
-            const float tilePosX = static_cast<float>(tilePosXd);
-
-            // Calculate tileset UV coordinates directly
-            const int tilesetX = (tileID % dataTilesPerRow) * tileW;
-            const int tilesetY = (tileID / dataTilesPerRow) * tileH;
-
-            renderer.DrawSpriteRegion(m_TilesetTexture,
-                                      glm::vec2(tilePosX, tilePosY),
-                                      tileSizeRender,
-                                      glm::vec2(static_cast<float>(tilesetX), static_cast<float>(tilesetY)),
-                                      texSize,
-                                      rotations[idx],
-                                      white, flipY);
-        }
     }
 }
 
@@ -2141,7 +1920,7 @@ void Tilemap::GenerateDefaultMap()
             // Uniform random selection from valid tiles
             int randomIndex = std::rand() % validTileIDs.size();
             int tileID = validTileIDs[randomIndex];
-            SetTile(x, y, tileID);
+            SetLayerTile(x, y, 0, tileID);
         }
     }
 
