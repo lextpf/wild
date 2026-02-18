@@ -4,38 +4,46 @@
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 
+namespace {
+
+struct VisibleTileRange
+{
+    int tileWidth, tileHeight;
+    glm::vec2 screenSize;
+    int startX, endX, startY, endY;
+};
+
+VisibleTileRange CalcVisibleTileRange(const EditorContext& ctx)
+{
+    VisibleTileRange r;
+    r.tileWidth = ctx.tilemap.GetTileWidth();
+    r.tileHeight = ctx.tilemap.GetTileHeight();
+    float worldWidth = static_cast<float>(ctx.tilesVisibleWidth * r.tileWidth) / ctx.cameraZoom;
+    float worldHeight = static_cast<float>(ctx.tilesVisibleHeight * r.tileHeight) / ctx.cameraZoom;
+    r.screenSize = glm::vec2(worldWidth, worldHeight);
+    r.startX = std::max(0, static_cast<int>(ctx.cameraPosition.x / r.tileWidth) - 1);
+    r.endX = std::min(ctx.tilemap.GetMapWidth(), static_cast<int>((ctx.cameraPosition.x + worldWidth) / r.tileWidth) + 1);
+    r.startY = std::max(0, static_cast<int>(ctx.cameraPosition.y / r.tileHeight) - 1);
+    r.endY = std::min(ctx.tilemap.GetMapHeight(), static_cast<int>((ctx.cameraPosition.y + worldHeight) / r.tileHeight) + 1);
+    return r;
+}
+
+} // anonymous namespace
+
 void Editor::RenderCollisionOverlays(EditorContext ctx)
 {
-    // Render red transparent overlays on tiles with collision
-    // Use the same calculation as Tilemap::Render to ensure perfect alignment
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
+    auto vr = CalcVisibleTileRange(ctx);
 
     // Render red overlay for each collision tile
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
             if (ctx.tilemap.GetTileCollision(x, y))
             {
-                // Calculate tile position in screen space
-                // Tilemap::Render uses: tilePos(x * m_TileWidth - cameraPos.x, y * m_TileHeight - cameraPos.y)
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x, y * vr.tileHeight - ctx.cameraPosition.y);
 
-                // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                                             glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
             }
         }
@@ -44,17 +52,13 @@ void Editor::RenderCollisionOverlays(EditorContext ctx)
     // Render player hitbox
     glm::vec2 playerPos = ctx.player.GetPosition();
 
-    // Calculate hitbox position from bottom-center
-    // Box is [feet.x - w/2, feet.y - h] -> [feet.x + w/2, feet.y]
     glm::vec2 playerHitboxPos(playerPos.x - PlayerCharacter::HITBOX_WIDTH * 0.5f - ctx.cameraPosition.x,
                               playerPos.y - PlayerCharacter::HITBOX_HEIGHT - ctx.cameraPosition.y);
     glm::vec2 playerHitboxSize(PlayerCharacter::HITBOX_WIDTH, PlayerCharacter::HITBOX_HEIGHT);
 
-    // Only render if player hitbox is visible on screen
-    if (playerHitboxPos.x + playerHitboxSize.x >= 0 && playerHitboxPos.x <= screenSize.x &&
-        playerHitboxPos.y + playerHitboxSize.y >= 0 && playerHitboxPos.y <= screenSize.y)
+    if (playerHitboxPos.x + playerHitboxSize.x >= 0 && playerHitboxPos.x <= vr.screenSize.x &&
+        playerHitboxPos.y + playerHitboxSize.y >= 0 && playerHitboxPos.y <= vr.screenSize.y)
     {
-        // Render player hitbox with yellow overlay to distinguish from collision tiles
         ctx.renderer.DrawColoredRect(playerHitboxPos, playerHitboxSize,
                                     glm::vec4(1.0f, 1.0f, 0.0f, 0.6f));
     }
@@ -68,10 +72,9 @@ void Editor::RenderCollisionOverlays(EditorContext ctx)
                                npcFeet.y - NPC_HITBOX_SIZE - ctx.cameraPosition.y);
         glm::vec2 npcHitboxSize(NPC_HITBOX_SIZE, NPC_HITBOX_SIZE);
 
-        if (npcHitboxPos.x + npcHitboxSize.x >= 0 && npcHitboxPos.x <= screenSize.x &&
-            npcHitboxPos.y + npcHitboxSize.y >= 0 && npcHitboxPos.y <= screenSize.y)
+        if (npcHitboxPos.x + npcHitboxSize.x >= 0 && npcHitboxPos.x <= vr.screenSize.x &&
+            npcHitboxPos.y + npcHitboxSize.y >= 0 && npcHitboxPos.y <= vr.screenSize.y)
         {
-            // Render NPC hitbox with magenta overlay
             ctx.renderer.DrawColoredRect(
                 npcHitboxPos,
                 npcHitboxSize,
@@ -82,35 +85,21 @@ void Editor::RenderCollisionOverlays(EditorContext ctx)
 
 void Editor::RenderNavigationOverlays(EditorContext ctx)
 {
-    // Use same world size as main render (with zoom applied)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
+    auto vr = CalcVisibleTileRange(ctx);
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
             if (!ctx.tilemap.GetNavigation(x, y))
                 continue;
 
-            glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                              y * tileHeight - ctx.cameraPosition.y);
+            glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                              y * vr.tileHeight - ctx.cameraPosition.y);
 
-            // Cyan overlay for navigation tiles
             ctx.renderer.DrawColoredRect(
                 tilePos,
-                glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                 glm::vec4(0.0f, 1.0f, 1.0f, 0.3f));
         }
     }
@@ -118,53 +107,35 @@ void Editor::RenderNavigationOverlays(EditorContext ctx)
 
 void Editor::RenderElevationOverlays(EditorContext ctx)
 {
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
+    auto vr = CalcVisibleTileRange(ctx);
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    // Check if 3D mode is enabled
     bool perspectiveEnabled = ctx.renderer.GetPerspectiveState().enabled;
 
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
             int elevation = ctx.tilemap.GetElevation(x, y);
             if (elevation <= 0)
                 continue;
 
-            glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                              y * tileHeight - ctx.cameraPosition.y);
+            glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                              y * vr.tileHeight - ctx.cameraPosition.y);
 
-            // Alpha increases with elevation .15f up to max .5f
             float alpha = std::min(0.5f, static_cast<float>(elevation) / 32.0f * 0.5f + 0.15f);
 
-            // Purple overlay for elevation tiles
             ctx.renderer.DrawColoredRect(
                 tilePos,
-                glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                 glm::vec4(0.8f, 0.2f, 0.8f, alpha));
 
-            // Draw elevation number centered in tile
             if (!perspectiveEnabled)
             {
                 std::string elevText = std::to_string(elevation);
-                float textScale = 0.2f; // Smaller text
-                // Approximate text width for centering
+                float textScale = 0.2f;
                 float textWidth = elevText.length() * 8.0f * textScale;
-                float textX = tilePos.x + (tileWidth - textWidth) * 0.5f;
-                float textY = tilePos.y + tileHeight * 0.6f;
+                float textX = tilePos.x + (vr.tileWidth - textWidth) * 0.5f;
+                float textY = tilePos.y + vr.tileHeight * 0.6f;
                 ctx.renderer.DrawText(elevText, glm::vec2(textX, textY), textScale,
                                      glm::vec3(1.0f, 1.0f, 0.2f), 0.0f, 0.15f);
             }
@@ -174,31 +145,19 @@ void Editor::RenderElevationOverlays(EditorContext ctx)
 
 void Editor::RenderNoProjectionOverlays(EditorContext ctx)
 {
-    // Use same world size as main render (with zoom applied)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
+    auto vr = CalcVisibleTileRange(ctx);
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
     int mapWidth = ctx.tilemap.GetMapWidth();
     int mapHeight = ctx.tilemap.GetMapHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(mapWidth, (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(mapHeight, (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
 
     // Track processed tiles for anchor finding
     // TODO: cache structure bounds/anchors once per frame (shared with RenderNoProjectionAnchors) to avoid repeated flood-fills.
     std::vector<bool> processed(mapWidth * mapHeight, false);
     size_t layerCount = ctx.tilemap.GetLayerCount();
 
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
             // In no-projection edit mode, only show flags for current layer
             if (m_NoProjectionEditMode)
@@ -206,13 +165,13 @@ void Editor::RenderNoProjectionOverlays(EditorContext ctx)
                 if (!ctx.tilemap.GetLayerNoProjection(x, y, m_CurrentLayer))
                     continue;
 
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
                 // Orange overlay for no-projection tiles
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(1.0f, 0.6f, 0.0f, 0.5f));
             }
             else
@@ -228,8 +187,8 @@ void Editor::RenderNoProjectionOverlays(EditorContext ctx)
                 if (count == 0)
                     continue;
 
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
                 // Alpha based on number of layers with flag
                 float alpha = 0.15f + (static_cast<float>(count) / static_cast<float>(layerCount)) * 0.35f;
@@ -237,7 +196,7 @@ void Editor::RenderNoProjectionOverlays(EditorContext ctx)
                 // Orange overlay for no-projection tiles
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(1.0f, 0.6f, 0.0f, alpha));
 
                 // Find and draw anchor for this structure (if not already processed)
@@ -288,9 +247,9 @@ void Editor::RenderNoProjectionOverlays(EditorContext ctx)
                     }
 
                     // Calculate anchor positions in world pixels
-                    int leftPixelX = minX * tileWidth;
-                    int rightPixelX = (maxX + 1) * tileWidth;
-                    int bottomPixelY = (maxY + 1) * tileHeight;
+                    int leftPixelX = minX * vr.tileWidth;
+                    int rightPixelX = (maxX + 1) * vr.tileWidth;
+                    int bottomPixelY = (maxY + 1) * vr.tileHeight;
 
                     // Check if 3D perspective is enabled
                     auto perspState = ctx.renderer.GetPerspectiveState();
@@ -531,40 +490,23 @@ void Editor::RenderStructureOverlays(EditorContext ctx)
     if (!m_StructureEditMode)
         return;
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-    int mapWidth = ctx.tilemap.GetMapWidth();
-    int mapHeight = ctx.tilemap.GetMapHeight();
-
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * tileWidth);
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * tileHeight);
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(mapWidth, (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(mapHeight, (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
+    auto vr = CalcVisibleTileRange(ctx);
 
     // Draw tiles assigned to structures with purple overlay
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
             int structId = ctx.tilemap.GetTileStructureId(x, y, m_CurrentLayer + 1);
             if (structId >= 0)
             {
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
-                // Purple overlay for tiles assigned to structures
-                // Highlight current structure in brighter purple
                 float alpha = (structId == m_CurrentStructureId) ? 0.6f : 0.3f;
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(0.7f, 0.2f, 0.9f, alpha));
             }
         }
@@ -641,43 +583,27 @@ void Editor::RenderStructureOverlays(EditorContext ctx)
 
 void Editor::RenderYSortPlusOverlays(EditorContext ctx)
 {
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
+    auto vr = CalcVisibleTileRange(ctx);
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
-            // In Y-sort-plus edit mode, only show flags for current layer
             if (m_YSortPlusEditMode)
             {
                 if (!ctx.tilemap.GetLayerYSortPlus(x, y, m_CurrentLayer))
                     continue;
 
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
-                // Cyan overlay for Y-sort-plus tiles
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(0.0f, 0.8f, 0.8f, 0.5f));
             }
             else
             {
-                // Check tile for all layers for Y-sort-plus flag
                 int count = 0;
                 size_t layerCount = ctx.tilemap.GetLayerCount();
                 for (size_t layer = 0; layer < layerCount; ++layer)
@@ -689,16 +615,14 @@ void Editor::RenderYSortPlusOverlays(EditorContext ctx)
                 if (count == 0)
                     continue;
 
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
-                // Alpha based on number of layers with flag
                 float alpha = 0.15f + (static_cast<float>(count) / static_cast<float>(layerCount)) * 0.35f;
 
-                // Cyan overlay for Y-sort-plus tiles
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(0.0f, 0.8f, 0.8f, alpha));
             }
         }
@@ -707,43 +631,27 @@ void Editor::RenderYSortPlusOverlays(EditorContext ctx)
 
 void Editor::RenderYSortMinusOverlays(EditorContext ctx)
 {
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
+    auto vr = CalcVisibleTileRange(ctx);
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
-            // In Y-sort-minus edit mode, only show flags for current layer
             if (m_YSortMinusEditMode)
             {
                 if (!ctx.tilemap.GetLayerYSortMinus(x, y, m_CurrentLayer))
                     continue;
 
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
-                // Magenta overlay for Y-sort-minus tiles
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(0.9f, 0.2f, 0.9f, 0.5f));
             }
             else
             {
-                // Check tile for all layers for Y-sort-minus flag
                 int count = 0;
                 size_t layerCount = ctx.tilemap.GetLayerCount();
                 for (size_t layer = 0; layer < layerCount; ++layer)
@@ -755,16 +663,14 @@ void Editor::RenderYSortMinusOverlays(EditorContext ctx)
                 if (count == 0)
                     continue;
 
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x,
-                                  y * tileHeight - ctx.cameraPosition.y);
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
 
-                // Alpha based on number of layers with flag
                 float alpha = 0.15f + (static_cast<float>(count) / static_cast<float>(layerCount)) * 0.35f;
 
-                // Magenta overlay for Y-sort-minus tiles
                 ctx.renderer.DrawColoredRect(
                     tilePos,
-                    glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
                     glm::vec4(0.9f, 0.2f, 0.9f, alpha));
             }
         }
@@ -773,11 +679,9 @@ void Editor::RenderYSortMinusOverlays(EditorContext ctx)
 
 void Editor::RenderParticleZoneOverlays(EditorContext ctx)
 {
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
+    auto vr = CalcVisibleTileRange(ctx);
+    float worldWidth = vr.screenSize.x;
+    float worldHeight = vr.screenSize.y;
 
     const auto *zones = ctx.tilemap.GetParticleZones();
     if (!zones)
@@ -905,15 +809,7 @@ void Editor::RenderParticleZoneOverlays(EditorContext ctx)
 
 void Editor::RenderNPCDebugInfo(EditorContext ctx)
 {
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
+    auto vr = CalcVisibleTileRange(ctx);
 
     const float NPC_HITBOX_SIZE = PlayerCharacter::HITBOX_HEIGHT;
 
@@ -921,32 +817,27 @@ void Editor::RenderNPCDebugInfo(EditorContext ctx)
     {
         glm::vec2 npcAnchor = npc.GetPosition();
 
-        // Render NPC hitbox
         glm::vec2 npcHitboxPos(npcAnchor.x - NPC_HITBOX_SIZE * 0.5f - ctx.cameraPosition.x,
                                npcAnchor.y - NPC_HITBOX_SIZE - ctx.cameraPosition.y);
         glm::vec2 npcHitboxSize(NPC_HITBOX_SIZE, NPC_HITBOX_SIZE);
 
-        if (npcHitboxPos.x + npcHitboxSize.x >= 0 && npcHitboxPos.x <= screenSize.x &&
-            npcHitboxPos.y + npcHitboxSize.y >= 0 && npcHitboxPos.y <= screenSize.y)
+        if (npcHitboxPos.x + npcHitboxSize.x >= 0 && npcHitboxPos.x <= vr.screenSize.x &&
+            npcHitboxPos.y + npcHitboxSize.y >= 0 && npcHitboxPos.y <= vr.screenSize.y)
         {
-            // Filled purple rect
             ctx.renderer.DrawColoredRect(npcHitboxPos,
                                         npcHitboxSize,
                                         glm::vec4(1.0f, 0.0f, 1.0f, 0.3f));
         }
 
-        // Render next waypoint as green dot
         int targetX = npc.m_TargetTileX;
         int targetY = npc.m_TargetTileY;
 
-        glm::vec2 targetPos(targetX * tileWidth - ctx.cameraPosition.x + tileWidth * 0.5f,
-                            targetY * tileHeight - ctx.cameraPosition.y + tileHeight * 0.5f);
+        glm::vec2 targetPos(targetX * vr.tileWidth - ctx.cameraPosition.x + vr.tileWidth * 0.5f,
+                            targetY * vr.tileHeight - ctx.cameraPosition.y + vr.tileHeight * 0.5f);
 
-        // Check if target is on screen
-        if (targetPos.x >= -tileWidth && targetPos.x <= screenSize.x + tileWidth &&
-            targetPos.y >= -tileHeight && targetPos.y <= screenSize.y + tileHeight)
+        if (targetPos.x >= -vr.tileWidth && targetPos.x <= vr.screenSize.x + vr.tileWidth &&
+            targetPos.y >= -vr.tileHeight && targetPos.y <= vr.screenSize.y + vr.tileHeight)
         {
-            // Draw a small 6x6 green square for waypoint
             float dotSize = 6.0f;
             ctx.renderer.DrawColoredRect(targetPos - glm::vec2(dotSize * 0.5f),
                                         glm::vec2(dotSize),
@@ -957,21 +848,7 @@ void Editor::RenderNPCDebugInfo(EditorContext ctx)
 
 void Editor::RenderCornerCuttingOverlays(EditorContext ctx)
 {
-    // Use same world size as main render
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
+    auto vr = CalcVisibleTileRange(ctx);
 
     // Player hitbox 16x16 pixels
     const float HITBOX_SIZE = PlayerCharacter::HITBOX_WIDTH;
@@ -988,14 +865,14 @@ void Editor::RenderCornerCuttingOverlays(EditorContext ctx)
     float runningEdgePenetration = HITBOX_HALF; // 8 pixels
 
     // Render collision tolerance zones for all collision tiles
-    for (int y = startY; y < endY; ++y)
+    for (int y = vr.startY; y < vr.endY; ++y)
     {
-        for (int x = startX; x < endX; ++x)
+        for (int x = vr.startX; x < vr.endX; ++x)
         {
             if (!ctx.tilemap.GetTileCollision(x, y))
                 continue;
 
-            glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
+            glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x, y * vr.tileHeight - ctx.cameraPosition.y);
 
             // Check adjacency for this tile to determine valid exposed corners and edges
             bool freeLeft = (x > 0) && !ctx.tilemap.GetTileCollision(x - 1, y);
@@ -1105,326 +982,19 @@ void Editor::RenderCornerCuttingOverlays(EditorContext ctx)
     }
 }
 
-void Editor::RenderLayer2Overlays(EditorContext ctx)
+void Editor::RenderLayerOverlay(EditorContext ctx, int layerIndex, const glm::vec4& color)
 {
-    // Render blue transparent overlays on layer 2 tiles
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
+    auto vr = CalcVisibleTileRange(ctx);
 
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    // Render blue overlay for each layer 2 tile
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 1);
-            if (tileID >= 0)
+    for (int y = vr.startY; y < vr.endY; ++y)
+        for (int x = vr.startX; x < vr.endX; ++x)
+            if (ctx.tilemap.GetLayerTile(x, y, layerIndex) >= 0)
             {
-                // Calculate tile position in screen space
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-
-                // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Blue overlay (Ground Detail - Layer 1)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(0.2f, 0.5f, 1.0f, 0.4f));
+                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
+                                  y * vr.tileHeight - ctx.cameraPosition.y);
+                ctx.renderer.DrawColoredRect(tilePos,
+                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)), color);
             }
-        }
-    }
-}
-
-void Editor::RenderLayer3Overlays(EditorContext ctx)
-{
-    // Render green transparent overlays on layer 3 tiles
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    // Render green overlay for each layer 3 tile
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 2);
-            if (tileID >= 0)
-            {
-                // Calculate tile position in screen space
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-
-                // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Green overlay (Objects - Layer 2)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(0.2f, 1.0f, 0.2f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer4Overlays(EditorContext ctx)
-{
-    // Render purple transparent overlays on layer 4 tiles
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    // Render purple overlay for each layer 4 tile
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 3);
-            if (tileID >= 0)
-            {
-                // Calculate tile position in screen space
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-
-                // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Magenta overlay (Objects2 - Layer 3)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(1.0f, 0.2f, 0.8f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer5Overlays(EditorContext ctx)
-{
-    // Render orange transparent overlays on Objects3 tiles (layer 4)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    // Render orange overlay for each layer 5 tile
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 4);
-            if (tileID >= 0)
-            {
-                // Calculate tile position in screen space
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-
-                // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Orange overlay (Objects3 - Layer 4)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(1.0f, 0.5f, 0.0f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer6Overlays(EditorContext ctx)
-{
-    // Render yellow transparent overlays on Foreground tiles (layer 5)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    // Calculate visible tile range
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    // Render yellow overlay for each layer 6 tile
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 5);
-            if (tileID >= 0)
-            {
-                // Calculate tile position in screen space
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-
-                // DrawColoredRect uses bottom-left origin like DrawSpriteRegion
-                // Yellow overlay (Foreground - Layer 5)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(1.0f, 1.0f, 0.2f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer7Overlays(EditorContext ctx)
-{
-    // Render cyan transparent overlays on Foreground2 tiles (layer 6)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 6);
-            if (tileID >= 0)
-            {
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-                // Cyan overlay (Foreground2 - Layer 6)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(0.2f, 1.0f, 1.0f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer8Overlays(EditorContext ctx)
-{
-    // Render red transparent overlays on Overlay tiles (layer 7)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 7);
-            if (tileID >= 0)
-            {
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-                // Red overlay (Overlay - Layer 7)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(1.0f, 0.3f, 0.3f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer9Overlays(EditorContext ctx)
-{
-    // Render magenta transparent overlays on Overlay2 tiles (layer 8)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 8);
-            if (tileID >= 0)
-            {
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-                // Magenta overlay (Overlay2 - Layer 8)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(1.0f, 0.3f, 1.0f, 0.4f));
-            }
-        }
-    }
-}
-
-void Editor::RenderLayer10Overlays(EditorContext ctx)
-{
-    // Render white transparent overlays on Overlay3 tiles (layer 9)
-    float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth());
-    float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight());
-    float worldWidth = baseWorldWidth / ctx.cameraZoom;
-    float worldHeight = baseWorldHeight / ctx.cameraZoom;
-    glm::vec2 screenSize(worldWidth, worldHeight);
-
-    int tileWidth = ctx.tilemap.GetTileWidth();
-    int tileHeight = ctx.tilemap.GetTileHeight();
-
-    int startX = std::max(0, (int)(ctx.cameraPosition.x / tileWidth) - 1);
-    int endX = std::min(ctx.tilemap.GetMapWidth(), (int)((ctx.cameraPosition.x + screenSize.x) / tileWidth) + 1);
-    int startY = std::max(0, (int)(ctx.cameraPosition.y / tileHeight) - 1);
-    int endY = std::min(ctx.tilemap.GetMapHeight(), (int)((ctx.cameraPosition.y + screenSize.y) / tileHeight) + 1);
-
-    for (int y = startY; y < endY; ++y)
-    {
-        for (int x = startX; x < endX; ++x)
-        {
-            int tileID = ctx.tilemap.GetLayerTile(x, y, 9);
-            if (tileID >= 0)
-            {
-                glm::vec2 tilePos(x * tileWidth - ctx.cameraPosition.x, y * tileHeight - ctx.cameraPosition.y);
-                // White overlay (Overlay3 - Layer 9)
-                ctx.renderer.DrawColoredRect(tilePos, glm::vec2(static_cast<float>(tileWidth), static_cast<float>(tileHeight)),
-                                            glm::vec4(1.0f, 1.0f, 1.0f, 0.4f));
-            }
-        }
-    }
 }
 
 void Editor::RenderEditorUI(EditorContext ctx)

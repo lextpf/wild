@@ -169,15 +169,7 @@ private:
     void RenderParticleZoneOverlays(EditorContext ctx);
     void RenderNPCDebugInfo(EditorContext ctx);
     void RenderCornerCuttingOverlays(EditorContext ctx);
-    void RenderLayer2Overlays(EditorContext ctx);
-    void RenderLayer3Overlays(EditorContext ctx);
-    void RenderLayer4Overlays(EditorContext ctx);
-    void RenderLayer5Overlays(EditorContext ctx);
-    void RenderLayer6Overlays(EditorContext ctx);
-    void RenderLayer7Overlays(EditorContext ctx);
-    void RenderLayer8Overlays(EditorContext ctx);
-    void RenderLayer9Overlays(EditorContext ctx);
-    void RenderLayer10Overlays(EditorContext ctx);
+    void RenderLayerOverlay(EditorContext ctx, int layerIndex, const glm::vec4& color);
     void RenderPlacementPreview(EditorContext ctx);
 
     void RecalculateNPCPatrolRoutes(EditorContext ctx);

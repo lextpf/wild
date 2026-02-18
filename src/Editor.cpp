@@ -4,6 +4,19 @@
 #include <cmath>
 #include <iostream>
 
+static constexpr glm::vec4 kLayerColors[] = {
+    {0.0f, 0.0f, 0.0f, 0.0f}, // layer 0 (ground, unused)
+    {0.2f, 0.5f, 1.0f, 0.4f}, // layer 1 -- blue (Ground Detail)
+    {0.2f, 1.0f, 0.2f, 0.4f}, // layer 2 -- green (Objects)
+    {1.0f, 0.2f, 0.8f, 0.4f}, // layer 3 -- magenta (Objects2)
+    {1.0f, 0.5f, 0.0f, 0.4f}, // layer 4 -- orange (Objects3)
+    {1.0f, 1.0f, 0.2f, 0.4f}, // layer 5 -- yellow (Foreground)
+    {0.2f, 1.0f, 1.0f, 0.4f}, // layer 6 -- cyan (Foreground2)
+    {1.0f, 0.3f, 0.3f, 0.4f}, // layer 7 -- red (Overlay)
+    {1.0f, 0.3f, 1.0f, 0.4f}, // layer 8 -- magenta (Overlay2)
+    {1.0f, 1.0f, 1.0f, 0.4f}, // layer 9 -- white (Overlay3)
+};
+
 Editor::Editor()
     : m_EditorMode(false)
     , m_ShowTilePicker(false)
@@ -180,18 +193,8 @@ void Editor::Render(EditorContext ctx)
     // Layer overlays when respective layer is selected
     if (m_EditorMode && !m_ShowTilePicker)
     {
-        switch (m_CurrentLayer)
-        {
-        case 1: RenderLayer2Overlays(ctx); break;
-        case 2: RenderLayer3Overlays(ctx); break;
-        case 3: RenderLayer4Overlays(ctx); break;
-        case 4: RenderLayer5Overlays(ctx); break;
-        case 5: RenderLayer6Overlays(ctx); break;
-        case 6: RenderLayer7Overlays(ctx); break;
-        case 7: RenderLayer8Overlays(ctx); break;
-        case 8: RenderLayer9Overlays(ctx); break;
-        case 9: RenderLayer10Overlays(ctx); break;
-        }
+        if (m_CurrentLayer >= 1 && m_CurrentLayer <= 9)
+            RenderLayerOverlay(ctx, m_CurrentLayer, kLayerColors[m_CurrentLayer]);
 
         RenderPlacementPreview(ctx);
     }
@@ -210,15 +213,8 @@ void Editor::Render(EditorContext ctx)
         RenderParticleZoneOverlays(ctx);
         RenderNPCDebugInfo(ctx);
 
-        RenderLayer2Overlays(ctx);
-        RenderLayer3Overlays(ctx);
-        RenderLayer4Overlays(ctx);
-        RenderLayer5Overlays(ctx);
-        RenderLayer6Overlays(ctx);
-        RenderLayer7Overlays(ctx);
-        RenderLayer8Overlays(ctx);
-        RenderLayer9Overlays(ctx);
-        RenderLayer10Overlays(ctx);
+        for (int i = 1; i <= 9; ++i)
+            RenderLayerOverlay(ctx, i, kLayerColors[i]);
     }
 }
 

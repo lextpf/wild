@@ -5,6 +5,56 @@
 #include <iostream>
 #include <vector>
 
+namespace {
+
+template <typename ConditionFn, typename ActionFn>
+int FloodFill(Tilemap& tilemap, int startX, int startY,
+              ConditionFn shouldProcess, ActionFn applyAction)
+{
+    int mapWidth = tilemap.GetMapWidth();
+    int mapHeight = tilemap.GetMapHeight();
+    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
+    std::vector<std::pair<int, int>> stack;
+    stack.push_back({startX, startY});
+    int count = 0;
+    while (!stack.empty())
+    {
+        auto [cx, cy] = stack.back();
+        stack.pop_back();
+        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight) continue;
+        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
+        if (visited[idx]) continue;
+        if (!shouldProcess(cx, cy)) continue;
+        visited[idx] = true;
+        applyAction(cx, cy);
+        count++;
+        stack.push_back({cx - 1, cy});
+        stack.push_back({cx + 1, cy});
+        stack.push_back({cx, cy - 1});
+        stack.push_back({cx, cy + 1});
+    }
+    return count;
+}
+
+struct ScreenToTile
+{
+    float worldX, worldY;
+    int tileX, tileY;
+};
+
+ScreenToTile ScreenToTileCoords(const EditorContext& ctx, double mouseX, double mouseY)
+{
+    float worldW = static_cast<float>(ctx.tilesVisibleWidth * ctx.tilemap.GetTileWidth()) / ctx.cameraZoom;
+    float worldH = static_cast<float>(ctx.tilesVisibleHeight * ctx.tilemap.GetTileHeight()) / ctx.cameraZoom;
+    float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldW + ctx.cameraPosition.x;
+    float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldH + ctx.cameraPosition.y;
+    return {worldX, worldY,
+            static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth())),
+            static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()))};
+}
+
+} // anonymous namespace
+
 void Editor::ProcessInput(float deltaTime, EditorContext ctx)
 {
     static bool tKeyPressed = false;
@@ -715,23 +765,11 @@ void Editor::ProcessInput(float deltaTime, EditorContext ctx)
 
     if (glfwGetKey(ctx.window, GLFW_KEY_DELETE) == GLFW_PRESS && m_EditorMode && !m_ShowTilePicker)
     {
-        // Get cursor position in screen coordinates
         double mouseX, mouseY;
         glfwGetCursorPos(ctx.window, &mouseX, &mouseY);
-
-        // Calculate zoomed viewport dimensions
-        float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * 16);
-        float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * 16);
-        float worldWidth = baseWorldWidth / ctx.cameraZoom;
-        float worldHeight = baseWorldHeight / ctx.cameraZoom;
-
-        // Transform screen -> world coordinates
-        float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldWidth + ctx.cameraPosition.x;
-        float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldHeight + ctx.cameraPosition.y;
-
-        // Transform world -> tile coordinates
-        int tileX = static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth()));
-        int tileY = static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()));
+        auto st = ScreenToTileCoords(ctx, mouseX, mouseY);
+        int tileX = st.tileX;
+        int tileY = st.tileY;
 
         // Only delete if cursor moved to a new tile
         bool isNewTile = (tileX != lastDeletedTileX || tileY != lastDeletedTileY);
@@ -761,22 +799,11 @@ void Editor::ProcessInput(float deltaTime, EditorContext ctx)
     static bool rKeyPressed = false;
     if (glfwGetKey(ctx.window, GLFW_KEY_R) == GLFW_PRESS && !rKeyPressed && m_EditorMode && !m_ShowTilePicker)
     {
-        // Get mouse position
         double mouseX, mouseY;
         glfwGetCursorPos(ctx.window, &mouseX, &mouseY);
-
-        // Convert screen coordinates to world coordinates
-        float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * 16);
-        float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * 16);
-        float worldWidth = baseWorldWidth / ctx.cameraZoom;
-        float worldHeight = baseWorldHeight / ctx.cameraZoom;
-
-        float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldWidth + ctx.cameraPosition.x;
-        float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldHeight + ctx.cameraPosition.y;
-
-        // Convert world coordinates to tile coordinates
-        int tileX = static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth()));
-        int tileY = static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()));
+        auto st = ScreenToTileCoords(ctx, mouseX, mouseY);
+        int tileX = st.tileX;
+        int tileY = st.tileY;
 
         if (tileX >= 0 && tileX < ctx.tilemap.GetMapWidth() &&
             tileY >= 0 && tileY < ctx.tilemap.GetMapHeight())
@@ -913,19 +940,11 @@ void Editor::ProcessMouseInput(EditorContext ctx)
     // Supports drag-to-draw: first click sets target state, dragging applies it.
     if (rightMouseDown && !m_ShowTilePicker)
     {
-        // Screen -> World coordinate transformation
-        float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * 16);
-        float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * 16);
-        float worldWidth = baseWorldWidth / ctx.cameraZoom;
-        float worldHeight = baseWorldHeight / ctx.cameraZoom;
-
-        // Screen space uses top-left origin
-        float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldWidth + ctx.cameraPosition.x;
-        float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldHeight + ctx.cameraPosition.y;
-
-        // World -> Tile coordinate transformation
-        int tileX = static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth()));
-        int tileY = static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()));
+        auto st = ScreenToTileCoords(ctx, mouseX, mouseY);
+        float worldX = st.worldX;
+        float worldY = st.worldY;
+        int tileX = st.tileX;
+        int tileY = st.tileY;
 
         // Check if cursor moved to a new tile
         bool isNewNavigationTilePosition = (tileX != m_LastNavigationTileX || tileY != m_LastNavigationTileY);
@@ -962,41 +981,11 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    // Flood-fill to clear structure assignment
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check if tile has structure assignment on current layer
-                        int structId = ctx.tilemap.GetTileStructureId(cx, cy, m_CurrentLayer + 1);
-                        if (structId < 0)
-                            continue;
-
-                        visited[idx] = true;
-                        ctx.tilemap.SetTileStructureId(cx, cy, m_CurrentLayer + 1, -1);
-                        count++;
-
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    std::cout << "Cleared structure assignment from " << count << " tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    int layer = m_CurrentLayer + 1;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) { return ctx.tilemap.GetTileStructureId(cx, cy, layer) >= 0; },
+                        [&](int cx, int cy) { ctx.tilemap.SetTileStructureId(cx, cy, layer, -1); });
+                    std::cout << "Cleared structure assignment from " << count << " tiles (layer " << layer << ")" << std::endl;
                 }
                 else
                 {
@@ -1015,51 +1004,17 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check if tile has no-projection flag in ANY layer
-                        bool hasNoProj = false;
-                        for (size_t li = 0; li < ctx.tilemap.GetLayerCount(); ++li)
-                        {
-                            if (ctx.tilemap.GetLayerNoProjection(cx, cy, li))
-                            {
-                                hasNoProj = true;
-                                break;
-                            }
-                        }
-                        if (!hasNoProj)
-                            continue;
-
-                        visited[idx] = true;
-                        // Clear noProjection on ALL layers at this position
-                        for (size_t li = 0; li < ctx.tilemap.GetLayerCount(); ++li)
-                        {
-                            ctx.tilemap.SetLayerNoProjection(cx, cy, li, false);
-                        }
-                        count++;
-
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
+                    size_t layerCount = ctx.tilemap.GetLayerCount();
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) {
+                            for (size_t li = 0; li < layerCount; ++li)
+                                if (ctx.tilemap.GetLayerNoProjection(cx, cy, li)) return true;
+                            return false;
+                        },
+                        [&](int cx, int cy) {
+                            for (size_t li = 0; li < layerCount; ++li)
+                                ctx.tilemap.SetLayerNoProjection(cx, cy, li, false);
+                        });
                     std::cout << "Cleared no-projection on " << count << " connected tiles (all layers)" << std::endl;
                 }
                 else
@@ -1082,39 +1037,11 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check if tile has Y-sort-plus flag in current layer
-                        if (!ctx.tilemap.GetLayerYSortPlus(cx, cy, m_CurrentLayer))
-                            continue;
-
-                        visited[idx] = true;
-                        ctx.tilemap.SetLayerYSortPlus(cx, cy, m_CurrentLayer, false);
-                        count++;
-
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    std::cout << "Cleared Y-sort-plus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    int layer = m_CurrentLayer;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) { return ctx.tilemap.GetLayerYSortPlus(cx, cy, layer); },
+                        [&](int cx, int cy) { ctx.tilemap.SetLayerYSortPlus(cx, cy, layer, false); });
+                    std::cout << "Cleared Y-sort-plus on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
                 }
                 else
                 {
@@ -1132,39 +1059,11 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check if tile has Y-sort-minus flag in current layer
-                        if (!ctx.tilemap.GetLayerYSortMinus(cx, cy, m_CurrentLayer))
-                            continue;
-
-                        visited[idx] = true;
-                        ctx.tilemap.SetLayerYSortMinus(cx, cy, m_CurrentLayer, false);
-                        count++;
-
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    std::cout << "Cleared Y-sort-minus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    int layer = m_CurrentLayer;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) { return ctx.tilemap.GetLayerYSortMinus(cx, cy, layer); },
+                        [&](int cx, int cy) { ctx.tilemap.SetLayerYSortMinus(cx, cy, layer, false); });
+                    std::cout << "Cleared Y-sort-minus on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
                 }
                 else
                 {
@@ -1420,17 +1319,11 @@ void Editor::ProcessMouseInput(EditorContext ctx)
     // Handle left mouse click
     if (leftMouseDown && !m_ShowTilePicker)
     {
-        // Convert screen coordinates to world coordinates
-        float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * 16);
-        float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * 16);
-        float worldWidth = baseWorldWidth / ctx.cameraZoom;
-        float worldHeight = baseWorldHeight / ctx.cameraZoom;
-
-        float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldWidth + ctx.cameraPosition.x;
-        float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldHeight + ctx.cameraPosition.y;
-
-        int tileX = static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth()));
-        int tileY = static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()));
+        auto st = ScreenToTileCoords(ctx, mouseX, mouseY);
+        float worldX = st.worldX;
+        float worldY = st.worldY;
+        int tileX = st.tileX;
+        int tileY = st.tileY;
 
         // NPC placement mode, toggle NPC on this tile instead of placing tiles
         if (m_EditorMode && m_NPCPlacementMode)
@@ -1833,45 +1726,20 @@ void Editor::ProcessMouseInput(EditorContext ctx)
                 {
                     // Shift+click: flood-fill set no-projection and assign to structure
                     m_MousePressed = true;
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        int tid = ctx.tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        int animId = ctx.tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
-                        if (tid < 0 && animId < 0)
-                            continue;
-
-                        visited[idx] = true;
-                        ctx.tilemap.SetLayerNoProjection(cx, cy, m_CurrentLayer, true);
-                        if (m_CurrentStructureId >= 0)
-                        {
-                            ctx.tilemap.SetTileStructureId(cx, cy, m_CurrentLayer + 1, m_CurrentStructureId);
-                        }
-                        count++;
-
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    if (m_CurrentStructureId >= 0)
-                        std::cout << "Set no-projection on " << count << " tiles, assigned to structure " << m_CurrentStructureId << std::endl;
+                    int layer = m_CurrentLayer;
+                    int structId = m_CurrentStructureId;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) {
+                            return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
+                                   ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
+                        },
+                        [&](int cx, int cy) {
+                            ctx.tilemap.SetLayerNoProjection(cx, cy, layer, true);
+                            if (structId >= 0)
+                                ctx.tilemap.SetTileStructureId(cx, cy, layer + 1, structId);
+                        });
+                    if (structId >= 0)
+                        std::cout << "Set no-projection on " << count << " tiles, assigned to structure " << structId << std::endl;
                     else
                         std::cout << "Set no-projection on " << count << " tiles (no structure)" << std::endl;
                 }
@@ -1903,45 +1771,14 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    // Flood-fill to find connected tiles on CURRENT layer
-                    // Connectivity is determined by current layer only
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check connectivity based on CURRENT layer only (tile or animation)
-                        int tid = ctx.tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        int animId = ctx.tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
-                        if (tid < 0 && animId < 0)
-                            continue;
-
-                        visited[idx] = true;
-                        // Set noProjection on current layer only
-                        ctx.tilemap.SetLayerNoProjection(cx, cy, m_CurrentLayer, true);
-                        count++;
-
-                        // 4-way connectivity
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    std::cout << "Set no-projection on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    int layer = m_CurrentLayer;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) {
+                            return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
+                                   ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
+                        },
+                        [&](int cx, int cy) { ctx.tilemap.SetLayerNoProjection(cx, cy, layer, true); });
+                    std::cout << "Set no-projection on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
                 }
                 else
                 {
@@ -1965,43 +1802,14 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    // Flood-fill to find connected tiles with valid tile IDs
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check if tile has a valid tile ID or animation in current layer
-                        int tid = ctx.tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        int animId = ctx.tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
-                        if (tid < 0 && animId < 0)
-                            continue;
-
-                        visited[idx] = true;
-                        ctx.tilemap.SetLayerYSortPlus(cx, cy, m_CurrentLayer, true);
-                        count++;
-
-                        // 4-way connectivity
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    std::cout << "Set Y-sort-plus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    int layer = m_CurrentLayer;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) {
+                            return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
+                                   ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
+                        },
+                        [&](int cx, int cy) { ctx.tilemap.SetLayerYSortPlus(cx, cy, layer, true); });
+                    std::cout << "Set Y-sort-plus on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
                 }
                 else
                 {
@@ -2024,43 +1832,14 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
                 if (shiftHeld)
                 {
-                    // Flood-fill to find connected tiles with valid tile IDs
-                    int mapWidth = ctx.tilemap.GetMapWidth();
-                    int mapHeight = ctx.tilemap.GetMapHeight();
-                    std::vector<bool> visited(static_cast<size_t>(mapWidth * mapHeight), false);
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({tileX, tileY});
-                    int count = 0;
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        size_t idx = static_cast<size_t>(cy * mapWidth + cx);
-                        if (visited[idx])
-                            continue;
-
-                        // Check if tile has a valid tile ID or animation in current layer
-                        int tid = ctx.tilemap.GetLayerTile(cx, cy, m_CurrentLayer);
-                        int animId = ctx.tilemap.GetTileAnimation(cx, cy, static_cast<int>(m_CurrentLayer));
-                        if (tid < 0 && animId < 0)
-                            continue;
-
-                        visited[idx] = true;
-                        ctx.tilemap.SetLayerYSortMinus(cx, cy, m_CurrentLayer, true);
-                        count++;
-
-                        // 4-way connectivity
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
-                    std::cout << "Set Y-sort-minus on " << count << " connected tiles (layer " << (m_CurrentLayer + 1) << ")" << std::endl;
+                    int layer = m_CurrentLayer;
+                    int count = FloodFill(ctx.tilemap, tileX, tileY,
+                        [&](int cx, int cy) {
+                            return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
+                                   ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
+                        },
+                        [&](int cx, int cy) { ctx.tilemap.SetLayerYSortMinus(cx, cy, layer, true); });
+                    std::cout << "Set Y-sort-minus on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
                 }
                 else
                 {
@@ -2174,14 +1953,9 @@ void Editor::ProcessMouseInput(EditorContext ctx)
         // Finalize particle zone placement on mouse release
         if (m_PlacingParticleZone && m_ParticleZoneEditMode)
         {
-            // Convert current mouse position to world coordinates
-            float baseWorldWidth = static_cast<float>(ctx.tilesVisibleWidth * 16);
-            float baseWorldHeight = static_cast<float>(ctx.tilesVisibleHeight * 16);
-            float worldWidth = baseWorldWidth / ctx.cameraZoom;
-            float worldHeight = baseWorldHeight / ctx.cameraZoom;
-
-            float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldWidth + ctx.cameraPosition.x;
-            float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldHeight + ctx.cameraPosition.y;
+            auto st = ScreenToTileCoords(ctx, mouseX, mouseY);
+            float worldX = st.worldX;
+            float worldY = st.worldY;
 
             // Get start and end tile indices
             int startTileX = static_cast<int>(m_ParticleZoneStart.x / ctx.tilemap.GetTileWidth());
