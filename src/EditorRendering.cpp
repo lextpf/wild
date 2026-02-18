@@ -28,6 +28,58 @@ VisibleTileRange CalcVisibleTileRange(const EditorContext& ctx)
     return r;
 }
 
+struct StructureBounds
+{
+    int minX, maxX, minY, maxY;
+};
+
+StructureBounds FloodFillNoProjBounds(const Tilemap& tilemap, int startX, int startY,
+                                       int mapWidth, int mapHeight, size_t layerCount,
+                                       std::vector<bool>& processed)
+{
+    StructureBounds bounds{startX, startX, startY, startY};
+    std::vector<std::pair<int, int>> stack;
+    stack.push_back({startX, startY});
+
+    while (!stack.empty())
+    {
+        auto [cx, cy] = stack.back();
+        stack.pop_back();
+
+        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
+            continue;
+
+        int cIdx = cy * mapWidth + cx;
+        if (processed[cIdx])
+            continue;
+
+        bool isNoProj = false;
+        for (size_t li = 0; li < layerCount; ++li)
+        {
+            if (tilemap.GetLayerNoProjection(cx, cy, li))
+            {
+                isNoProj = true;
+                break;
+            }
+        }
+        if (!isNoProj)
+            continue;
+
+        processed[cIdx] = true;
+        bounds.minX = std::min(bounds.minX, cx);
+        bounds.maxX = std::max(bounds.maxX, cx);
+        bounds.minY = std::min(bounds.minY, cy);
+        bounds.maxY = std::max(bounds.maxY, cy);
+
+        stack.push_back({cx - 1, cy});
+        stack.push_back({cx + 1, cy});
+        stack.push_back({cx, cy - 1});
+        stack.push_back({cx, cy + 1});
+    }
+
+    return bounds;
+}
+
 } // anonymous namespace
 
 void Editor::RenderCollisionOverlays(EditorContext ctx)
@@ -203,48 +255,8 @@ void Editor::RenderNoProjectionOverlays(EditorContext ctx)
                 int idx = y * mapWidth + x;
                 if (!processed[idx])
                 {
-                    // Flood-fill to find structure bounding box
-                    int minX = x, maxX = x, minY = y, maxY = y;
-                    std::vector<std::pair<int, int>> stack;
-                    stack.push_back({x, y});
-
-                    while (!stack.empty())
-                    {
-                        auto [cx, cy] = stack.back();
-                        stack.pop_back();
-
-                        if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                            continue;
-
-                        int cIdx = cy * mapWidth + cx;
-                        if (processed[cIdx])
-                            continue;
-
-                        // Check if this tile is no-projection in any layer
-                        bool isNoProj = false;
-                        for (size_t li = 0; li < layerCount; ++li)
-                        {
-                            if (ctx.tilemap.GetLayerNoProjection(cx, cy, li))
-                            {
-                                isNoProj = true;
-                                break;
-                            }
-                        }
-                        if (!isNoProj)
-                            continue;
-
-                        processed[cIdx] = true;
-                        minX = std::min(minX, cx);
-                        maxX = std::max(maxX, cx);
-                        minY = std::min(minY, cy);
-                        maxY = std::max(maxY, cy);
-
-                        // 4-way connectivity
-                        stack.push_back({cx - 1, cy});
-                        stack.push_back({cx + 1, cy});
-                        stack.push_back({cx, cy - 1});
-                        stack.push_back({cx, cy + 1});
-                    }
+                    auto [minX, maxX, minY, maxY] = FloodFillNoProjBounds(
+                        ctx.tilemap, x, y, mapWidth, mapHeight, layerCount, processed);
 
                     // Calculate anchor positions in world pixels
                     int leftPixelX = minX * vr.tileWidth;
@@ -335,46 +347,8 @@ void Editor::RenderNoProjectionAnchorsImpl(EditorContext ctx)
             if (!isNoProj)
                 continue;
 
-            // Flood-fill to find structure bounding box
-            int minX = x, maxX = x, minY = y, maxY = y;
-            std::vector<std::pair<int, int>> stack;
-            stack.push_back({x, y});
-
-            while (!stack.empty())
-            {
-                auto [cx, cy] = stack.back();
-                stack.pop_back();
-
-                if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight)
-                    continue;
-
-                int cIdx = cy * mapWidth + cx;
-                if (processed[cIdx])
-                    continue;
-
-                bool cIsNoProj = false;
-                for (size_t li = 0; li < layerCount; ++li)
-                {
-                    if (ctx.tilemap.GetLayerNoProjection(cx, cy, li))
-                    {
-                        cIsNoProj = true;
-                        break;
-                    }
-                }
-                if (!cIsNoProj)
-                    continue;
-
-                processed[cIdx] = true;
-                minX = std::min(minX, cx);
-                maxX = std::max(maxX, cx);
-                minY = std::min(minY, cy);
-                maxY = std::max(maxY, cy);
-
-                stack.push_back({cx - 1, cy});
-                stack.push_back({cx + 1, cy});
-                stack.push_back({cx, cy - 1});
-                stack.push_back({cx, cy + 1});
-            }
+            auto [minX, maxX, minY, maxY] = FloodFillNoProjBounds(
+                ctx.tilemap, x, y, mapWidth, mapHeight, layerCount, processed);
 
             // Calculate anchor positions in world pixels
             int leftPixelX = minX * tileWidth;
@@ -581,7 +555,9 @@ void Editor::RenderStructureOverlays(EditorContext ctx)
     }
 }
 
-void Editor::RenderYSortPlusOverlays(EditorContext ctx)
+void Editor::RenderLayerFlagOverlays(EditorContext ctx, bool editMode,
+                                      bool (Tilemap::*getter)(int, int, size_t) const,
+                                      const glm::vec3& color)
 {
     auto vr = CalcVisibleTileRange(ctx);
 
@@ -589,9 +565,9 @@ void Editor::RenderYSortPlusOverlays(EditorContext ctx)
     {
         for (int x = vr.startX; x < vr.endX; ++x)
         {
-            if (m_YSortPlusEditMode)
+            if (editMode)
             {
-                if (!ctx.tilemap.GetLayerYSortPlus(x, y, m_CurrentLayer))
+                if (!(ctx.tilemap.*getter)(x, y, m_CurrentLayer))
                     continue;
 
                 glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
@@ -600,7 +576,7 @@ void Editor::RenderYSortPlusOverlays(EditorContext ctx)
                 ctx.renderer.DrawColoredRect(
                     tilePos,
                     glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
-                    glm::vec4(0.0f, 0.8f, 0.8f, 0.5f));
+                    glm::vec4(color, 0.5f));
             }
             else
             {
@@ -608,7 +584,7 @@ void Editor::RenderYSortPlusOverlays(EditorContext ctx)
                 size_t layerCount = ctx.tilemap.GetLayerCount();
                 for (size_t layer = 0; layer < layerCount; ++layer)
                 {
-                    if (ctx.tilemap.GetLayerYSortPlus(x, y, layer))
+                    if ((ctx.tilemap.*getter)(x, y, layer))
                         count++;
                 }
 
@@ -623,58 +599,24 @@ void Editor::RenderYSortPlusOverlays(EditorContext ctx)
                 ctx.renderer.DrawColoredRect(
                     tilePos,
                     glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
-                    glm::vec4(0.0f, 0.8f, 0.8f, alpha));
+                    glm::vec4(color, alpha));
             }
         }
     }
 }
 
+void Editor::RenderYSortPlusOverlays(EditorContext ctx)
+{
+    RenderLayerFlagOverlays(ctx, m_YSortPlusEditMode,
+                            &Tilemap::GetLayerYSortPlus,
+                            glm::vec3(0.0f, 0.8f, 0.8f));
+}
+
 void Editor::RenderYSortMinusOverlays(EditorContext ctx)
 {
-    auto vr = CalcVisibleTileRange(ctx);
-
-    for (int y = vr.startY; y < vr.endY; ++y)
-    {
-        for (int x = vr.startX; x < vr.endX; ++x)
-        {
-            if (m_YSortMinusEditMode)
-            {
-                if (!ctx.tilemap.GetLayerYSortMinus(x, y, m_CurrentLayer))
-                    continue;
-
-                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
-                                  y * vr.tileHeight - ctx.cameraPosition.y);
-
-                ctx.renderer.DrawColoredRect(
-                    tilePos,
-                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
-                    glm::vec4(0.9f, 0.2f, 0.9f, 0.5f));
-            }
-            else
-            {
-                int count = 0;
-                size_t layerCount = ctx.tilemap.GetLayerCount();
-                for (size_t layer = 0; layer < layerCount; ++layer)
-                {
-                    if (ctx.tilemap.GetLayerYSortMinus(x, y, layer))
-                        count++;
-                }
-
-                if (count == 0)
-                    continue;
-
-                glm::vec2 tilePos(x * vr.tileWidth - ctx.cameraPosition.x,
-                                  y * vr.tileHeight - ctx.cameraPosition.y);
-
-                float alpha = 0.15f + (static_cast<float>(count) / static_cast<float>(layerCount)) * 0.35f;
-
-                ctx.renderer.DrawColoredRect(
-                    tilePos,
-                    glm::vec2(static_cast<float>(vr.tileWidth), static_cast<float>(vr.tileHeight)),
-                    glm::vec4(0.9f, 0.2f, 0.9f, alpha));
-            }
-        }
-    }
+    RenderLayerFlagOverlays(ctx, m_YSortMinusEditMode,
+                            &Tilemap::GetLayerYSortMinus,
+                            glm::vec3(0.9f, 0.2f, 0.9f));
 }
 
 void Editor::RenderParticleZoneOverlays(EditorContext ctx)

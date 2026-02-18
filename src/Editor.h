@@ -79,9 +79,9 @@ struct EditorContext
  *
  * | Key | Mode               | Left-Click Action                | Right-Click Action           |
  * |-----|--------------------|----------------------------------|------------------------------|
- * |   T | Tile Picker        | Select tile / multi-tile region  | —                            |
- * |   M | Navigation Edit    | —                                | Toggle walkability (drag)    |
- * |   N | NPC Placement      | Place / remove NPC               | —                            |
+ * |   T | Tile Picker        | Select tile / multi-tile region  | -                            |
+ * |   M | Navigation Edit    | -                                | Toggle walkability (drag)    |
+ * |   N | NPC Placement      | Place / remove NPC               | -                            |
  * |   B | No-Projection Edit | Set no-projection flag (flood)   | Clear flag (flood)           |
  * |   G | Structure Edit     | Anchor + flood assign structure  | Clear structure assignment   |
  * |   H | Elevation Edit     | Paint elevation value            | Clear elevation              |
@@ -164,6 +164,9 @@ private:
     void RenderNoProjectionOverlays(EditorContext ctx);
     void RenderNoProjectionAnchorsImpl(EditorContext ctx);
     void RenderStructureOverlays(EditorContext ctx);
+    void RenderLayerFlagOverlays(EditorContext ctx, bool editMode,
+                                  bool (Tilemap::*getter)(int, int, size_t) const,
+                                  const glm::vec3& color);
     void RenderYSortPlusOverlays(EditorContext ctx);
     void RenderYSortMinusOverlays(EditorContext ctx);
     void RenderParticleZoneOverlays(EditorContext ctx);

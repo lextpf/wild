@@ -60,7 +60,7 @@ struct Params
     double centerY;         ///< Screen center Y (viewHeight / 2).
     double horizonY;        ///< Y position of the horizon line.
     double screenHeight;    ///< Viewport height in pixels.
-    double horizonScale;    ///< Scale factor at the horizon (0–1).
+    double horizonScale;    ///< Scale factor at the horizon (0-1).
     double sphereRadius;    ///< Radius of the virtual sphere in pixels.
 };
 

@@ -17,7 +17,7 @@ class IRenderer;
  *
  * @par Design
  * Game stores `PlayerCharacter m_Player` and `vector<NonPlayerCharacter>`
- * by value — never through a GameCharacter pointer. The base class exists
+ * by value, never through a GameCharacter pointer. The base class exists
  * purely for code sharing; no virtual dispatch is needed at runtime.
  *
  * @par Position (Bottom-Center)

@@ -51,7 +51,7 @@ using NPCDirection = CharacterDirection;  ///< Alias for NonPlayerCharacter code
  *
  * @par Design
  * Game stores `PlayerCharacter m_Player` and `vector<NonPlayerCharacter>`
- * by value — never through an IGameCharacter pointer. The interface exists
+ * by value, never through an IGameCharacter pointer. The interface exists
  * for API documentation and consistency with codebase conventions; no
  * virtual dispatch is needed at runtime.
  *
