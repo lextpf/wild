@@ -25,9 +25,6 @@ namespace
     // NPC hitbox height for collision detection.
     constexpr float NPC_HITBOX_HEIGHT = 16.0f;
 
-    // Small epsilon for collision boundary adjustments.
-    constexpr float COLLISION_EPS = 0.05f;
-
     // Distance threshold for reaching a waypoint (pixels).
     constexpr float WAYPOINT_REACH_THRESHOLD = 0.5f;
 
@@ -36,24 +33,20 @@ namespace
 }
 
 NonPlayerCharacter::NonPlayerCharacter()
-    : m_Position(0.0f, 0.0f)                   // World position in pixels (bottom-center anchor)
-    , m_TileX(0)                               // Current tile X coordinate
-    , m_TileY(0)                               // Current tile Y coordinate
-    , m_Direction(NPCDirection::DOWN)          // Facing direction (affects sprite row selection)
-    , m_CurrentFrame(0)                        // Current animation frame index (0-2)
-    , m_AnimationTime(0.0f)                    // Time accumulator for frame advancement
-    , m_WalkSequenceIndex(0)                   // Index into walk cycle sequence (0,1,2,1,0,...)
-    , m_Speed(25.0f)                           // Movement speed in pixels per second
-    , m_TargetTileX(0)                         // Destination tile X for pathfinding
-    , m_TargetTileY(0)                         // Destination tile Y for pathfinding
-    , m_WaitTimer(0.0f)                        // Countdown before next movement decision
-    , m_IsStopped(false)                       // Externally stopped (e.g., collision with player)
-    , m_StandingStill(false)                   // Voluntary idle state (random behavior)
-    , m_LookAroundTimer(0.0f)                  // Time until next random direction change while idle
-    , m_RandomStandStillCheckTimer(0.0f)       // Time until next roll for entering idle state
-    , m_RandomStandStillTimer(0.0f)            // Remaining time in current idle period
-    , m_Dialogue("Hello! How are you today?")  // Default dialogue text (fallback)
+    : GameCharacter()
+    , m_TileX(0)
+    , m_TileY(0)
+    , m_TargetTileX(0)
+    , m_TargetTileY(0)
+    , m_WaitTimer(0.0f)
+    , m_IsStopped(false)
+    , m_StandingStill(false)
+    , m_LookAroundTimer(0.0f)
+    , m_RandomStandStillCheckTimer(0.0f)
+    , m_RandomStandStillTimer(0.0f)
+    , m_Dialogue("Hello! How are you today?")
 {
+    m_Speed = 25.0f;
 }
 
 bool NonPlayerCharacter::Load(const std::string &relativePath)
@@ -143,23 +136,7 @@ void NonPlayerCharacter::Update(float deltaTime, const Tilemap *tilemap, const g
         return;
 
     // Smooth elevation transition (must run regardless of movement state)
-    if (m_ElevationProgress < 1.0f)
-    {
-        constexpr float transitionDuration = 0.15f;
-        m_ElevationProgress += deltaTime / transitionDuration;
-
-        if (m_ElevationProgress >= 1.0f)
-        {
-            m_ElevationProgress = 1.0f;
-            m_ElevationOffset = m_TargetElevation;
-        }
-        else
-        {
-            float t = m_ElevationProgress;
-            float smoothT = t * t * (3.0f - 2.0f * t);
-            m_ElevationOffset = m_ElevationStart + (m_TargetElevation - m_ElevationStart) * smoothT;
-        }
-    }
+    UpdateElevation(deltaTime);
 
     bool isCollidingWithPlayer = false;
     if (playerPosition)
@@ -187,17 +164,13 @@ void NonPlayerCharacter::Update(float deltaTime, const Tilemap *tilemap, const g
 
     if (m_IsStopped || isCollidingWithPlayer)
     {
-        m_CurrentFrame = 0;
-        m_WalkSequenceIndex = 0;
-        m_AnimationTime = 0.0f;
+        ResetAnimation();
         return;
     }
 
     if (m_StandingStill)
     {
-        m_CurrentFrame = 0;
-        m_WalkSequenceIndex = 0;
-        m_AnimationTime = 0.0f;
+        ResetAnimation();
 
         // Random pause: Count down timer
         if (m_RandomStandStillTimer > 0.0f)
@@ -238,11 +211,7 @@ void NonPlayerCharacter::Update(float deltaTime, const Tilemap *tilemap, const g
     if (m_AnimationTime >= NPC_ANIM_SPEED)
     {
         m_AnimationTime -= NPC_ANIM_SPEED;
-
-        // Walk sequence: step-idle-step-idle pattern
-        static const int walkSequence[] = {1, 0, 2, 0};
-        m_WalkSequenceIndex = (m_WalkSequenceIndex + 1) % 4;
-        m_CurrentFrame = walkSequence[m_WalkSequenceIndex];
+        AdvanceWalkAnimation();
     }
 
     if (m_WaitTimer > 0.0f)
@@ -347,9 +316,7 @@ void NonPlayerCharacter::EnterStandingStillMode(bool isRandom, float duration)
     m_StandingStill = true;
     m_RandomStandStillTimer = isRandom ? duration : 0.0f;
     m_LookAroundTimer = 2.0f;
-    m_CurrentFrame = 0;
-    m_WalkSequenceIndex = 0;
-    m_AnimationTime = 0.0f;
+    ResetAnimation();
 
     static const NPCDirection directions[] = {
         NPCDirection::LEFT, NPCDirection::RIGHT,
@@ -414,9 +381,7 @@ bool NonPlayerCharacter::ReinitializePatrolRoute(const Tilemap *tilemap)
 
 void NonPlayerCharacter::ResetAnimationToIdle()
 {
-    m_CurrentFrame = 0;
-    m_WalkSequenceIndex = 0;
-    m_AnimationTime = 0.0f;
+    ResetAnimation();
 }
 
 void NonPlayerCharacter::Render(IRenderer &renderer, glm::vec2 cameraPos) const

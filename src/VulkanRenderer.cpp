@@ -1,6 +1,7 @@
 #include "VulkanRenderer.h"
 #include "VulkanShader.h"
 #include "Texture.h"
+#include "PerspectiveTransform.h"
 
 #include <iostream>
 #include <stdexcept>
@@ -1672,53 +1673,21 @@ void VulkanRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
         corners[i] += position;
     }
 
-    // Apply perspective transformation to each corner individually (like OpenGL)
+    // Apply perspective transformation to each corner individually
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
     {
-        float centerX = m_Persp.viewWidth * 0.5f;
-        float centerY = m_Persp.viewHeight * 0.5f;
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        // Step 1: Apply globe curvature using true spherical projection
-        if (applyGlobe)
-        {
-            float R = m_SphereRadius;
-            for (int i = 0; i < 4; i++)
-            {
-                float dx = corners[i].x - centerX;
-                float dy = corners[i].y - centerY;
-                float d = std::sqrt(dx * dx + dy * dy);
-                if (d > 0.001f)
-                {
-                    float projectedD = R * std::sin(d / R);
-                    float ratio = projectedD / d;
-                    corners[i].x = centerX + dx * ratio;
-                    corners[i].y = centerY + dy * ratio;
-                }
-            }
-        }
-
-        // Step 2: Apply vanishing point perspective
-        if (applyVanishing)
-        {
-            float vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                float y = corners[i].y;
-                float depthNorm = std::max(0.0f, std::min(1.0f, (y - m_HorizonY) / (m_PerspectiveScreenHeight - m_HorizonY)));
-                float scaleFactor = m_HorizonScale + (1.0f - m_HorizonScale) * depthNorm;
-
-                float dx = corners[i].x - vanishX;
-                corners[i].x = vanishX + dx * scaleFactor;
-
-                float dy = y - m_HorizonY;
-                corners[i].y = m_HorizonY + dy * scaleFactor;
-            }
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // Build vertices from transformed corners (already in world space)
@@ -1874,48 +1843,18 @@ void VulkanRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
     // Apply perspective
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
     {
-        float centerX = m_Persp.viewWidth * 0.5f;
-        float centerY = m_Persp.viewHeight * 0.5f;
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        if (applyGlobe)
-        {
-            float R = m_SphereRadius;
-            for (int i = 0; i < 4; i++)
-            {
-                float dx = corners[i].x - centerX;
-                float dy = corners[i].y - centerY;
-                float d = std::sqrt(dx * dx + dy * dy);
-                if (d > 0.001f)
-                {
-                    float projectedD = R * std::sin(d / R);
-                    float ratio = projectedD / d;
-                    corners[i].x = centerX + dx * ratio;
-                    corners[i].y = centerY + dy * ratio;
-                }
-            }
-        }
-
-        if (applyVanishing)
-        {
-            float vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                float y = corners[i].y;
-                float depthNorm = std::max(0.0f, std::min(1.0f, (y - m_HorizonY) / (m_PerspectiveScreenHeight - m_HorizonY)));
-                float scaleFactor = m_HorizonScale + (1.0f - m_HorizonScale) * depthNorm;
-
-                float dx = corners[i].x - vanishX;
-                corners[i].x = vanishX + dx * scaleFactor;
-
-                float dy = y - m_HorizonY;
-                corners[i].y = m_HorizonY + dy * scaleFactor;
-            }
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // Build vertices
@@ -2055,48 +1994,18 @@ void VulkanRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
 
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
     {
-        float centerX = m_Persp.viewWidth * 0.5f;
-        float centerY = m_Persp.viewHeight * 0.5f;
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        if (applyGlobe)
-        {
-            float R = m_SphereRadius;
-            for (int i = 0; i < 4; i++)
-            {
-                float dx = corners[i].x - centerX;
-                float dy = corners[i].y - centerY;
-                float d = std::sqrt(dx * dx + dy * dy);
-                if (d > 0.001f)
-                {
-                    float projectedD = R * std::sin(d / R);
-                    float ratio = projectedD / d;
-                    corners[i].x = centerX + dx * ratio;
-                    corners[i].y = centerY + dy * ratio;
-                }
-            }
-        }
-
-        if (applyVanishing)
-        {
-            float vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                float y = corners[i].y;
-                float depthNorm = std::max(0.0f, std::min(1.0f, (y - m_HorizonY) / (m_PerspectiveScreenHeight - m_HorizonY)));
-                float scaleFactor = m_HorizonScale + (1.0f - m_HorizonScale) * depthNorm;
-
-                float dx = corners[i].x - vanishX;
-                corners[i].x = vanishX + dx * scaleFactor;
-
-                float dy = y - m_HorizonY;
-                corners[i].y = m_HorizonY + dy * scaleFactor;
-            }
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     Vertex vertices[6] = {
@@ -2183,53 +2092,21 @@ void VulkanRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
         {position.x, position.y + size.y}           // Bottom-left
     };
 
-    // Apply perspective transformation to each corner individually (like OpenGL)
+    // Apply perspective transformation to each corner individually
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
     {
-        float centerX = m_Persp.viewWidth * 0.5f;
-        float centerY = m_Persp.viewHeight * 0.5f;
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        // Step 1: Apply globe curvature using true spherical projection
-        if (applyGlobe)
-        {
-            float R = m_SphereRadius;
-            for (int i = 0; i < 4; i++)
-            {
-                float dx = corners[i].x - centerX;
-                float dy = corners[i].y - centerY;
-                float d = std::sqrt(dx * dx + dy * dy);
-                if (d > 0.001f)
-                {
-                    float projectedD = R * std::sin(d / R);
-                    float ratio = projectedD / d;
-                    corners[i].x = centerX + dx * ratio;
-                    corners[i].y = centerY + dy * ratio;
-                }
-            }
-        }
-
-        // Step 2: Apply vanishing point perspective
-        if (applyVanishing)
-        {
-            float vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                float y = corners[i].y;
-                float depthNorm = std::max(0.0f, std::min(1.0f, (y - m_HorizonY) / (m_PerspectiveScreenHeight - m_HorizonY)));
-                float scaleFactor = m_HorizonScale + (1.0f - m_HorizonScale) * depthNorm;
-
-                float dx = corners[i].x - vanishX;
-                corners[i].x = vanishX + dx * scaleFactor;
-
-                float dy = y - m_HorizonY;
-                corners[i].y = m_HorizonY + dy * scaleFactor;
-            }
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // Build vertices from transformed corners

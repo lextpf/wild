@@ -1,4 +1,5 @@
 #include "OpenGLRenderer.h"
+#include "PerspectiveTransform.h"
 
 #include <iostream>
 #include <cmath>
@@ -638,78 +639,18 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
     // Apply perspective distortion, double precision avoids visible seams
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
     {
-        // Use double precision for all calculations
-        double dCorners[4][2];
-        for (int i = 0; i < 4; i++)
-        {
-            dCorners[i][0] = static_cast<double>(corners[i].x);
-            dCorners[i][1] = static_cast<double>(corners[i].y);
-        }
-
-        double centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        double centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        double horizonY = static_cast<double>(m_HorizonY);
-        double screenHeight = static_cast<double>(m_ScreenHeight);
-        double horizonScale = static_cast<double>(m_HorizonScale);
-
-        // Fisheye mode combines both globe and vanishing point effects
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        // Globe effect: project positions onto a sphere using true spherical math
-        // Points radiate from center uniformly on the sphere surface
-        if (applyGlobe)
-        {
-            double R = static_cast<double>(m_SphereRadius);
-            for (int i = 0; i < 4; i++)
-            {
-                double dx = dCorners[i][0] - centerX;
-                double dy = dCorners[i][1] - centerY;
-                double d = std::sqrt(dx * dx + dy * dy);  // Radial distance from center
-
-                if (d > 0.001)  // Avoid division by zero
-                {
-                    // Project onto sphere: linear distance -> arc length -> projected distance
-                    double projectedD = R * std::sin(d / R);
-                    double ratio = projectedD / d;
-                    dCorners[i][0] = centerX + dx * ratio;
-                    dCorners[i][1] = centerY + dy * ratio;
-                }
-                // else: point is at center, no transformation needed
-            }
-        }
-
-        // Vanishing point effect: scale objects based on Y position
-        // Objects near horizon appear smaller (further away), creating depth illusion
-        if (applyVanishing)
-        {
-            double vanishX = centerX; // Vanishing point at screen center X
-            for (int i = 0; i < 4; i++)
-            {
-                double y = dCorners[i][1];
-                // Calculate depth: 0 at horizon, 1 at bottom of screen
-                double depthNorm = std::max(0.0, std::min(1.0, (y - horizonY) / (screenHeight - horizonY)));
-                // Interpolate scale: horizonScale at horizon, 1.0 at screen bottom
-                double scaleFactor = horizonScale + (1.0 - horizonScale) * depthNorm;
-
-                // Scale X position toward vanishing point
-                double dx = dCorners[i][0] - vanishX;
-                dCorners[i][0] = vanishX + dx * scaleFactor;
-
-                // Scale Y position toward horizon
-                double dy = y - horizonY;
-                dCorners[i][1] = horizonY + dy * scaleFactor;
-            }
-        }
-
-        // Convert back to single precision for GPU
-        for (int i = 0; i < 4; i++)
-        {
-            corners[i].x = static_cast<float>(dCorners[i][0]);
-            corners[i].y = static_cast<float>(dCorners[i][1]);
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_ScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // Map UV coordinates to each corner (V is flipped for OpenGL convention)
@@ -797,65 +738,18 @@ void OpenGLRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
     // Apply perspective transformation if enabled
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
     {
-        double dCorners[4][2];
-        for (int i = 0; i < 4; i++)
-        {
-            dCorners[i][0] = static_cast<double>(corners[i].x);
-            dCorners[i][1] = static_cast<double>(corners[i].y);
-        }
-
-        double centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        double centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        double horizonY = static_cast<double>(m_HorizonY);
-        double screenHeight = static_cast<double>(m_ScreenHeight);
-        double horizonScale = static_cast<double>(m_HorizonScale);
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        if (applyGlobe)
-        {
-            double R = static_cast<double>(m_SphereRadius);
-            for (int i = 0; i < 4; i++)
-            {
-                double dx = dCorners[i][0] - centerX;
-                double dy = dCorners[i][1] - centerY;
-                double d = std::sqrt(dx * dx + dy * dy);
-
-                if (d > 0.001)
-                {
-                    double projectedD = R * std::sin(d / R);
-                    double ratio = projectedD / d;
-                    dCorners[i][0] = centerX + dx * ratio;
-                    dCorners[i][1] = centerY + dy * ratio;
-                }
-            }
-        }
-
-        if (applyVanishing)
-        {
-            double vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                double y = dCorners[i][1];
-                double depthNorm = std::max(0.0, std::min(1.0, (y - horizonY) / (screenHeight - horizonY)));
-                double scaleFactor = horizonScale + (1.0 - horizonScale) * depthNorm;
-
-                double dx = dCorners[i][0] - vanishX;
-                dCorners[i][0] = vanishX + dx * scaleFactor;
-
-                double dy = y - horizonY;
-                dCorners[i][1] = horizonY + dy * scaleFactor;
-            }
-        }
-
-        for (int i = 0; i < 4; i++)
-        {
-            corners[i].x = static_cast<float>(dCorners[i][0]);
-            corners[i].y = static_cast<float>(dCorners[i][1]);
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_ScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // UV coordinates (OpenGL Y flipped)
@@ -943,65 +837,18 @@ void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
     // Apply perspective transformation if enabled
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
     {
-        double dCorners[4][2];
-        for (int i = 0; i < 4; i++)
-        {
-            dCorners[i][0] = static_cast<double>(corners[i].x);
-            dCorners[i][1] = static_cast<double>(corners[i].y);
-        }
-
-        double centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        double centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        double horizonY = static_cast<double>(m_HorizonY);
-        double screenHeight = static_cast<double>(m_ScreenHeight);
-        double horizonScale = static_cast<double>(m_HorizonScale);
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        if (applyGlobe)
-        {
-            double R = static_cast<double>(m_SphereRadius);
-            for (int i = 0; i < 4; i++)
-            {
-                double dx = dCorners[i][0] - centerX;
-                double dy = dCorners[i][1] - centerY;
-                double d = std::sqrt(dx * dx + dy * dy);
-
-                if (d > 0.001)
-                {
-                    double projectedD = R * std::sin(d / R);
-                    double ratio = projectedD / d;
-                    dCorners[i][0] = centerX + dx * ratio;
-                    dCorners[i][1] = centerY + dy * ratio;
-                }
-            }
-        }
-
-        if (applyVanishing)
-        {
-            double vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                double y = dCorners[i][1];
-                double depthNorm = std::max(0.0, std::min(1.0, (y - horizonY) / (screenHeight - horizonY)));
-                double scaleFactor = horizonScale + (1.0 - horizonScale) * depthNorm;
-
-                double dx = dCorners[i][0] - vanishX;
-                dCorners[i][0] = vanishX + dx * scaleFactor;
-
-                double dy = y - horizonY;
-                dCorners[i][1] = horizonY + dy * scaleFactor;
-            }
-        }
-
-        for (int i = 0; i < 4; i++)
-        {
-            corners[i].x = static_cast<float>(dCorners[i][0]);
-            corners[i].y = static_cast<float>(dCorners[i][1]);
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_ScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // UV coordinates (OpenGL Y flipped)
@@ -1119,69 +966,18 @@ void OpenGLRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
     // Apply perspective transformation using double precision to avoid seams
     if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
     {
-        // Use double precision for all calculations
-        double dCorners[4][2];
-        for (int i = 0; i < 4; i++)
-        {
-            dCorners[i][0] = static_cast<double>(corners[i].x);
-            dCorners[i][1] = static_cast<double>(corners[i].y);
-        }
-
-        double centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        double centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        double horizonY = static_cast<double>(m_HorizonY);
-        double screenHeight = static_cast<double>(m_ScreenHeight);
-        double horizonScale = static_cast<double>(m_HorizonScale);
-
-        bool applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                           m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        bool applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                               m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-
-        // Step 1: Apply globe curvature using true spherical projection
-        if (applyGlobe)
-        {
-            double R = static_cast<double>(m_SphereRadius);
-            for (int i = 0; i < 4; i++)
-            {
-                double dx = dCorners[i][0] - centerX;
-                double dy = dCorners[i][1] - centerY;
-                double d = std::sqrt(dx * dx + dy * dy);
-
-                if (d > 0.001)
-                {
-                    double projectedD = R * std::sin(d / R);
-                    double ratio = projectedD / d;
-                    dCorners[i][0] = centerX + dx * ratio;
-                    dCorners[i][1] = centerY + dy * ratio;
-                }
-            }
-        }
-
-        // Step 2: Apply vanishing point perspective
-        if (applyVanishing)
-        {
-            double vanishX = centerX;
-            for (int i = 0; i < 4; i++)
-            {
-                double y = dCorners[i][1];
-                double depthNorm = std::max(0.0, std::min(1.0, (y - horizonY) / (screenHeight - horizonY)));
-                double scaleFactor = horizonScale + (1.0 - horizonScale) * depthNorm;
-
-                double dx = dCorners[i][0] - vanishX;
-                dCorners[i][0] = vanishX + dx * scaleFactor;
-
-                double dy = y - horizonY;
-                dCorners[i][1] = horizonY + dy * scaleFactor;
-            }
-        }
-
-        // Convert back to float
-        for (int i = 0; i < 4; i++)
-        {
-            corners[i].x = static_cast<float>(dCorners[i][0]);
-            corners[i].y = static_cast<float>(dCorners[i][1]);
-        }
+        perspectiveTransform::Params p;
+        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
+                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
+                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
+        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
+        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
+        p.horizonY = static_cast<double>(m_HorizonY);
+        p.screenHeight = static_cast<double>(m_ScreenHeight);
+        p.horizonScale = static_cast<double>(m_HorizonScale);
+        p.sphereRadius = static_cast<double>(m_SphereRadius);
+        perspectiveTransform::TransformCorners(corners, p);
     }
 
     // Add 6 vertices (2 triangles) with per-vertex color

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Texture.h"
+#include "PerspectiveTransform.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -422,56 +423,20 @@ public:
         PerspectiveState s = GetPerspectiveState();
         if (!s.enabled) return p;
 
-        // Use double precision to match renderer exactly
         double resultX = static_cast<double>(p.x);
         double resultY = static_cast<double>(p.y);
-        double centerX = static_cast<double>(s.viewWidth) * 0.5;
-        double centerY = static_cast<double>(s.viewHeight) * 0.5;
 
-        bool applyGlobe = (s.mode == ProjectionMode::Globe || s.mode == ProjectionMode::Fisheye);
-        bool applyVanishing = (s.mode == ProjectionMode::VanishingPoint || s.mode == ProjectionMode::Fisheye);
+        perspectiveTransform::Params params;
+        params.applyGlobe = (s.mode == ProjectionMode::Globe || s.mode == ProjectionMode::Fisheye);
+        params.applyVanishing = (s.mode == ProjectionMode::VanishingPoint || s.mode == ProjectionMode::Fisheye);
+        params.centerX = static_cast<double>(s.viewWidth) * 0.5;
+        params.centerY = static_cast<double>(s.viewHeight) * 0.5;
+        params.horizonY = static_cast<double>(s.horizonY);
+        params.screenHeight = static_cast<double>(s.viewHeight);
+        params.horizonScale = static_cast<double>(s.horizonScale);
+        params.sphereRadius = static_cast<double>(s.sphereRadius);
 
-        // Step 1: Apply globe curvature using true spherical projection
-        if (applyGlobe)
-        {
-            double R = static_cast<double>(s.sphereRadius);
-            double dx = resultX - centerX;
-            double dy = resultY - centerY;
-            double d = std::sqrt(dx * dx + dy * dy);  // Radial distance from center
-
-            if (d > 0.001)  // Avoid division by zero
-            {
-                // Project onto sphere: linear distance -> arc length -> projected distance
-                double projectedD = R * std::sin(d / R);
-                double ratio = projectedD / d;
-                resultX = centerX + dx * ratio;
-                resultY = centerY + dy * ratio;
-            }
-            // else: point is at center, no transformation needed
-        }
-
-        // Step 2: Apply vanishing point projection
-        if (applyVanishing)
-        {
-            double horizonY = static_cast<double>(s.horizonY);
-            double screenHeight = static_cast<double>(s.viewHeight);
-            double horizonScale = static_cast<double>(s.horizonScale);
-
-            double denom = screenHeight - horizonY;
-            if (denom < 1e-5) return p;
-
-            double t = (resultY - horizonY) / denom;
-            t = std::max(0.0, std::min(1.0, t));
-
-            // Match renderer exactly: horizonScale + (1 - horizonScale) * t
-            double scale = horizonScale + (1.0 - horizonScale) * t;
-
-            // Apply same transformation as renderer
-            double dx = resultX - centerX;
-            double dy = resultY - horizonY;
-            resultX = centerX + dx * scale;
-            resultY = horizonY + dy * scale;
-        }
+        perspectiveTransform::TransformPoint(resultX, resultY, params);
 
         return glm::vec2(static_cast<float>(resultX), static_cast<float>(resultY));
     }

@@ -8,6 +8,7 @@
 #include "GameStateManager.h"
 #include "TimeManager.h"
 #include "SkyRenderer.h"
+#include "Editor.h"
 #include "IRenderer.h"
 #include "RendererAPI.h"
 #include "RendererFactory.h"
@@ -284,186 +285,10 @@ private:
     void Toggle3DEffect();
 
     /**
-     * @brief Process mouse input for editor interactions.
-     * 
-     * Handles:
-     * - Tile picker selection
-     * - World tile placement
-     * - Collision/navigation painting
-     * - NPC placement/removal
-     * - Multi-tile selection and rotation
+     * @brief Build an EditorContext from current Game state.
+     * @return EditorContext with references to Game-owned state.
      */
-    void ProcessMouseInput();
-
-    /**
-     * @brief Render the editor UI overlay.
-     * 
-     * Draws:
-     * - Current layer indicator
-     * - Selected tile preview
-     * - Tile picker panel (when open)
-     * - Mode indicators (NPC, navigation, etc.)
-     */
-    // TODO: Move console indicators to UI system.
-    void RenderEditorUI();
-
-    /**
-     * @brief Render collision debug overlays.
-     * 
-     * Draws red semi-transparent tiles over collision areas.
-     * Also shows player and NPC hitboxes when debug mode is active.
-     */
-    void RenderCollisionOverlays();
-
-    /**
-     * @brief Render Ground Detail layer overlays.
-     *
-     * Draws blue indicators for Ground Detail tiles (index 1) in editor mode.
-     */
-    void RenderLayer2Overlays();
-
-    /**
-     * @brief Render Objects layer overlays.
-     *
-     * Draws green indicators for Objects tiles (index 2) in editor mode.
-     */
-    void RenderLayer3Overlays();
-
-    /**
-     * @brief Render Objects2 layer overlays.
-     *
-     * Draws magenta indicators for Objects2 tiles (index 3) in editor mode.
-     */
-    void RenderLayer4Overlays();
-
-    /**
-     * @brief Render Objects3 layer overlays.
-     *
-     * Draws orange indicators for Objects3 tiles (index 4) in editor mode.
-     */
-    void RenderLayer5Overlays();
-
-    /**
-     * @brief Render Foreground layer overlays.
-     *
-     * Draws yellow indicators for Foreground tiles (index 5) in editor mode.
-     */
-    void RenderLayer6Overlays();
-
-    /**
-     * @brief Render Foreground2 layer overlays.
-     *
-     * Draws cyan indicators for Foreground2 tiles (index 6) in editor mode.
-     */
-    void RenderLayer7Overlays();
-
-    /**
-     * @brief Render Overlay layer overlays.
-     *
-     * Draws red indicators for Overlay tiles (index 7) in editor mode.
-     */
-    void RenderLayer8Overlays();
-
-    /**
-     * @brief Render Overlay2 layer overlays.
-     *
-     * Draws magenta indicators for Overlay2 tiles (index 8) in editor mode.
-     */
-    void RenderLayer9Overlays();
-
-    /**
-     * @brief Render Overlay3 layer overlays.
-     *
-     * Draws white indicators for Overlay3 tiles (index 9) in editor mode.
-     */
-    void RenderLayer10Overlays();
-
-    /**
-     * @brief Render navigation mesh overlays.
-     * 
-     * Draws cyan indicators for walkable tiles (navigation = true).
-     */
-    void RenderNavigationOverlays();
-
-    /**
-     * @brief Render elevation value overlays.
-     * 
-     * Draws purple indicators showing elevation values on tiles.
-     * Higher elevations are shown with darker/more opaque colors.
-     */
-    void RenderElevationOverlays();
-    /**
-     * @brief Render no-projection tile overlays.
-     * 
-     * Draws orange indicators for tiles marked as no-projection.
-     */
-    void RenderNoProjectionOverlays();
-
-    /**
-     * @brief Render no-projection structure anchors.
-     *
-     * Draws green cross markers at the bottom-left and bottom-right anchor
-     * positions for all no-projection structures, using the same projection
-     * calculations as the actual rendering. Rendered on top of everything.
-     */
-    void RenderNoProjectionAnchors();
-
-    /**
-     * @brief Render structure edit mode overlays.
-     *
-     * When in structure edit mode, draws:
-     * - Blue markers for defined structure anchors
-     * - Purple overlay for tiles assigned to structures
-     * - Temporary anchor markers when placing
-     */
-    void RenderStructureOverlays();
-
-    /**
-     * @brief Render Y-sort-plus tile overlays.
-     *
-     * Draws cyan indicators for tiles marked as Y-sort-plus.
-     */
-    void RenderYSortPlusOverlays();
-
-    /**
-     * @brief Render Y-sort-minus tile overlays.
-     *
-     * Draws magenta indicators for tiles marked with Y-sort-minus flag.
-     */
-    void RenderYSortMinusOverlays();
-
-    /**
-     * @brief Render particle zone overlays.
-     *
-     * Draws indicators for tiles that are particle zones.
-     */
-    void RenderParticleZoneOverlays();
-
-    /**
-     * @brief Render NPC debug information.
-     * 
-     * Displays:
-     * - Patrol route waypoints and connections
-     * - Current target tile
-     * - NPC hitboxes
-     * - Movement direction indicators
-     */
-    void RenderNPCDebugInfo();
-
-    /**
-     * @brief Render corner cutting debug overlays.
-     * 
-     * Visualizes which corners allow diagonal movement passage.
-     */
-    void RenderCornerCuttingOverlays();
-
-    /**
-     * @brief Render multi-tile placement preview.
-     * 
-     * Shows a ghost preview of selected tiles before placement.
-     * Includes rotation visualization.
-     */
-    void RenderPlacementPreview();
+    EditorContext MakeEditorContext();
 
     /**
      * @brief Render simple dialogue text above NPC's head.
@@ -493,13 +318,6 @@ private:
      */
     bool IsDialogueOnLastPage() const;
 
-    /**
-     * @brief Recalculate patrol routes for all NPCs.
-     * 
-     * Called when navigation map changes. Each NPC's patrol route
-     * is regenerated from its current position.
-     */
-    void RecalculateNPCPatrolRoutes();
 
     /// @name Window Management
     /// @{
@@ -592,85 +410,10 @@ private:
     int m_CurrentDrawCalls;     ///< Average draw calls per frame for display
     /** @} */
 
-    /**
-     * @name Editor State
-     * @brief Variables for the level editor.
-     * @{
-     */
-    bool m_EditorMode;                             ///< Editor mode active
-    bool m_ShowTilePicker;                         ///< Tile picker visible
-    bool m_EditNavigationMode;                     ///< Right-click edits navigation (not collision)
-    bool m_ElevationEditMode;                      ///< Left-click paints elevation values
-    bool m_NPCPlacementMode;                       ///< Left-click places/removes NPCs
-    bool m_NoProjectionEditMode;                   ///< Left-click toggles no-projection flag
-    bool m_YSortPlusEditMode;                      ///< Left-click toggles Y-sort-plus flag
-    bool m_YSortMinusEditMode;                     ///< Left-click toggles Y-sort-minus flag
-    bool m_ParticleZoneEditMode;                   ///< Left-click places/removes particle zones
-    ParticleType m_CurrentParticleType;            ///< Current particle type for zone placement
-    bool m_ParticleNoProjection;                   ///< If true, new particle zones use no projection
-    bool m_PlacingParticleZone;                    ///< Currently dragging to create a zone
-    glm::vec2 m_ParticleZoneStart;                 ///< Start position of zone being placed
-    bool m_StructureEditMode;                      ///< Structure definition mode (K key)
-    int m_CurrentStructureId;                      ///< Currently selected structure (-1 = none/new)
-    int m_PlacingAnchor;                           ///< 0=not placing, 1=left anchor, 2=right anchor
-    glm::vec2 m_TempLeftAnchor;                    ///< Temporary left anchor world position
-    glm::vec2 m_TempRightAnchor;                   ///< Temporary right anchor world position
-    bool m_AssigningTilesToStructure;              ///< Shift held - assigning tiles to structure
-    bool m_AnimationEditMode;                      ///< Creating animated tile definitions
-    std::vector<int> m_AnimationFrames;            ///< Frames being collected for new animation
-    float m_AnimationFrameDuration;                ///< Frame duration for new animation (seconds)
-    int m_SelectedAnimationId;                     ///< Currently selected animation to apply (-1 = none)
-    bool m_DebugMode;                              ///< Show all debug overlays (F3)
-    bool m_ShowDebugInfo;                          ///< Show FPS and position info (F4)
-    bool m_ShowNoProjectionAnchors;                ///< Show all no-projection anchors (F6)
-    int m_SelectedTileID;                          ///< Currently selected tile
-    int m_CurrentLayer;                            ///< Active editing layer (0-7, maps to dynamic layers)
-    int m_CurrentElevation;                        ///< Elevation value for painting (pixels)
-    std::vector<std::string> m_AvailableNPCTypes;  ///< NPC type names
-    size_t m_SelectedNPCTypeIndex;                 ///< Selected NPC type
-    double m_LastMouseX;                           ///< Previous mouse X
-    double m_LastMouseY;                           ///< Previous mouse Y
-    bool m_MousePressed;                           ///< Left mouse button state
-    bool m_RightMousePressed;                      ///< Right mouse button state
-    int m_LastPlacedTileX;                         ///< Last placed tile X (for drag)
-    int m_LastPlacedTileY;                         ///< Last placed tile Y
-    int m_LastNavigationTileX;                     ///< Last navigation edit X
-    int m_LastNavigationTileY;                     ///< Last navigation edit Y
-    bool m_NavigationDragState;                    ///< Navigation paint state (on/off)
-    int m_LastCollisionTileX;                      ///< Last collision edit X
-    int m_LastCollisionTileY;                      ///< Last collision edit Y
-    bool m_CollisionDragState;                     ///< Collision paint state
-    int m_LastNPCPlacementTileX;                   ///< Last NPC placement tile X
-    int m_LastNPCPlacementTileY;                   ///< Last NPC placement tile Y
-    /** @} */
-
-    /**
-     * @name Tile Picker State
-     * @brief Variables for the tile selection UI.
-     * @{
-     */
-    float m_TilePickerZoom;           ///< Picker zoom level
-    float m_TilePickerOffsetX;        ///< Horizontal pan offset
-    float m_TilePickerOffsetY;        ///< Vertical pan offset
-    float m_TilePickerTargetOffsetX;  ///< Target horizontal offset (smooth)
-    float m_TilePickerTargetOffsetY;  ///< Target vertical offset (smooth)
-    /** @} */
-
-    /**
-     * @name Multi-Tile Selection
-     * @brief Variables for selecting and placing multiple tiles.
-     * @{
-     */
-    bool m_MultiTileSelectionMode;   ///< Multi-tile mode active
-    int m_SelectedTileStartID;       ///< First tile in selection
-    int m_SelectedTileWidth;         ///< Selection width in tiles
-    int m_SelectedTileHeight;        ///< Selection height in tiles
-    bool m_IsSelectingTiles;         ///< Currently dragging selection
-    int m_SelectionStartTileID;      ///< Drag start tile
-    float m_PlacementCameraZoom;     ///< Camera zoom during placement
-    bool m_IsPlacingMultiTile;       ///< Placement mode active
-    int m_MultiTileRotation;         ///< Rotation (0, 90, 180, 270)
-    /** @} */
+    /// @name Editor
+    /// @{
+    Editor m_Editor;  ///< Level editor (extracted from Game)
+    /// @}
 
     /**
      * @name Collision Resolution

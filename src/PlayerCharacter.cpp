@@ -26,17 +26,8 @@ namespace
     // NPC hitbox height for player-NPC collision checks.
     constexpr float NPC_HITBOX_HEIGHT = 16.0f;
 
-    // Small epsilon for collision boundary adjustments.
-    constexpr float COLLISION_EPS = 0.05f;
-
     // Maximum slide distance for corner-cutting (pixels).
     constexpr float MAX_SLIDE_DISTANCE = 16.0f;
-
-    // Walk animation frame sequence (step-idle-step-idle pattern).
-    constexpr int WALK_SEQUENCE[] = {1, 0, 2, 0};
-
-    // Number of frames in walk sequence.
-    constexpr int WALK_SEQUENCE_LENGTH = 4;
 }
 
 /* Animation frame duration in seconds (time per frame). */
@@ -46,34 +37,27 @@ const float PlayerCharacter::ANIMATION_SPEED = 0.15f;
 std::map<std::pair<CharacterType, std::string>, std::string> PlayerCharacter::s_CharacterAssets;
 
 PlayerCharacter::PlayerCharacter()
-    : m_Position(200.0f, 150.0f),                // Bottom-center position in world coordinates (pixels)
-      m_ElevationOffset(0.0f),                   // Current visual Y offset for stairs/ramps (smoothed)
-      m_TargetElevation(0.0f),                   // Target elevation to interpolate towards
-      m_ElevationStart(0.0f),                    // Starting elevation for smoothstep interpolation
-      m_ElevationProgress(1.0f),                 // Progress 0->1 (1.0 = complete, no transition)
-      m_Direction(Direction::DOWN),              // Facing direction (determines sprite row)
-      m_AnimationType(AnimationType::IDLE),      // Current animation state (idle/walk/run/bike)
-      m_AnimationTime(0.0f),                     // Accumulator for animation frame timing
-      m_CurrentFrame(0),                         // Current sprite frame index (0-2)
-      m_WalkSequenceIndex(0),                    // Position in walk cycle [1,0,2,0] sequence
-      m_IsMoving(false),                         // True if actively moving this frame
-      m_Speed(100.0f),                           // Movement speed in pixels per second
-      m_IsRunning(false),                        // Holding run key (B) for faster movement
-      m_IsBicycling(false),                      // Currently on bicycle for fastest movement
-      m_IsUsingCopiedAppearance(false),          // Using another character's sprite (transform)
-      m_CharacterType(CharacterType::BW1_MALE),  // Base character sprite set
-      m_LastSafeTileCenter(200.0f, 150.0f),      // Last valid tile center for collision recovery
-      m_LastMovementDirection(0.0f, 0.0f),       // Previous frame's movement vector
-      m_SlideHysteresisDir(0.0f, 0.0f),          // Committed slide direction for wall sliding
-      m_SlideCommitTimer(0.0f),                  // Time remaining before slide direction can change
-      m_AxisPreference(0),                       // Preferred axis when both pressed (0=none, 1=X, 2=Y)
-      m_AxisCommitTimer(0.0f),                   // Time before axis preference expires
-      m_SnapStartPos(0.0f),                      // Starting position for tile-center snap interpolation
-      m_SnapTargetPos(0.0f),                     // Target position for tile-center snap interpolation
-      m_SnapProgress(1.0f),                      // Snap interpolation progress (1.0 = complete, no snap)
-      m_LastInputX(0),                           // Previous frame's X input (-1, 0, or 1)
-      m_LastInputY(0)                            // Previous frame's Y input (-1, 0, or 1)
+    : GameCharacter(),
+      m_AnimationType(AnimationType::IDLE),
+      m_IsMoving(false),
+      m_IsRunning(false),
+      m_IsBicycling(false),
+      m_IsUsingCopiedAppearance(false),
+      m_CharacterType(CharacterType::BW1_MALE),
+      m_LastSafeTileCenter(200.0f, 150.0f),
+      m_LastMovementDirection(0.0f, 0.0f),
+      m_SlideHysteresisDir(0.0f, 0.0f),
+      m_SlideCommitTimer(0.0f),
+      m_AxisPreference(0),
+      m_AxisCommitTimer(0.0f),
+      m_SnapStartPos(0.0f),
+      m_SnapTargetPos(0.0f),
+      m_SnapProgress(1.0f),
+      m_LastInputX(0),
+      m_LastInputY(0)
 {
+    m_Position = glm::vec2(200.0f, 150.0f);
+    m_Speed = 100.0f;
 }
 
 PlayerCharacter::~PlayerCharacter() = default;
@@ -216,39 +200,15 @@ void PlayerCharacter::Update(float deltaTime)
 
         if (m_AnimationType == AnimationType::IDLE)
         {
-            // Idle: Always show neutral standing frame
-            m_CurrentFrame = 0;
-            m_WalkSequenceIndex = 0;
+            ResetAnimation();
         }
         else
         {
-            // Walk/Run: Cycle through left-neutral-right-neutral pattern
-            static const int walkSequence[] = {1, 0, 2, 0};
-            m_WalkSequenceIndex = (m_WalkSequenceIndex + 1) % 4;
-            m_CurrentFrame = walkSequence[m_WalkSequenceIndex];
+            AdvanceWalkAnimation();
         }
     }
 
-    // Smooth elevation transition using smoothstep interpolation
-    if (m_ElevationProgress < 1.0f)
-    {
-        // Advance progress based on transition duration
-        constexpr float transitionDuration = 0.15f;
-        m_ElevationProgress += deltaTime / transitionDuration;
-
-        if (m_ElevationProgress >= 1.0f)
-        {
-            m_ElevationProgress = 1.0f;
-            m_ElevationOffset = m_TargetElevation;
-        }
-        else
-        {
-            // Apply smoothstep for ease-in/ease-out: t*t*(3.0 - 2.0*t)
-            float t = m_ElevationProgress;
-            float smoothT = t * t * (3.0f - 2.0f * t);
-            m_ElevationOffset = m_ElevationStart + (m_TargetElevation - m_ElevationStart) * smoothT;
-        }
-    }
+    UpdateElevation(deltaTime);
 }
 
 void PlayerCharacter::Render(IRenderer &renderer, glm::vec2 cameraPos)

@@ -21,92 +21,35 @@
 extern void SetDebugDrawSleep(GLFWwindow *window, bool enabled);
 
 Game::Game()
-    : m_Window(nullptr)                             // GLFW window handle (created in Initialize)
-    , m_ScreenWidth(1360)                           // Screen width in pixels (default: 17 tiles * 16px * 5 scale)
-    , m_ScreenHeight(960)                           // Screen height in pixels (default: 12 tiles * 16px * 5 scale)
-    , m_TilesVisibleWidth(17)                       // Tiles visible horizontally (calculated from window size)
-    , m_TilesVisibleHeight(12)                      // Tiles visible vertically (calculated from window size)
-    , m_ResizeSnapTimer(0.0f)                       // Timer for deferred window snap
-    , m_PendingWindowSnap(false)                    // No pending snap initially
-    , m_CameraPosition(0.0f)                        // Current camera position in world space
-    , m_CameraFollowTarget(0.0f)                    // Target camera position for smooth following
-    , m_HasCameraFollowTarget(false)                // Whether camera is following a target
-    , m_CameraZoom(1.0f)                            // Camera zoom level (1.0 = normal)
-    , m_CameraTilt(0.2f)                            // Default tilt angle for 3D effect (vanishing point)
-    , m_Enable3DEffect(false)                       // 3D effect disabled by default
-    , m_GlobeSphereRadius(200.0f)                   // Globe + vanishing point projection radius (smaller = more curve)
-    , m_FreeCameraMode(false)                       // Free camera mode disabled by default (Space toggle)
-    , m_LastFrameTime(0.0f)                         // Time of last frame (for delta time calculation)
-    , m_EditorMode(false)                           // Whether editor mode is active
-    , m_ShowTilePicker(false)                       // Whether tile picker UI is visible
-    , m_EditNavigationMode(false)                   // Whether navigation editing mode is active
-    , m_ElevationEditMode(false)                    // Whether elevation editing mode is active
-    , m_NoProjectionEditMode(false)                 // Whether no-projection editing mode is active
-    , m_YSortPlusEditMode(false)                    // Whether Y-sort-plus editing mode is active
-    , m_YSortMinusEditMode(false)                   // Whether Y-sort-minus editing mode is active
-    , m_ParticleZoneEditMode(false)                 // Whether particle zone editing mode is active
-    , m_CurrentParticleType(ParticleType::Firefly)  // Current particle type for zone creation
-    , m_ParticleNoProjection(false)                 // Whether new particle zones use no projection
-    , m_PlacingParticleZone(false)                  // Whether currently dragging to create a zone
-    , m_ParticleZoneStart(0.0f, 0.0f)               // Start position of zone being placed
-    , m_StructureEditMode(false)                    // Whether structure definition mode is active
-    , m_CurrentStructureId(-1)                      // Currently selected structure (-1 = none)
-    , m_PlacingAnchor(0)                            // 0=not placing, 1=left anchor, 2=right anchor
-    , m_TempLeftAnchor(-1.0f, -1.0f)                 // Temporary left anchor world position
-    , m_TempRightAnchor(-1.0f, -1.0f)               // Temporary right anchor world position
-    , m_AssigningTilesToStructure(false)            // Whether assigning tiles to structure
-    , m_AnimationEditMode(false)                    // Whether animation editing mode is active
-    , m_AnimationFrameDuration(0.2f)                // Default animation frame duration
-    , m_SelectedAnimationId(-1)                     // No animation selected initially
-    , m_NPCPlacementMode(false)                     // Whether NPC placement mode is active
-    , m_DebugMode(false)                            // Whether debug overlays are active (F3)
-    , m_ShowDebugInfo(false)                        // Whether FPS/position info is shown (F4)
-    , m_ShowNoProjectionAnchors(false)              // Whether no-projection anchors are shown (F6)
-    , m_SelectedTileID(0)                           // Currently selected tile ID for placement
-    , m_CurrentLayer(0)                             // Current editing layer (0-7, maps to dynamic layers)
-    , m_CurrentElevation(4)                         // Current elevation value for painting (default 4 pixels)
-    , m_LastMouseX(0.0)                             // Last mouse X position    
-    , m_LastMouseY(0.0)                             // Last mouse Y position
-    , m_MousePressed(false)                         // Whether left mouse button is pressed
-    , m_RightMousePressed(false)                    // Whether right mouse button is pressed
-    , m_LastPlacedTileX(-1)                         // X coordinate of last placed tile (for drag-to-place)
-    , m_LastPlacedTileY(-1)                         // Y coordinate of last placed tile
-    , m_LastNavigationTileX(-1)                     // X coordinate of last edited navigation tile (for drag-to-draw)
-    , m_LastNavigationTileY(-1)                     // Y coordinate of last edited navigation tile
-    , m_NavigationDragState(false)                  // Target navigation state during drag operations
-    , m_LastCollisionTileX(-1)                      // X coordinate of last edited collision tile (for drag-to-draw)
-    , m_LastCollisionTileY(-1)                      // Y coordinate of last edited collision tile
-    , m_CollisionDragState(false)                   // Target collision state during drag operations
-    , m_LastNPCPlacementTileX(-1)                   // Last NPC placement tile X
-    , m_LastNPCPlacementTileY(-1)                   // Last NPC placement tile Y
-    , m_TilePickerZoom(2.0f)                        // Tile picker zoom level (start zoomed in 2x for bigger tiles)
-    , m_TilePickerOffsetX(0.0f)                     // Current horizontal offset for tile picker panning
-    , m_TilePickerOffsetY(0.0f)                     // Current vertical offset for tile picker panning
-    , m_TilePickerTargetOffsetX(0.0f)               // Target horizontal offset for smooth panning
-    , m_TilePickerTargetOffsetY(0.0f)               // Target vertical offset for smooth panning
-    , m_MultiTileSelectionMode(false)               // Whether multi-tile selection mode is active
-    , m_SelectedTileStartID(0)                      // Starting tile ID of selected region
-    , m_SelectedTileWidth(1)                        // Width of selected tile region
-    , m_SelectedTileHeight(1)                       // Height of selected tile region
-    , m_IsSelectingTiles(false)                     // Whether user is currently selecting tiles
-    , m_SelectionStartTileID(-1)                    // Starting tile ID during selection drag
-    , m_PlacementCameraZoom(1.0f)                   // Camera zoom level during multi-tile placement
-    , m_IsPlacingMultiTile(false)                   // Whether currently placing multi-tile selection
-    , m_MultiTileRotation(0)                        // Rotation of multi-tile selection (0 degrees)
-    , m_PlayerPreviousPosition(0.0f)                // Player position before movement (for collision rollback)
-    , m_InDialogue(false)                           // Whether player is currently in dialogue
-    , m_DialogueNPC(nullptr)                        // Pointer to NPC player is talking to
-    , m_DialogueText("")                            // Current dialogue text to display
-    , m_Renderer(nullptr)                           // Renderer instance (OpenGL or Vulkan)
-    , m_SelectedNPCTypeIndex(0)                     // Index of selected NPC type for placement
-    , m_FpsUpdateTimer(0.0f)                        // FPS update timer
-    , m_FpsConsoleTimer(0.0f)                       // Console FPS output timer
-    , m_FrameCount(0)                               // Frame counter
-    , m_CurrentFps(0.0f)                            // Current FPS value
-    , m_TargetFps(0.0f)                             // FPS limit (0 = unlimited)
-    , m_DrawCallAccumulator(0)                      // Draw call accumulator
-    , m_CurrentDrawCalls(0)                         // Average draw calls for display
-    , m_RendererAPI(RendererAPI::OpenGL)            // Default to OpenGL (switch with F1)
+    : m_Window(nullptr)
+    , m_ScreenWidth(1360)
+    , m_ScreenHeight(960)
+    , m_TilesVisibleWidth(17)
+    , m_TilesVisibleHeight(12)
+    , m_ResizeSnapTimer(0.0f)
+    , m_PendingWindowSnap(false)
+    , m_CameraPosition(0.0f)
+    , m_CameraFollowTarget(0.0f)
+    , m_HasCameraFollowTarget(false)
+    , m_CameraZoom(1.0f)
+    , m_CameraTilt(0.2f)
+    , m_Enable3DEffect(false)
+    , m_GlobeSphereRadius(200.0f)
+    , m_FreeCameraMode(false)
+    , m_LastFrameTime(0.0f)
+    , m_PlayerPreviousPosition(0.0f)
+    , m_InDialogue(false)
+    , m_DialogueNPC(nullptr)
+    , m_DialogueText("")
+    , m_Renderer(nullptr)
+    , m_FpsUpdateTimer(0.0f)
+    , m_FpsConsoleTimer(0.0f)
+    , m_FrameCount(0)
+    , m_CurrentFps(0.0f)
+    , m_TargetFps(0.0f)
+    , m_DrawCallAccumulator(0)
+    , m_CurrentDrawCalls(0)
+    , m_RendererAPI(RendererAPI::OpenGL)
 {
 }
 
@@ -281,9 +224,8 @@ bool Game::Initialize()
         }
     }
 
-    // Initialize available NPC types
-    m_AvailableNPCTypes =
-    {
+    // Initialize editor with available NPC types
+    m_Editor.Initialize({
         "assets/non-player/f8cb6fd1-b8a5-44df-b017-c6cc9834353f.png",
         "assets/non-player/ccdc6c30-ecf8-4d08-b5ef-1307d84eecf0.png",
         "assets/non-player/8eb301d1-1dd4-4044-8718-72de1e7b981b.png",
@@ -292,22 +234,7 @@ bool Game::Initialize()
         "assets/non-player/908fc99d-b456-45a2-937c-074413e8f664.png",
         "assets/non-player/f7e4604c-a458-4096-bbba-59149419c650.png",
         "assets/non-player/94c6b5b9-99fa-4f3d-bab5-b93684c934e5.png"
-    };
-
-    m_SelectedNPCTypeIndex = 0;
-    if (!m_AvailableNPCTypes.empty())
-    {
-        std::cout << "Available NPC types: ";
-        for (size_t i = 0; i < m_AvailableNPCTypes.size(); ++i)
-        {
-            std::cout << m_AvailableNPCTypes[i];
-            if (i == m_SelectedNPCTypeIndex)
-                std::cout << " (selected)";
-            if (i < m_AvailableNPCTypes.size() - 1)
-                std::cout << ", ";
-        }
-        std::cout << std::endl;
-    }
+    });
 
     // Try to load save from JSON first, if it exists
     // If loading fails, generate a default map
@@ -582,32 +509,8 @@ void Game::Update(float deltaTime)
         npc.SetElevationOffset(npcElevation);
     }
 
-    // Smooth tile picker camera movement
-    if (m_EditorMode && m_ShowTilePicker)
-    {
-        // Exponential decay smoothing for tile picker pan
-        float dt = expApproachAlpha(deltaTime, 0.16f); // Settle time for responsive tile picker
-
-        m_TilePickerOffsetX = m_TilePickerOffsetX + (m_TilePickerTargetOffsetX - m_TilePickerOffsetX) * dt;
-        m_TilePickerOffsetY = m_TilePickerOffsetY + (m_TilePickerTargetOffsetY - m_TilePickerOffsetY) * dt;
-        // Lerp             = |------- a -------| + |------------------- (b - a) -------------------| *  t
-
-        // If very close to target, snap to avoid jitter
-        if (std::abs(m_TilePickerTargetOffsetX - m_TilePickerOffsetX) < 0.1f)
-        {
-            m_TilePickerOffsetX = m_TilePickerTargetOffsetX;
-        }
-        if (std::abs(m_TilePickerTargetOffsetY - m_TilePickerOffsetY) < 0.1f)
-        {
-            m_TilePickerOffsetY = m_TilePickerTargetOffsetY;
-        }
-    }
-    else
-    {
-        // When tile picker is closed, sync current offsets with target offsets
-        m_TilePickerOffsetX = m_TilePickerTargetOffsetX;
-        m_TilePickerOffsetY = m_TilePickerTargetOffsetY;
-    }
+    // Update editor (tile picker smooth panning, etc.)
+    m_Editor.Update(deltaTime, MakeEditorContext());
 
     // Calculate world space dimensions with camera zoom applied
     float baseWorldWidth = static_cast<float>(m_TilesVisibleWidth * m_Tilemap.GetTileWidth());
@@ -622,7 +525,7 @@ void Game::Update(float deltaTime)
     bool arrowRight = glfwGetKey(m_Window, GLFW_KEY_RIGHT) == GLFW_PRESS;
 
     // When the tile picker is open, arrow keys are repurposed for tilepicker panning
-    if (m_EditorMode && m_ShowTilePicker)
+    if (m_Editor.IsActive() && m_Editor.ShowTilePicker())
     {
         arrowUp = arrowDown = arrowLeft = arrowRight = false;
     }
@@ -775,7 +678,7 @@ void Game::Update(float deltaTime)
     }
 
     // Clamp camera to map bounds after snapping (skip in editor free-camera mode to allow panning beyond map)
-    if (!(m_EditorMode && m_FreeCameraMode))
+    if (!(m_Editor.IsActive() && m_FreeCameraMode))
     {
         float mapWidth = static_cast<float>(m_Tilemap.GetMapWidth() * m_Tilemap.GetTileWidth());
         float mapHeight = static_cast<float>(m_Tilemap.GetMapHeight() * m_Tilemap.GetTileHeight());
@@ -1066,7 +969,7 @@ void Game::Render()
     // Add player.
     // Both halves use anchor position for sorting.
     // Skip player if behind the sphere (edge case when zoomed way out).
-    if (!m_EditorMode)
+    if (!m_Editor.IsActive())
     {
         glm::vec2 playerPos = m_Player.GetPosition();
         float playerScreenX = playerPos.x - renderCam.x;
@@ -1194,116 +1097,12 @@ void Game::Render()
     m_Renderer->SetProjection(projection); // Restore world projection
     m_Renderer->SuspendPerspective(false);
 
-    // Render editor UI if in editor mode and tile picker is shown
-    if (m_EditorMode && m_ShowTilePicker)
+    // Render editor overlays and tile picker
+    if (m_Editor.IsActive() || m_Editor.IsDebugMode())
     {
-        // Disable 3D projection for editor overlay
-        m_Renderer->SuspendPerspective(true);
-        RenderEditorUI();
-        m_Renderer->SuspendPerspective(false);
-        // Restore camera zoom projection after tile picker rendering
+        m_Editor.Render(MakeEditorContext());
+        // Restore world projection after editor rendering (tile picker changes projection)
         m_Renderer->SetProjection(projection);
-    }
-
-    // Render overlays when editor mode is on and tile picker is hidden
-    if (m_EditorMode && !m_ShowTilePicker)
-    {
-        // Collision overlay
-        RenderCollisionOverlays();
-        // Navigation overlay
-        RenderNavigationOverlays();
-        // No-projection overlay (shows tiles that bypass 3D projection)
-        RenderNoProjectionOverlays();
-        // Structure edit overlay (shows defined structures and anchors)
-        RenderStructureOverlays();
-        // Y-sort-plus overlay (shows tiles that sort with entities by Y position)
-        RenderYSortPlusOverlays();
-        // Y-sort-minus overlay (shows Y-sort-plus tiles where player renders behind)
-        RenderYSortMinusOverlays();
-    }
-
-    // Render layer overlays when respective layer is selected in editor mode
-    // 0: Ground        -> no overlay (base layer)
-    // 1: Ground Detail -> RenderLayer2Overlays
-    // 2: Objects       -> RenderLayer3Overlays
-    // 3: Objects2      -> RenderLayer4Overlays
-    // 4: Objects3      -> RenderLayer5Overlays
-    // 5: Foreground    -> RenderLayer6Overlays
-    // 6: Foreground2   -> RenderLayer7Overlays
-    // 7: Overlay       -> RenderLayer8Overlays
-    // 8: Overlay2      -> RenderLayer9Overlays
-    // 9: Overlay3      -> RenderLayer10Overlays
-    if (m_EditorMode && !m_ShowTilePicker)
-    {
-        switch (m_CurrentLayer)
-        {
-        case 1:
-            RenderLayer2Overlays();
-            break; // Blue
-        case 2:
-            RenderLayer3Overlays();
-            break; // Green
-        case 3:
-            RenderLayer4Overlays();
-            break; // Magenta
-        case 4:
-            RenderLayer5Overlays();
-            break; // Orange
-        case 5:
-            RenderLayer6Overlays();
-            break; // Yellow
-        case 6:
-            RenderLayer7Overlays();
-            break; // Cyan
-        case 7:
-            RenderLayer8Overlays();
-            break; // Red
-        case 8:
-            RenderLayer9Overlays();
-            break; // Magenta
-        case 9:
-            RenderLayer10Overlays();
-            break; // White
-        }
-
-        // Render placement preview
-        RenderPlacementPreview();
-    }
-
-    // Debug mode overlays (F3) - show all overlays regardless of editor mode
-    if (m_DebugMode && !m_ShowTilePicker)
-    {
-        // Show collision overlays (Red)
-        RenderCollisionOverlays();
-        // Show navigation overlays (Cyan)
-        RenderNavigationOverlays();
-        // Show corner cutting zones (Yellow with corner indicators)
-        RenderCornerCuttingOverlays();
-        // Show elevation overlays (Purple with height values)
-        RenderElevationOverlays();
-        // Show no-projection overlays (Orange)
-        RenderNoProjectionOverlays();
-        // Structure edit overlay (shows defined structures and anchors)
-        RenderStructureOverlays();
-        // Show Y-sort-plus overlays (Cyan)
-        RenderYSortPlusOverlays();
-        // Show Y-sort-minus overlays (Magenta)
-        RenderYSortMinusOverlays();
-        // Show particle zone overlays
-        RenderParticleZoneOverlays();
-        // Show NPC debug info (hitboxes, paths, targets)
-        RenderNPCDebugInfo();
-
-        // Show all layer overlays at once
-        RenderLayer2Overlays();
-        RenderLayer3Overlays();
-        RenderLayer4Overlays();
-        RenderLayer5Overlays();
-        RenderLayer6Overlays();
-        RenderLayer7Overlays();
-        RenderLayer8Overlays();
-        RenderLayer9Overlays();
-        RenderLayer10Overlays();
     }
 
     // Reset ambient color to white for UI elements (not affected by day/night cycle)
@@ -1326,7 +1125,7 @@ void Game::Render()
     }
 
     // Render debug info in top left corner (F4 toggle)
-    if (m_ShowDebugInfo)
+    if (m_Editor.IsShowDebugInfo())
     {
         // Set up UI projection
         glm::mat4 uiProjection = glm::ortho(0.0f, static_cast<float>(m_ScreenWidth),
@@ -1449,10 +1248,13 @@ void Game::Render()
         m_Renderer->SetProjection(projection);
     }
 
-    // Render no-projection anchors on top of everything (F6 toggle)
-    m_Renderer->SuspendPerspective(true);
-    RenderNoProjectionAnchors();
-    m_Renderer->SuspendPerspective(false);
+    // Render no-projection anchors on top of everything
+    if (m_Editor.IsShowNoProjectionAnchors())
+    {
+        m_Renderer->SuspendPerspective(true);
+        m_Editor.RenderNoProjectionAnchors(MakeEditorContext());
+        m_Renderer->SuspendPerspective(false);
+    }
 
     m_Renderer->EndFrame();
 
@@ -1696,4 +1498,28 @@ void Game::FramebufferSizeCallback(GLFWwindow *window, int width, int height)
         // Now we can call member functions
         game->OnFramebufferResized(width, height);
     }
+}
+
+EditorContext Game::MakeEditorContext()
+{
+    return EditorContext{
+        m_Window,
+        m_ScreenWidth,
+        m_ScreenHeight,
+        m_TilesVisibleWidth,
+        m_TilesVisibleHeight,
+        m_CameraPosition,
+        m_CameraFollowTarget,
+        m_HasCameraFollowTarget,
+        m_CameraZoom,
+        m_FreeCameraMode,
+        m_Enable3DEffect,
+        m_CameraTilt,
+        m_GlobeSphereRadius,
+        m_Tilemap,
+        m_Player,
+        m_NPCs,
+        *m_Renderer,
+        m_Particles
+    };
 }
