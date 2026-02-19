@@ -1216,26 +1216,26 @@ void Game::Render()
         // Renderer name
         char rendererText[32];
         snprintf(rendererText, sizeof(rendererText), "%s", rendererName);
-        float textWidth = strlen(rendererText) * 12.0f; // Approximate character width
+        float textWidth = strnlen(rendererText, sizeof(rendererText)) * 12.0f;
         m_Renderer->DrawText(rendererText, glm::vec2(rightMargin - textWidth, 32.0f), 1.0f, glm::vec3(1.0f, 0.3f, 0.3f), 2.0f, 0.85f);
 
         // Resolution
         char resText[32];
         snprintf(resText, sizeof(resText), "%dx%d", m_ScreenWidth, m_ScreenHeight);
-        textWidth = strlen(resText) * 12.0f;
+        textWidth = strnlen(resText, sizeof(resText)) * 12.0f;
         m_Renderer->DrawText(resText, glm::vec2(rightMargin - textWidth, 32.0f + lineHeight), 1.0f, glm::vec3(1.0f, 0.3f, 0.3f), 2.0f, 0.85f);
 
         // Frame time
         char frameTimeText[32];
         float frameTimeMs = (m_CurrentFps > 0) ? (1000.0f / m_CurrentFps) : 0.0f;
         snprintf(frameTimeText, sizeof(frameTimeText), "%.2fms", frameTimeMs);
-        textWidth = strlen(frameTimeText) * 12.0f;
+        textWidth = strnlen(frameTimeText, sizeof(frameTimeText)) * 12.0f;
         m_Renderer->DrawText(frameTimeText, glm::vec2(rightMargin - textWidth, 32.0f + lineHeight * 2), 1.0f, glm::vec3(1.0f, 0.3f, 0.3f), 2.0f, 0.85f);
 
         // Zoom level
         char zoomText[32];
         snprintf(zoomText, sizeof(zoomText), "Zoom: %.1fx", m_CameraZoom);
-        textWidth = strlen(zoomText) * 12.0f;
+        textWidth = strnlen(zoomText, sizeof(zoomText)) * 12.0f;
         m_Renderer->DrawText(zoomText, glm::vec2(rightMargin - textWidth, 32.0f + lineHeight * 3), 1.0f, glm::vec3(1.0f, 0.3f, 0.3f), 2.0f, 0.85f);
 
         // Draw calls (averaged over last second)

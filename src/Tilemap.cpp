@@ -3,8 +3,7 @@
 
 #include <iostream>
 #include <algorithm>
-#include <cstdlib>
-#include <ctime>
+#include <random>
 #include <vector>
 #include <cmath>
 #include <fstream>
@@ -1909,7 +1908,8 @@ void Tilemap::GenerateDefaultMap()
     }
 
     // === Phase 3: Fill map with random valid tiles ===
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    std::mt19937 mapRng(std::random_device{}());
+    std::uniform_int_distribution<int> tileDist(0, static_cast<int>(validTileIDs.size()) - 1);
 
     std::cout << "Generating random map with " << (m_MapWidth * m_MapHeight) << " tiles..." << std::endl;
 
@@ -1917,8 +1917,7 @@ void Tilemap::GenerateDefaultMap()
     {
         for (int x = 0; x < m_MapWidth; ++x)
         {
-            // Uniform random selection from valid tiles
-            int randomIndex = std::rand() % validTileIDs.size();
+            int randomIndex = tileDist(mapRng);
             int tileID = validTileIDs[randomIndex];
             SetLayerTile(x, y, 0, tileID);
         }

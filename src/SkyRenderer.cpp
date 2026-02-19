@@ -322,7 +322,7 @@ void SkyRenderer::GenerateLightRays()
     m_SunRays.clear();
     m_MoonRays.clear();
 
-    std::mt19937 rng(42);
+    std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> posDist(0.0f, 1.0f);
     std::uniform_real_distribution<float> phaseDist(0.0f, static_cast<float>(2.0 * M_PI));
 
@@ -373,7 +373,7 @@ void SkyRenderer::GenerateStars(int count)
     m_Stars.clear();
     m_Stars.reserve(count);
 
-    std::mt19937 rng(12345);
+    std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> posDistX(0.0f, 1.0f);
     std::uniform_real_distribution<float> posDistY(0.0f, 1.0f);
     std::uniform_real_distribution<float> brightDist(0.1f, 1.0f);
@@ -423,7 +423,7 @@ void SkyRenderer::GenerateBackgroundStars(int count)
     m_BackgroundStars.clear();
     m_BackgroundStars.reserve(count);
 
-    std::mt19937 rng(54321);
+    std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> posDistX(0.0f, 1.0f);
     std::uniform_real_distribution<float> posDistY(0.0f, 1.0f);
     std::uniform_real_distribution<float> phaseDist(0.0f, static_cast<float>(2.0 * M_PI));
@@ -846,7 +846,7 @@ void SkyRenderer::SpawnShootingStar(int screenWidth, int screenHeight)
     ShootingStar star;
 
     // Random starting position
-    std::mt19937 rng(static_cast<unsigned>(m_Time * 1000));
+    std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> posDist(0.0f, 1.0f);
 
     if (posDist(rng) < 0.6f)
@@ -940,7 +940,7 @@ void SkyRenderer::GenerateDewSparkles()
     m_DewSparkles.clear();
     m_DewSparkles.reserve(DEW_SPARKLE_COUNT);
 
-    std::mt19937 rng(98765);
+    std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> posDistX(0.0f, 1.0f);
     std::uniform_real_distribution<float> posDistY(0.0f, 1.0f); // Full screen
     std::uniform_real_distribution<float> phaseDist(0.0f, static_cast<float>(2.0 * M_PI));

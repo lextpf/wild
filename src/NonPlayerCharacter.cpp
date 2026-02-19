@@ -2,11 +2,17 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
-#include <cstdlib>
+#include <random>
 #include <iostream>
 
 namespace
 {
+    std::mt19937 &GetNpcRng()
+    {
+        static std::mt19937 rng(std::random_device{}());
+        return rng;
+    }
+
     // Width of each NPC sprite frame in pixels.
     constexpr int NPC_SPRITE_WIDTH = 32;
 
@@ -246,17 +252,17 @@ void NonPlayerCharacter::Update(float deltaTime, const Tilemap *tilemap, const g
             {
                 m_StandingStill = false;
                 m_RandomStandStillTimer = 0.0f;
-                m_RandomStandStillCheckTimer = 5.0f + (std::rand() % 500) / 100.0f;
+                m_RandomStandStillCheckTimer = 5.0f + (GetNpcRng()() % 500) / 100.0f;
             }
         }
 
         // Random pause check (30% chance when timer expires at waypoint)
         if (m_PatrolRoute.IsValid() && m_RandomStandStillCheckTimer <= 0.0f)
         {
-            m_RandomStandStillCheckTimer = 5.0f + (std::rand() % 500) / 100.0f;
-            if ((std::rand() % 100) < 30)
+            m_RandomStandStillCheckTimer = 5.0f + (GetNpcRng()() % 500) / 100.0f;
+            if ((GetNpcRng()() % 100) < 30)
             {
-                float duration = 2.0f + (std::rand() % 300) / 100.0f;
+                float duration = 2.0f + (GetNpcRng()() % 300) / 100.0f;
                 EnterStandingStillMode(true, duration);
                 return;
             }
@@ -306,7 +312,7 @@ void NonPlayerCharacter::UpdateLookAround(float deltaTime)
         static const NPCDirection directions[] = {
             NPCDirection::LEFT, NPCDirection::RIGHT,
             NPCDirection::UP, NPCDirection::DOWN};
-        m_Direction = directions[static_cast<size_t>(std::rand()) % 4];
+        m_Direction = directions[GetNpcRng()() % 4];
         m_LookAroundTimer = 2.0f;
     }
 }
@@ -321,7 +327,7 @@ void NonPlayerCharacter::EnterStandingStillMode(bool isRandom, float duration)
     static const NPCDirection directions[] = {
         NPCDirection::LEFT, NPCDirection::RIGHT,
         NPCDirection::UP, NPCDirection::DOWN};
-    m_Direction = directions[static_cast<size_t>(std::rand()) % 4];
+    m_Direction = directions[GetNpcRng()() % 4];
 }
 
 void NonPlayerCharacter::UpdateDirectionFromMovement(int dx, int dy)
@@ -367,7 +373,7 @@ bool NonPlayerCharacter::ReinitializePatrolRoute(const Tilemap *tilemap)
     {
         m_StandingStill = false;
         m_RandomStandStillTimer = 0.0f;
-        m_RandomStandStillCheckTimer = 5.0f + (std::rand() % 500) / 100.0f;
+        m_RandomStandStillCheckTimer = 5.0f + (GetNpcRng()() % 500) / 100.0f;
     }
     else
     {
