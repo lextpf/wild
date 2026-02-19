@@ -738,7 +738,7 @@ void ParticleSystem::SpawnWisp(int zoneIndex, const ParticleZone &zone)
     else
         p.color = glm::vec4(0.9f, 0.9f, 1.0f, 0.0f); // White-blue
 
-    p.size = 3.0f + m_Dist01(m_Rng) * 3.0f;     // 3-6 pixels
+    p.size = 2.0f + m_Dist01(m_Rng) * 2.0f;     // 2-4 pixels
     p.lifetime = 4.0f + m_Dist01(m_Rng) * 3.0f; // 4-7 seconds
     p.maxLifetime = p.lifetime;
     p.phase = m_Dist01(m_Rng) * 6.28f;

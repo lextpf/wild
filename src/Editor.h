@@ -177,6 +177,16 @@ private:
 
     void RecalculateNPCPatrolRoutes(EditorContext ctx);
 
+    void CalculateRotatedSourceTile(int dx, int dy, int& sourceDx, int& sourceDy) const;
+    float GetCompensatedTileRotation() const;
+    void SetLayerFlagAtTile(EditorContext ctx, int tileX, int tileY,
+                            void (Tilemap::*setter)(int, int, size_t, bool),
+                            const std::string& flagName);
+
+    struct TileZoneRect { float x, y, w, h; };
+    TileZoneRect CalculateParticleZoneRect(float worldX, float worldY,
+                                           int tileWidth, int tileHeight) const;
+
     /// @name Mode Flags
     /// @{
     bool m_EditorMode;

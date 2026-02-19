@@ -698,23 +698,8 @@ void Editor::RenderParticleZoneOverlays(EditorContext ctx)
         float worldX = (static_cast<float>(mouseX) / static_cast<float>(ctx.screenWidth)) * worldWidth + ctx.cameraPosition.x;
         float worldY = (static_cast<float>(mouseY) / static_cast<float>(ctx.screenHeight)) * worldHeight + ctx.cameraPosition.y;
 
-        // Get start and end tile indices
-        int startTileX = static_cast<int>(m_ParticleZoneStart.x / ctx.tilemap.GetTileWidth());
-        int startTileY = static_cast<int>(m_ParticleZoneStart.y / ctx.tilemap.GetTileHeight());
-        int endTileX = static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth()));
-        int endTileY = static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()));
-
-        // Calculate min & max tile indices to handle any drag direction
-        int minTileX = std::min(startTileX, endTileX);
-        int maxTileX = std::max(startTileX, endTileX);
-        int minTileY = std::min(startTileY, endTileY);
-        int maxTileY = std::max(startTileY, endTileY);
-
-        // Zone spans from left edge of min tile to right edge of max tile
-        float zoneX = static_cast<float>(minTileX * ctx.tilemap.GetTileWidth());
-        float zoneY = static_cast<float>(minTileY * ctx.tilemap.GetTileHeight());
-        float zoneW = static_cast<float>((maxTileX - minTileX + 1) * ctx.tilemap.GetTileWidth());
-        float zoneH = static_cast<float>((maxTileY - minTileY + 1) * ctx.tilemap.GetTileHeight());
+        auto zr = CalculateParticleZoneRect(worldX, worldY,
+                                            ctx.tilemap.GetTileWidth(), ctx.tilemap.GetTileHeight());
 
         // Preview color based on type
         // TODO: Lantern should have its own color
@@ -744,8 +729,8 @@ void Editor::RenderParticleZoneOverlays(EditorContext ctx)
             break;
         }
 
-        glm::vec2 previewPos(zoneX - ctx.cameraPosition.x, zoneY - ctx.cameraPosition.y);
-        ctx.renderer.DrawColoredRect(previewPos, glm::vec2(zoneW, zoneH), previewColor);
+        glm::vec2 previewPos(zr.x - ctx.cameraPosition.x, zr.y - ctx.cameraPosition.y);
+        ctx.renderer.DrawColoredRect(previewPos, glm::vec2(zr.w, zr.h), previewColor);
     }
 }
 
@@ -1150,44 +1135,23 @@ void Editor::RenderPlacementPreview(EditorContext ctx)
 
     if (m_MultiTileSelectionMode)
     {
-        // Calculate rotated dimensions
         int rotatedWidth = (m_MultiTileRotation == 90 || m_MultiTileRotation == 270) ? m_SelectedTileHeight : m_SelectedTileWidth;
         int rotatedHeight = (m_MultiTileRotation == 90 || m_MultiTileRotation == 270) ? m_SelectedTileWidth : m_SelectedTileHeight;
+        float tileRotation = GetCompensatedTileRotation();
 
         // Render preview of multi-tile selection with rotation
         for (int dy = 0; dy < rotatedHeight; ++dy)
         {
             for (int dx = 0; dx < rotatedWidth; ++dx)
             {
-                // Calculate source tile coordinates based on rotation
                 int sourceDx, sourceDy;
-                if (m_MultiTileRotation == 0)
-                {
-                    sourceDx = dx;
-                    sourceDy = dy;
-                }
-                else if (m_MultiTileRotation == 90)
-                {
-                    sourceDx = m_SelectedTileWidth - 1 - dy;
-                    sourceDy = dx;
-                }
-                else if (m_MultiTileRotation == 180)
-                {
-                    sourceDx = m_SelectedTileWidth - 1 - dx;
-                    sourceDy = m_SelectedTileHeight - 1 - dy;
-                }
-                else // 270 degrees
-                {
-                    sourceDx = dy;
-                    sourceDy = m_SelectedTileHeight - 1 - dx;
-                }
+                CalculateRotatedSourceTile(dx, dy, sourceDx, sourceDy);
 
                 int previewX = tileX + dx;
                 int previewY = tileY + dy;
                 int sourceTileID = m_SelectedTileStartID + sourceDy * dataTilesPerRow + sourceDx;
 
                 // Calculate tile position in camera-relative coordinates
-                // Tiles are rendered at: (x * tileWidth) - cameraPos.x
                 glm::vec2 tilePos((previewX * tileWidth) - ctx.cameraPosition.x,
                                   (previewY * tileHeight) - ctx.cameraPosition.y);
 
@@ -1198,16 +1162,8 @@ void Editor::RenderPlacementPreview(EditorContext ctx)
                 glm::vec2 texCoord(static_cast<float>(tilesetX), static_cast<float>(tilesetY));
                 glm::vec2 texSize(ctx.tilemap.GetTileWidth(), ctx.tilemap.GetTileHeight());
 
-                // Query renderer at runtime for Y-flip (OpenGL=true, Vulkan=false)
                 bool flipY = ctx.renderer.RequiresYFlip();
 
-                // Render with reduced opacity for preview, rotated by the multi-tile rotation angle
-                // For 90 and 270, flip the texture rotation by 180 to compensate for coordinate system
-                float tileRotation = static_cast<float>(m_MultiTileRotation);
-                if (m_MultiTileRotation == 90 || m_MultiTileRotation == 270)
-                {
-                    tileRotation = static_cast<float>((m_MultiTileRotation + 180) % 360);
-                }
                 ctx.renderer.DrawSpriteRegion(ctx.tilemap.GetTilesetTexture(), tilePos,
                                              glm::vec2(ctx.tilemap.GetTileWidth(), ctx.tilemap.GetTileHeight()),
                                              texCoord, texSize, tileRotation, glm::vec3(1.0f, 1.0f, 0.5f), flipY);
@@ -1238,13 +1194,7 @@ void Editor::RenderPlacementPreview(EditorContext ctx)
             // Query renderer at runtime for Y-flip (OpenGL=true, Vulkan=false)
             bool flipY = ctx.renderer.RequiresYFlip();
 
-            // Apply rotation to single tile preview
-            // For 90 and 270, flip the texture rotation by 180 to compensate for coordinate system
-            float tileRotation = static_cast<float>(m_MultiTileRotation);
-            if (m_MultiTileRotation == 90 || m_MultiTileRotation == 270)
-            {
-                tileRotation = static_cast<float>((m_MultiTileRotation + 180) % 360);
-            }
+            float tileRotation = GetCompensatedTileRotation();
 
             ctx.renderer.DrawSpriteRegion(ctx.tilemap.GetTilesetTexture(), tilePos,
                                          glm::vec2(16.0f, 16.0f),

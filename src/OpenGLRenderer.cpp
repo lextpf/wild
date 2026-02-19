@@ -1,5 +1,4 @@
 #include "OpenGLRenderer.h"
-#include "PerspectiveTransform.h"
 
 #include <iostream>
 #include <cmath>
@@ -54,14 +53,6 @@ OpenGLRenderer::OpenGLRenderer()
     , m_AlphaLoc(-1)                                               // Transparency multiplier
     , m_AmbientColorLoc(-1)                                        // Day/night ambient light
     , m_AmbientColor(1.0f, 1.0f, 1.0f)                             // Current ambient (white = full bright)
-    // Perspective projection state
-    , m_PerspectiveEnabled(false)                                  // Any perspective mode active
-    , m_PerspectiveSuspended(false)                                // Temporarily disabled for UI/sprites
-    , m_HorizonY(0.0f)                                             // Vanishing point Y position
-    , m_HorizonScale(0.5f)                                         // Scale factor at horizon (0-1)
-    , m_ScreenHeight(0.0f)                                         // Viewport height for calculations
-    , m_SphereRadius(2000.0f)                                      // Globe projection radius
-    , m_ProjectionMode(IRenderer::ProjectionMode::VanishingPoint)  // Current projection mode
     // Sprite batching
     , m_BatchVAO(0)                                                // VAO for batched sprites
     , m_BatchVBO(0)                                                // VBO for batched sprite vertices
@@ -342,81 +333,37 @@ void OpenGLRenderer::SetViewport(int x, int y, int width, int height)
 void OpenGLRenderer::SetVanishingPointPerspective(bool enabled, float horizonY, float horizonScale,
                                                   float viewWidth, float viewHeight)
 {
-    // Flush any pending batches before changing perspective
     FlushBatch();
     FlushRectBatch();
     FlushParticleBatch();
-
-    m_PerspectiveEnabled = enabled;
-    m_HorizonY = horizonY;
-    m_HorizonScale = horizonScale;
-    m_ScreenHeight = viewHeight;
-    m_ProjectionMode = IRenderer::ProjectionMode::VanishingPoint;
-
-    m_Persp.enabled = enabled;
-    m_Persp.mode = IRenderer::ProjectionMode::VanishingPoint;
-    m_Persp.horizonY = horizonY;
-    m_Persp.horizonScale = horizonScale;
-    m_Persp.viewWidth = viewWidth;
-    m_Persp.viewHeight = viewHeight;
+    IRenderer::SetVanishingPointPerspective(enabled, horizonY, horizonScale, viewWidth, viewHeight);
 }
 
 void OpenGLRenderer::SetGlobePerspective(bool enabled, float sphereRadius,
                                          float viewWidth, float viewHeight)
 {
-    // Flush any pending batches before changing perspective
     FlushBatch();
     FlushRectBatch();
     FlushParticleBatch();
-
-    m_PerspectiveEnabled = enabled;
-    m_SphereRadius = sphereRadius;
-    m_HorizonY = 0.0f;
-    m_HorizonScale = 1.0f;
-    m_ScreenHeight = viewHeight;
-    m_ProjectionMode = IRenderer::ProjectionMode::Globe;
-
-    m_Persp.enabled = enabled;
-    m_Persp.mode = IRenderer::ProjectionMode::Globe;
-    m_Persp.sphereRadius = sphereRadius;
-    m_Persp.horizonY = 0.0f;
-    m_Persp.horizonScale = 1.0f;
-    m_Persp.viewWidth = viewWidth;
-    m_Persp.viewHeight = viewHeight;
+    IRenderer::SetGlobePerspective(enabled, sphereRadius, viewWidth, viewHeight);
 }
 
 void OpenGLRenderer::SetFisheyePerspective(bool enabled, float sphereRadius,
                                            float horizonY, float horizonScale,
                                            float viewWidth, float viewHeight)
 {
-    // Flush any pending batches before changing perspective
     FlushBatch();
     FlushRectBatch();
     FlushParticleBatch();
-
-    m_PerspectiveEnabled = enabled;
-    m_SphereRadius = sphereRadius;
-    m_HorizonY = horizonY;
-    m_HorizonScale = horizonScale;
-    m_ScreenHeight = viewHeight;
-    m_ProjectionMode = IRenderer::ProjectionMode::Fisheye;
-
-    m_Persp.enabled = enabled;
-    m_Persp.mode = IRenderer::ProjectionMode::Fisheye;
-    m_Persp.sphereRadius = sphereRadius;
-    m_Persp.horizonY = horizonY;
-    m_Persp.horizonScale = horizonScale;
-    m_Persp.viewWidth = viewWidth;
-    m_Persp.viewHeight = viewHeight;
+    IRenderer::SetFisheyePerspective(enabled, sphereRadius, horizonY, horizonScale, viewWidth, viewHeight);
 }
 
 void OpenGLRenderer::SuspendPerspective(bool suspend)
 {
-    // Flush batches before changing perspective state
     FlushBatch();
     FlushRectBatch();
     FlushParticleBatch();
-    m_PerspectiveSuspended = suspend;
+    IRenderer::SuspendPerspective(suspend);
 }
 
 void OpenGLRenderer::Clear(float r, float g, float b, float a)
@@ -612,23 +559,7 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
         {0.0f, size.y}    // Bottom-left
     };
 
-    // Rotate around sprite center (pivot point)
-    if (rotation != 0.0f)
-    {
-        float rad = glm::radians(rotation);
-        float cosR = std::cos(rad);
-        float sinR = std::sin(rad);
-        glm::vec2 center = size * 0.5f;
-
-        for (int i = 0; i < 4; i++)
-        {
-            // Translate to origin, rotate, translate back
-            glm::vec2 p = corners[i] - center;
-            corners[i] = glm::vec2(
-                p.x * cosR - p.y * sinR + center.x,
-                p.x * sinR + p.y * cosR + center.y);
-        }
-    }
+    RotateCorners(corners, size, rotation);
 
     // Move sprite to world position
     for (int i = 0; i < 4; i++)
@@ -636,22 +567,7 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
         corners[i] += position;
     }
 
-    // Apply perspective distortion, double precision avoids visible seams
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_ScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     // Map UV coordinates to each corner (V is flipped for OpenGL convention)
     glm::vec2 uvs[4] = {
@@ -675,100 +591,7 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
 void OpenGLRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position, glm::vec2 size,
                                      float rotation, glm::vec4 color, bool additive)
 {
-    // This function is used for particles and effects that need per-sprite alpha/color.
-    // Unlike DrawSpriteRegion, it supports alpha channel and additive blending.
-
-    // Must flush other batch types before adding to particle batch
-    if (!m_BatchVertices.empty())
-        FlushBatch();
-    if (!m_RectBatchVertices.empty())
-        FlushRectBatch();
-
-    unsigned int texID = texture.GetID();
-
-    // Flush particle batch if texture or blend mode changed
-    if (m_CurrentParticleTexture != 0 && (m_CurrentParticleTexture != texID || m_ParticleBatchAdditive != additive))
-    {
-        FlushParticleBatch();
-    }
-
-    // Check batch capacity
-    if (m_ParticleBatchVertices.size() >= MAX_BATCH_SPRITES * VERTICES_PER_SPRITE)
-    {
-        FlushParticleBatch();
-    }
-
-    m_CurrentParticleTexture = texID;
-    m_ParticleBatchAdditive = additive;
-
-    // Calculate texture coordinates (full texture)
-    float u0 = 0.0f, u1 = 1.0f;
-    float v0 = 0.0f, v1 = 1.0f;
-
-    // Pre-transform vertices
-    glm::vec2 corners[4] = {
-        {0.0f, 0.0f},
-        {size.x, 0.0f},
-        {size.x, size.y},
-        {0.0f, size.y}};
-
-    // Apply rotation around center if needed
-    if (rotation != 0.0f)
-    {
-        float rad = glm::radians(rotation);
-        float cosR = std::cos(rad);
-        float sinR = std::sin(rad);
-        glm::vec2 center = size * 0.5f;
-
-        for (int i = 0; i < 4; i++)
-        {
-            glm::vec2 p = corners[i] - center;
-            corners[i] = glm::vec2(
-                p.x * cosR - p.y * sinR + center.x,
-                p.x * sinR + p.y * cosR + center.y);
-        }
-    }
-
-    // Translate to world position
-    for (int i = 0; i < 4; i++)
-    {
-        corners[i] += position;
-    }
-
-    // Apply perspective transformation if enabled
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_ScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
-
-    // UV coordinates (OpenGL Y flipped)
-    glm::vec2 uvs[4] = {
-        {u0, v1}, // Top-left
-        {u1, v1}, // Top-right
-        {u1, v0}, // Bottom-right
-        {u0, v0}  // Bottom-left
-    };
-
-    // Add 6 vertices (2 triangles) with per-vertex color to batch
-    float r = color.r, g = color.g, b = color.b, a = color.a;
-    m_ParticleBatchVertices.push_back({corners[0].x, corners[0].y, uvs[0].x, uvs[0].y, r, g, b, a});
-    m_ParticleBatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y, r, g, b, a});
-    m_ParticleBatchVertices.push_back({corners[3].x, corners[3].y, uvs[3].x, uvs[3].y, r, g, b, a});
-
-    m_ParticleBatchVertices.push_back({corners[0].x, corners[0].y, uvs[0].x, uvs[0].y, r, g, b, a});
-    m_ParticleBatchVertices.push_back({corners[1].x, corners[1].y, uvs[1].x, uvs[1].y, r, g, b, a});
-    m_ParticleBatchVertices.push_back({corners[2].x, corners[2].y, uvs[2].x, uvs[2].y, r, g, b, a});
+    DrawSpriteAtlas(texture, position, size, glm::vec2(0.0f), glm::vec2(1.0f), rotation, color, additive);
 }
 
 void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position, glm::vec2 size,
@@ -811,22 +634,7 @@ void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
         {size.x, size.y},
         {0.0f, size.y}};
 
-    // Apply rotation around center if needed
-    if (rotation != 0.0f)
-    {
-        float rad = glm::radians(rotation);
-        float cosR = std::cos(rad);
-        float sinR = std::sin(rad);
-        glm::vec2 center = size * 0.5f;
-
-        for (int i = 0; i < 4; i++)
-        {
-            glm::vec2 p = corners[i] - center;
-            corners[i] = glm::vec2(
-                p.x * cosR - p.y * sinR + center.x,
-                p.x * sinR + p.y * cosR + center.y);
-        }
-    }
+    RotateCorners(corners, size, rotation);
 
     // Translate to world position
     for (int i = 0; i < 4; i++)
@@ -834,22 +642,7 @@ void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
         corners[i] += position;
     }
 
-    // Apply perspective transformation if enabled
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_ScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     // UV coordinates (OpenGL Y flipped)
     glm::vec2 uvs[4] = {
@@ -963,22 +756,7 @@ void OpenGLRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
         {position.x, position.y + size.y}           // Bottom-left
     };
 
-    // Apply perspective transformation using double precision to avoid seams
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_ScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_ScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     // Add 6 vertices (2 triangles) with per-vertex color
     float r = color.r, g = color.g, b = color.b, a = color.a;

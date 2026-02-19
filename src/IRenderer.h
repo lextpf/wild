@@ -364,8 +364,7 @@ public:
         float sphereRadius = 2000.0f;                          // Radius for globe projection
     };
 
-    // Each renderer must store and return the state it got from SetPerspective()
-    virtual PerspectiveState GetPerspectiveState() const = 0;
+    PerspectiveState GetPerspectiveState() const { return m_Persp; }
 
     /**
      * @brief Project a 2D point using the currently configured perspective.
@@ -601,7 +600,7 @@ public:
      * @see ProjectPoint() For the projection math details.
      */
     virtual void SetVanishingPointPerspective(bool enabled, float horizonY, float horizonScale,
-                                              float viewWidth, float viewHeight) = 0;
+                                              float viewWidth, float viewHeight);
 
     /**
      * @brief Configure globe curvature only.
@@ -620,7 +619,7 @@ public:
      * @see ProjectPoint() For the projection math details.
      */
     virtual void SetGlobePerspective(bool enabled, float sphereRadius,
-                                     float viewWidth, float viewHeight) = 0;
+                                     float viewWidth, float viewHeight);
 
     /**
      * @brief Configure globe curvature with vanishing point.
@@ -634,7 +633,7 @@ public:
      */
     virtual void SetFisheyePerspective(bool enabled, float sphereRadius,
                                        float horizonY, float horizonScale,
-                                       float viewWidth, float viewHeight) = 0;
+                                       float viewWidth, float viewHeight);
 
     /**
      * @brief Temporarily suspend perspective effect for next draw calls.
@@ -644,7 +643,7 @@ public:
      * 
      * @param suspend True to suspend perspective, false to resume.
      */
-    virtual void SuspendPerspective(bool suspend) = 0;
+    virtual void SuspendPerspective(bool suspend);
 
     /**
      * @brief Clear the screen to a solid color.
@@ -747,4 +746,20 @@ public:
      * @return Number of draw calls this frame.
      */
     virtual int GetDrawCallCount() const = 0;
+
+protected:
+    /// @name Perspective State (shared by all renderers)
+    /// @{
+    bool m_PerspectiveEnabled = false;
+    bool m_PerspectiveSuspended = false;
+    float m_HorizonY = 0.0f;
+    float m_HorizonScale = 0.5f;
+    float m_PerspectiveScreenHeight = 0.0f;
+    float m_SphereRadius = 2000.0f;
+    ProjectionMode m_ProjectionMode = ProjectionMode::VanishingPoint;
+    PerspectiveState m_Persp;
+    /// @}
+
+    static void RotateCorners(glm::vec2 corners[4], glm::vec2 size, float rotation);
+    void ApplyPerspective(glm::vec2 corners[4]) const;
 };

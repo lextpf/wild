@@ -114,14 +114,6 @@ public:
 
     void SetProjection(glm::mat4 projection) override { m_Projection = projection; }
     void SetViewport(int x, int y, int width, int height) override;
-    void SetVanishingPointPerspective(bool enabled, float horizonY, float horizonScale,
-                                       float viewWidth, float viewHeight) override;
-    void SetGlobePerspective(bool enabled, float sphereRadius,
-                             float viewWidth, float viewHeight) override;
-    void SetFisheyePerspective(bool enabled, float sphereRadius,
-                               float horizonY, float horizonScale,
-                               float viewWidth, float viewHeight) override;
-    void SuspendPerspective(bool suspend) override;
     void Clear(float r, float g, float b, float a) override;
 
     void UploadTexture(const Texture &texture) override;
@@ -220,18 +212,6 @@ private:
     glm::mat4 m_Projection;   ///< Current orthographic projection.
     /// @}
 
-    /// @name Perspective State
-    /// @{
-    bool m_PerspectiveEnabled = false;
-    bool m_PerspectiveSuspended = false;
-    float m_HorizonY = 0.0f;
-    float m_HorizonScale = 0.5f;
-    float m_PerspectiveScreenHeight = 0.0f;
-    float m_SphereRadius = 2000.0f;
-    IRenderer::ProjectionMode m_ProjectionMode = IRenderer::ProjectionMode::VanishingPoint;
-    IRenderer::PerspectiveState m_Persp;
-    PerspectiveState GetPerspectiveState() const override { return m_Persp; }
-    /// @}
 
     /// @name Vertex Buffers (Double-Buffered)
     /// @{

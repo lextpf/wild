@@ -1,7 +1,6 @@
 #include "VulkanRenderer.h"
 #include "VulkanShader.h"
 #include "Texture.h"
-#include "PerspectiveTransform.h"
 
 #include <iostream>
 #include <stdexcept>
@@ -1446,67 +1445,6 @@ void VulkanRenderer::SetViewport(int x, int y, int width, int height)
     }
 }
 
-void VulkanRenderer::SetVanishingPointPerspective(bool enabled, float horizonY, float horizonScale,
-                                                  float viewWidth, float viewHeight)
-{
-    m_PerspectiveEnabled = enabled;
-    m_HorizonY = horizonY;
-    m_HorizonScale = horizonScale;
-    m_PerspectiveScreenHeight = viewHeight;
-    m_ProjectionMode = IRenderer::ProjectionMode::VanishingPoint;
-
-    m_Persp.enabled = enabled;
-    m_Persp.mode = IRenderer::ProjectionMode::VanishingPoint;
-    m_Persp.horizonY = horizonY;
-    m_Persp.horizonScale = horizonScale;
-    m_Persp.viewWidth = viewWidth;
-    m_Persp.viewHeight = viewHeight;
-}
-
-void VulkanRenderer::SetGlobePerspective(bool enabled, float sphereRadius,
-                                         float viewWidth, float viewHeight)
-{
-    m_PerspectiveEnabled = enabled;
-    m_SphereRadius = sphereRadius;
-    m_HorizonY = 0.0f;
-    m_HorizonScale = 1.0f;
-    m_PerspectiveScreenHeight = viewHeight;
-    m_ProjectionMode = IRenderer::ProjectionMode::Globe;
-
-    m_Persp.enabled = enabled;
-    m_Persp.mode = IRenderer::ProjectionMode::Globe;
-    m_Persp.sphereRadius = sphereRadius;
-    m_Persp.horizonY = 0.0f;
-    m_Persp.horizonScale = 1.0f;
-    m_Persp.viewWidth = viewWidth;
-    m_Persp.viewHeight = viewHeight;
-}
-
-void VulkanRenderer::SetFisheyePerspective(bool enabled, float sphereRadius,
-                                           float horizonY, float horizonScale,
-                                           float viewWidth, float viewHeight)
-{
-    m_PerspectiveEnabled = enabled;
-    m_SphereRadius = sphereRadius;
-    m_HorizonY = horizonY;
-    m_HorizonScale = horizonScale;
-    m_PerspectiveScreenHeight = viewHeight;
-    m_ProjectionMode = IRenderer::ProjectionMode::Fisheye;
-
-    m_Persp.enabled = enabled;
-    m_Persp.mode = IRenderer::ProjectionMode::Fisheye;
-    m_Persp.sphereRadius = sphereRadius;
-    m_Persp.horizonY = horizonY;
-    m_Persp.horizonScale = horizonScale;
-    m_Persp.viewWidth = viewWidth;
-    m_Persp.viewHeight = viewHeight;
-}
-
-void VulkanRenderer::SuspendPerspective(bool suspend)
-{
-    m_PerspectiveSuspended = suspend;
-}
-
 void VulkanRenderer::Clear(float r, float g, float b, float a)
 {
     // Clear is handled in BeginFrame via render pass
@@ -1650,45 +1588,12 @@ void VulkanRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
         {0.0f, size.y}    // Bottom-left
     };
 
-    // Apply rotation if needed (around center)
-    if (std::abs(rotation) > 0.001f)
-    {
-        float radians = glm::radians(rotation);
-        float cosR = std::cos(radians);
-        float sinR = std::sin(radians);
-        glm::vec2 center(size.x * 0.5f, size.y * 0.5f);
+    RotateCorners(corners, size, rotation);
 
-        for (int i = 0; i < 4; i++)
-        {
-            glm::vec2 p = corners[i] - center;
-            corners[i] = glm::vec2(
-                p.x * cosR - p.y * sinR + center.x,
-                p.x * sinR + p.y * cosR + center.y);
-        }
-    }
-
-    // Translate to world position
     for (int i = 0; i < 4; i++)
-    {
         corners[i] += position;
-    }
 
-    // Apply perspective transformation to each corner individually
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     // Build vertices from transformed corners (already in world space)
     Vertex vertices[6] = {
@@ -1819,43 +1724,12 @@ void VulkanRenderer::DrawSpriteAlpha(const Texture &texture, glm::vec2 position,
         {size.x, size.y},
         {0.0f, size.y}};
 
-    // Apply rotation if needed
-    if (std::abs(rotation) > 0.001f)
-    {
-        float radians = glm::radians(rotation);
-        float cosR = std::cos(radians);
-        float sinR = std::sin(radians);
-        glm::vec2 center(size.x * 0.5f, size.y * 0.5f);
+    RotateCorners(corners, size, rotation);
 
-        for (int i = 0; i < 4; i++)
-        {
-            glm::vec2 p = corners[i] - center;
-            corners[i] = glm::vec2(
-                p.x * cosR - p.y * sinR + center.x,
-                p.x * sinR + p.y * cosR + center.y);
-        }
-    }
-
-    // Translate
     for (int i = 0; i < 4; i++)
         corners[i] += position;
 
-    // Apply perspective
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     // Build vertices
     Vertex vertices[6] = {
@@ -1973,40 +1847,12 @@ void VulkanRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
         {size.x, size.y},
         {0.0f, size.y}};
 
-    if (std::abs(rotation) > 0.001f)
-    {
-        float radians = glm::radians(rotation);
-        float cosR = std::cos(radians);
-        float sinR = std::sin(radians);
-        glm::vec2 center(size.x * 0.5f, size.y * 0.5f);
-
-        for (int i = 0; i < 4; i++)
-        {
-            glm::vec2 p = corners[i] - center;
-            corners[i] = glm::vec2(
-                p.x * cosR - p.y * sinR + center.x,
-                p.x * sinR + p.y * cosR + center.y);
-        }
-    }
+    RotateCorners(corners, size, rotation);
 
     for (int i = 0; i < 4; i++)
         corners[i] += position;
 
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     Vertex vertices[6] = {
         {corners[0].x, corners[0].y, texCoords[0].x, texCoords[0].y},
@@ -2092,22 +1938,7 @@ void VulkanRenderer::DrawColoredRect(glm::vec2 position, glm::vec2 size, glm::ve
         {position.x, position.y + size.y}           // Bottom-left
     };
 
-    // Apply perspective transformation to each corner individually
-    if (m_PerspectiveEnabled && !m_PerspectiveSuspended && m_PerspectiveScreenHeight > 0.0f)
-    {
-        perspectiveTransform::Params p;
-        p.applyGlobe = (m_ProjectionMode == IRenderer::ProjectionMode::Globe ||
-                        m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.applyVanishing = (m_ProjectionMode == IRenderer::ProjectionMode::VanishingPoint ||
-                            m_ProjectionMode == IRenderer::ProjectionMode::Fisheye);
-        p.centerX = static_cast<double>(m_Persp.viewWidth) * 0.5;
-        p.centerY = static_cast<double>(m_Persp.viewHeight) * 0.5;
-        p.horizonY = static_cast<double>(m_HorizonY);
-        p.screenHeight = static_cast<double>(m_PerspectiveScreenHeight);
-        p.horizonScale = static_cast<double>(m_HorizonScale);
-        p.sphereRadius = static_cast<double>(m_SphereRadius);
-        perspectiveTransform::TransformCorners(corners, p);
-    }
+    ApplyPerspective(corners);
 
     // Build vertices from transformed corners
     Vertex vertices[6] = {

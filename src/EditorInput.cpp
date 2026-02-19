@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <random>
 #include <vector>
 
 namespace {
@@ -51,6 +52,151 @@ ScreenToTile ScreenToTileCoords(const EditorContext& ctx, double mouseX, double 
     return {worldX, worldY,
             static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth())),
             static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()))};
+}
+
+struct MysteryDialogueData
+{
+    const char* treeId;
+    const char* npcName;
+    const char* flagName;
+    const char* detailsNodeId;
+    const char* startText;
+    const char* askMoreText;
+    const char* dismissText;
+    const char* updatePromptText;
+    const char* detailsText;
+    const char* questOfferText;
+    const char* questJournalText;
+    const char* declineText;
+    const char* acceptText;
+    const char* acceptOptionText;
+    const char* updateText;
+    const char* updateOptionText;
+};
+
+const MysteryDialogueData kMysteryDialogues[] = {
+    {
+        "ufo_sighting", "Anna", "accepted_ufo_quest", "lights",
+        "Please, you have to help me! My brother went to investigate strange lights in the northern field three nights ago. He hasn't come back.",
+        "Strange lights?",
+        "I'm sorry, I can't help.",
+        "Any news about your brother?",
+        "Green lights, hovering in the sky. People say it's a UFO. Others have gone missing too. Will you look for him?",
+        "I'll find your brother.",
+        "Find Anna's missing brother in the northern field!",
+        "That sounds too dangerous.",
+        "Thank you! The field is north of town. Please be careful, and bring him home safe.",
+        "I'll do my best.",
+        "Have you found him? Please, the northern field... that's where he went. I can't lose him.",
+        "I'm still looking."
+    },
+    {
+        "bigfoot_sighting", "Mona", "accepted_bigfoot_quest", "details",
+        "I know what I saw. Eight feet tall, covered in fur, walking upright through the forest. Everyone thinks I'm crazy.",
+        "Tell me more about what you saw.",
+        "Probably just a bear.",
+        "Found any more evidence?",
+        "It left tracks, huge ones, near the old mill. I found tufts of hair too. Something's out there. Will you help me prove it?",
+        "I'll investigate the old mill.",
+        "Investigate the strange tracks near the old mill.",
+        "I'd rather not get involved.",
+        "Finally, someone who believes me! The mill is east of here. Look for broken branches and disturbed earth. And be careful.",
+        "I'll see what I can find.",
+        "Any luck at the mill? I've been hearing strange howls at night. Something's definitely out there.",
+        "Still investigating."
+    },
+    {
+        "haunted_manor", "Eleanor", "accepted_ghost_quest", "details",
+        "The Blackwood Manor has been abandoned for decades. But lately... I've seen lights in the windows. And heard music. Piano music.",
+        "That does sound strange.",
+        "Probably just squatters.",
+        "I went to the manor...",
+        "The Blackwoods all died in a fire fifty years ago. The piano burned with them. Yet I hear it playing every midnight. Will you find out what's happening?",
+        "I'll investigate the manor.",
+        "Investigate the strange occurrences at Blackwood Manor.",
+        "I don't believe in ghosts.",
+        "Bless you. The manor is on the hill west of town. Go at midnight if you want to hear the music. But don't say I didn't warn you.",
+        "I'll be careful.",
+        "Did you hear it? The piano? Some say it's Lady Blackwood, still playing for her children. They never found her body in the fire...",
+        "I need to look deeper."
+    },
+    {
+        "sea_vanishings", "Claire", "accepted_sea_quest", "details",
+        "Three ships. Three ships vanished in the same waters this month. No storms. No wreckage. Just... gone. The sea took them.",
+        "Where did they disappear?",
+        "Ships sink all the time.",
+        "Any word on the missing ships?",
+        "All near the Devil's Reef. Sailors tell of strange lights beneath the waves. Compasses spinning wildly. My own brother was on the last ship. Find out what happened.",
+        "I'll look into it.",
+        "Investigate the mysterious disappearances near Devil's Reef.",
+        "The sea keeps its secrets.",
+        "Thank you. Talk to the lighthouse keeper. He watches those waters every night. If anyone's seen something, it's him.",
+        "I'll find the lighthouse.",
+        "Another ship reported strange fog near the reef last night. They barely made it through. Something's out there, I tell you.",
+        "I'm getting closer to the truth."
+    },
+    {
+        "crop_circles", "Fiona", "accepted_circles_quest", "details",
+        "Every morning, new patterns in the wheat fields up north. Perfect circles and spirals. No footprints leading in or out. Something's making them at night.",
+        "What kind of patterns?",
+        "Probably just pranksters.",
+        "Any new formations?",
+        "Mathematical precision. My dog won't go near them, howls all night long. Last week I found a metal disc in the center of one. Will you watch the fields tonight?",
+        "I'll keep watch tonight.",
+        "Watch Farmer Giles' fields at night to discover what's making the crop circles.",
+        "I have better things to do.",
+        "Good. Hide by the old scarecrow around midnight. That's when the humming starts. And whatever you do, don't let them see you.",
+        "I'll be there.",
+        "Three new circles appeared last night. Bigger than before. The wheat in the center was warm to the touch at dawn. Unnatural warm.",
+        "I'll catch them in the act."
+    }
+};
+
+void BuildMysteryDialogueTree(DialogueTree& tree, std::string& outNpcName, const MysteryDialogueData& d)
+{
+    tree.id = d.treeId;
+    tree.startNodeId = "start";
+    outNpcName = d.npcName;
+
+    DialogueNode startNode;
+    startNode.id = "start";
+    startNode.speaker = outNpcName;
+    startNode.text = d.startText;
+    DialogueOption askMoreOpt(d.askMoreText, d.detailsNodeId);
+    askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, d.flagName));
+    startNode.options.push_back(askMoreOpt);
+    DialogueOption dismissOpt(d.dismissText, "");
+    dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, d.flagName));
+    startNode.options.push_back(dismissOpt);
+    DialogueOption updateOpt(d.updatePromptText, "update");
+    updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, d.flagName));
+    startNode.options.push_back(updateOpt);
+    tree.AddNode(startNode);
+
+    DialogueNode detailsNode;
+    detailsNode.id = d.detailsNodeId;
+    detailsNode.speaker = outNpcName;
+    detailsNode.text = d.detailsText;
+    DialogueOption questOpt(d.questOfferText, "accept");
+    questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, d.flagName));
+    questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, d.flagName, d.questJournalText));
+    detailsNode.options.push_back(questOpt);
+    detailsNode.options.push_back(DialogueOption(d.declineText, ""));
+    tree.AddNode(detailsNode);
+
+    DialogueNode acceptNode;
+    acceptNode.id = "accept";
+    acceptNode.speaker = outNpcName;
+    acceptNode.text = d.acceptText;
+    acceptNode.options.push_back(DialogueOption(d.acceptOptionText, ""));
+    tree.AddNode(acceptNode);
+
+    DialogueNode updateNode;
+    updateNode.id = "update";
+    updateNode.speaker = outNpcName;
+    updateNode.text = d.updateText;
+    updateNode.options.push_back(DialogueOption(d.updateOptionText, ""));
+    tree.AddNode(updateNode);
 }
 
 } // anonymous namespace
@@ -1369,243 +1515,10 @@ void Editor::ProcessMouseInput(EditorContext ctx)
                             // TODO: Load from save.json only and create dialogues via editor
                             DialogueTree tree;
                             std::string npcName;
-                            int mysteryType = rand() % 5;
-
-                            if (mysteryType == 0)
-                            {
-                                // UFO sighting mystery
-                                tree.id = "ufo_sighting";
-                                tree.startNodeId = "start";
-                                npcName = "Anna";
-
-                                DialogueNode startNode;
-                                startNode.id = "start";
-                                startNode.speaker = npcName;
-                                startNode.text = "Please, you have to help me! My brother went to investigate strange lights in the northern field three nights ago. He hasn't come back.";
-                                DialogueOption askLightsOpt("Strange lights?", "lights");
-                                askLightsOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
-                                startNode.options.push_back(askLightsOpt);
-                                DialogueOption cantHelpOpt("I'm sorry, I can't help.", "");
-                                cantHelpOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
-                                startNode.options.push_back(cantHelpOpt);
-                                DialogueOption updateOpt("Any news about your brother?", "update");
-                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_ufo_quest"));
-                                startNode.options.push_back(updateOpt);
-                                tree.AddNode(startNode);
-
-                                DialogueNode lightsNode;
-                                lightsNode.id = "lights";
-                                lightsNode.speaker = npcName;
-                                lightsNode.text = "Green lights, hovering in the sky. People say it's a UFO. Others have gone missing too. Will you look for him?";
-                                DialogueOption questOpt("I'll find your brother.", "accept");
-                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ufo_quest"));
-                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_ufo_quest", "Find Anna's missing brother in the northern field!"));
-                                lightsNode.options.push_back(questOpt);
-                                lightsNode.options.push_back(DialogueOption("That sounds too dangerous.", ""));
-                                tree.AddNode(lightsNode);
-
-                                DialogueNode acceptNode;
-                                acceptNode.id = "accept";
-                                acceptNode.speaker = npcName;
-                                acceptNode.text = "Thank you! The field is north of town. Please be careful, and bring him home safe.";
-                                acceptNode.options.push_back(DialogueOption("I'll do my best.", ""));
-                                tree.AddNode(acceptNode);
-
-                                DialogueNode updateNode;
-                                updateNode.id = "update";
-                                updateNode.speaker = npcName;
-                                updateNode.text = "Have you found him? Please, the northern field... that's where he went. I can't lose him.";
-                                updateNode.options.push_back(DialogueOption("I'm still looking.", ""));
-                                tree.AddNode(updateNode);
-                            }
-                            else if (mysteryType == 1)
-                            {
-                                // Bigfoot/cryptid sighting mystery
-                                tree.id = "bigfoot_sighting";
-                                tree.startNodeId = "start";
-                                npcName = "Mona";
-
-                                DialogueNode startNode;
-                                startNode.id = "start";
-                                startNode.speaker = npcName;
-                                startNode.text = "I know what I saw. Eight feet tall, covered in fur, walking upright through the forest. Everyone thinks I'm crazy.";
-                                DialogueOption askMoreOpt("Tell me more about what you saw.", "details");
-                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_bigfoot_quest"));
-                                startNode.options.push_back(askMoreOpt);
-                                DialogueOption dismissOpt("Probably just a bear.", "");
-                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_bigfoot_quest"));
-                                startNode.options.push_back(dismissOpt);
-                                DialogueOption updateOpt("Found any more evidence?", "update");
-                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_bigfoot_quest"));
-                                startNode.options.push_back(updateOpt);
-                                tree.AddNode(startNode);
-
-                                DialogueNode detailsNode;
-                                detailsNode.id = "details";
-                                detailsNode.speaker = npcName;
-                                detailsNode.text = "It left tracks, huge ones, near the old mill. I found tufts of hair too. Something's out there. Will you help me prove it?";
-                                DialogueOption questOpt("I'll investigate the old mill.", "accept");
-                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_bigfoot_quest"));
-                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_bigfoot_quest", "Investigate the strange tracks near the old mill."));
-                                detailsNode.options.push_back(questOpt);
-                                detailsNode.options.push_back(DialogueOption("I'd rather not get involved.", ""));
-                                tree.AddNode(detailsNode);
-
-                                DialogueNode acceptNode;
-                                acceptNode.id = "accept";
-                                acceptNode.speaker = npcName;
-                                acceptNode.text = "Finally, someone who believes me! The mill is east of here. Look for broken branches and disturbed earth. And be careful.";
-                                acceptNode.options.push_back(DialogueOption("I'll see what I can find.", ""));
-                                tree.AddNode(acceptNode);
-
-                                DialogueNode updateNode;
-                                updateNode.id = "update";
-                                updateNode.speaker = npcName;
-                                updateNode.text = "Any luck at the mill? I've been hearing strange howls at night. Something's definitely out there.";
-                                updateNode.options.push_back(DialogueOption("Still investigating.", ""));
-                                tree.AddNode(updateNode);
-                            }
-                            else if (mysteryType == 2)
-                            {
-                                // Haunted house mystery
-                                tree.id = "haunted_manor";
-                                tree.startNodeId = "start";
-                                npcName = "Eleanor";
-
-                                DialogueNode startNode;
-                                startNode.id = "start";
-                                startNode.speaker = npcName;
-                                startNode.text = "The Blackwood Manor has been abandoned for decades. But lately... I've seen lights in the windows. And heard music. Piano music.";
-                                DialogueOption askMoreOpt("That does sound strange.", "details");
-                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ghost_quest"));
-                                startNode.options.push_back(askMoreOpt);
-                                DialogueOption dismissOpt("Probably just squatters.", "");
-                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ghost_quest"));
-                                startNode.options.push_back(dismissOpt);
-                                DialogueOption updateOpt("I went to the manor...", "update");
-                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_ghost_quest"));
-                                startNode.options.push_back(updateOpt);
-                                tree.AddNode(startNode);
-
-                                DialogueNode detailsNode;
-                                detailsNode.id = "details";
-                                detailsNode.speaker = npcName;
-                                detailsNode.text = "The Blackwoods all died in a fire fifty years ago. The piano burned with them. Yet I hear it playing every midnight. Will you find out what's happening?";
-                                DialogueOption questOpt("I'll investigate the manor.", "accept");
-                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_ghost_quest"));
-                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_ghost_quest", "Investigate the strange occurrences at Blackwood Manor."));
-                                detailsNode.options.push_back(questOpt);
-                                detailsNode.options.push_back(DialogueOption("I don't believe in ghosts.", ""));
-                                tree.AddNode(detailsNode);
-
-                                DialogueNode acceptNode;
-                                acceptNode.id = "accept";
-                                acceptNode.speaker = npcName;
-                                acceptNode.text = "Bless you. The manor is on the hill west of town. Go at midnight if you want to hear the music. But don't say I didn't warn you.";
-                                acceptNode.options.push_back(DialogueOption("I'll be careful.", ""));
-                                tree.AddNode(acceptNode);
-
-                                DialogueNode updateNode;
-                                updateNode.id = "update";
-                                updateNode.speaker = npcName;
-                                updateNode.text = "Did you hear it? The piano? Some say it's Lady Blackwood, still playing for her children. They never found her body in the fire...";
-                                updateNode.options.push_back(DialogueOption("I need to look deeper.", ""));
-                                tree.AddNode(updateNode);
-                            }
-                            else if (mysteryType == 3)
-                            {
-                                // Bermuda Triangle-style sea mystery
-                                tree.id = "sea_vanishings";
-                                tree.startNodeId = "start";
-                                npcName = "Claire";
-
-                                DialogueNode startNode;
-                                startNode.id = "start";
-                                startNode.speaker = npcName;
-                                startNode.text = "Three ships. Three ships vanished in the same waters this month. No storms. No wreckage. Just... gone. The sea took them.";
-                                DialogueOption askMoreOpt("Where did they disappear?", "details");
-                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_sea_quest"));
-                                startNode.options.push_back(askMoreOpt);
-                                DialogueOption dismissOpt("Ships sink all the time.", "");
-                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_sea_quest"));
-                                startNode.options.push_back(dismissOpt);
-                                DialogueOption updateOpt("Any word on the missing ships?", "update");
-                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_sea_quest"));
-                                startNode.options.push_back(updateOpt);
-                                tree.AddNode(startNode);
-
-                                DialogueNode detailsNode;
-                                detailsNode.id = "details";
-                                detailsNode.speaker = npcName;
-                                detailsNode.text = "All near the Devil's Reef. Sailors tell of strange lights beneath the waves. Compasses spinning wildly. My own brother was on the last ship. Find out what happened.";
-                                DialogueOption questOpt("I'll look into it.", "accept");
-                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_sea_quest"));
-                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_sea_quest", "Investigate the mysterious disappearances near Devil's Reef."));
-                                detailsNode.options.push_back(questOpt);
-                                detailsNode.options.push_back(DialogueOption("The sea keeps its secrets.", ""));
-                                tree.AddNode(detailsNode);
-
-                                DialogueNode acceptNode;
-                                acceptNode.id = "accept";
-                                acceptNode.speaker = npcName;
-                                acceptNode.text = "Thank you. Talk to the lighthouse keeper. He watches those waters every night. If anyone's seen something, it's him.";
-                                acceptNode.options.push_back(DialogueOption("I'll find the lighthouse.", ""));
-                                tree.AddNode(acceptNode);
-
-                                DialogueNode updateNode;
-                                updateNode.id = "update";
-                                updateNode.speaker = npcName;
-                                updateNode.text = "Another ship reported strange fog near the reef last night. They barely made it through. Something's out there, I tell you.";
-                                updateNode.options.push_back(DialogueOption("I'm getting closer to the truth.", ""));
-                                tree.AddNode(updateNode);
-                            }
-                            else
-                            {
-                                // Crop circles mystery
-                                tree.id = "crop_circles";
-                                tree.startNodeId = "start";
-                                npcName = "Fiona";
-
-                                DialogueNode startNode;
-                                startNode.id = "start";
-                                startNode.speaker = npcName;
-                                startNode.text = "Every morning, new patterns in the wheat fields up north. Perfect circles and spirals. No footprints leading in or out. Something's making them at night.";
-                                DialogueOption askMoreOpt("What kind of patterns?", "details");
-                                askMoreOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_circles_quest"));
-                                startNode.options.push_back(askMoreOpt);
-                                DialogueOption dismissOpt("Probably just pranksters.", "");
-                                dismissOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_circles_quest"));
-                                startNode.options.push_back(dismissOpt);
-                                DialogueOption updateOpt("Any new formations?", "update");
-                                updateOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_SET, "accepted_circles_quest"));
-                                startNode.options.push_back(updateOpt);
-                                tree.AddNode(startNode);
-
-                                DialogueNode detailsNode;
-                                detailsNode.id = "details";
-                                detailsNode.speaker = npcName;
-                                detailsNode.text = "Mathematical precision. My dog won't go near them, howls all night long. Last week I found a metal disc in the center of one. Will you watch the fields tonight?";
-                                DialogueOption questOpt("I'll keep watch tonight.", "accept");
-                                questOpt.conditions.push_back(DialogueCondition(DialogueCondition::Type::FLAG_NOT_SET, "accepted_circles_quest"));
-                                questOpt.consequences.push_back(DialogueConsequence(DialogueConsequence::Type::SET_FLAG_VALUE, "accepted_circles_quest", "Watch Farmer Giles' fields at night to discover what's making the crop circles."));
-                                detailsNode.options.push_back(questOpt);
-                                detailsNode.options.push_back(DialogueOption("I have better things to do.", ""));
-                                tree.AddNode(detailsNode);
-
-                                DialogueNode acceptNode;
-                                acceptNode.id = "accept";
-                                acceptNode.speaker = npcName;
-                                acceptNode.text = "Good. Hide by the old scarecrow around midnight. That's when the humming starts. And whatever you do, don't let them see you.";
-                                acceptNode.options.push_back(DialogueOption("I'll be there.", ""));
-                                tree.AddNode(acceptNode);
-
-                                DialogueNode updateNode;
-                                updateNode.id = "update";
-                                updateNode.speaker = npcName;
-                                updateNode.text = "Three new circles appeared last night. Bigger than before. The wheat in the center was warm to the touch at dawn. Unnatural warm.";
-                                updateNode.options.push_back(DialogueOption("I'll catch them in the act.", ""));
-                                tree.AddNode(updateNode);
-                            }
+                            static std::mt19937 rng(std::random_device{}());
+                            std::uniform_int_distribution<int> dist(0, 4);
+                            int mysteryType = dist(rng);
+                            BuildMysteryDialogueTree(tree, npcName, kMysteryDialogues[mysteryType]);
 
                             npc.SetDialogueTree(tree);
                             npc.SetName(npcName);
@@ -1794,29 +1707,7 @@ void Editor::ProcessMouseInput(EditorContext ctx)
         // Shift+click, flood-fill to mark all connected tiles in the shape
         if (m_EditorMode && m_YSortPlusEditMode)
         {
-            if (tileX >= 0 && tileX < ctx.tilemap.GetMapWidth() &&
-                tileY >= 0 && tileY < ctx.tilemap.GetMapHeight())
-            {
-                bool shiftHeld = (glfwGetKey(ctx.window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-                                  glfwGetKey(ctx.window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
-
-                if (shiftHeld)
-                {
-                    int layer = m_CurrentLayer;
-                    int count = FloodFill(ctx.tilemap, tileX, tileY,
-                        [&](int cx, int cy) {
-                            return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
-                                   ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
-                        },
-                        [&](int cx, int cy) { ctx.tilemap.SetLayerYSortPlus(cx, cy, layer, true); });
-                    std::cout << "Set Y-sort-plus on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
-                }
-                else
-                {
-                    ctx.tilemap.SetLayerYSortPlus(tileX, tileY, m_CurrentLayer, true);
-                    std::cout << "Set Y-sort-plus at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
-                }
-            }
+            SetLayerFlagAtTile(ctx, tileX, tileY, &Tilemap::SetLayerYSortPlus, "Y-sort-plus");
             return;
         }
 
@@ -1824,30 +1715,16 @@ void Editor::ProcessMouseInput(EditorContext ctx)
         // Shift+click, flood-fill to mark all connected tiles in the shape
         if (m_EditorMode && m_YSortMinusEditMode)
         {
-            if (tileX >= 0 && tileX < ctx.tilemap.GetMapWidth() &&
+            SetLayerFlagAtTile(ctx, tileX, tileY, &Tilemap::SetLayerYSortMinus, "Y-sort-minus");
+            // Warn if Y-sort-plus isn't set on this tile (only relevant for single-tile placement)
+            bool shiftHeld = (glfwGetKey(ctx.window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                              glfwGetKey(ctx.window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+            if (!shiftHeld && tileX >= 0 && tileX < ctx.tilemap.GetMapWidth() &&
                 tileY >= 0 && tileY < ctx.tilemap.GetMapHeight())
             {
-                bool shiftHeld = (glfwGetKey(ctx.window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-                                  glfwGetKey(ctx.window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
-
-                if (shiftHeld)
-                {
-                    int layer = m_CurrentLayer;
-                    int count = FloodFill(ctx.tilemap, tileX, tileY,
-                        [&](int cx, int cy) {
-                            return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
-                                   ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
-                        },
-                        [&](int cx, int cy) { ctx.tilemap.SetLayerYSortMinus(cx, cy, layer, true); });
-                    std::cout << "Set Y-sort-minus on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
-                }
-                else
-                {
-                    ctx.tilemap.SetLayerYSortMinus(tileX, tileY, m_CurrentLayer, true);
-                    bool isYSortPlus = ctx.tilemap.GetLayerYSortPlus(tileX, tileY, m_CurrentLayer);
-                    std::cout << "Set Y-sort-minus at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1);
-                    std::cout << " (Y-sort-plus: " << (isYSortPlus ? "YES" : "NO - tile must also be Y-sort-plus!") << ")" << std::endl;
-                }
+                bool isYSortPlus = ctx.tilemap.GetLayerYSortPlus(tileX, tileY, m_CurrentLayer);
+                if (!isYSortPlus)
+                    std::cout << "  Warning: tile must also be Y-sort-plus!" << std::endl;
             }
             return;
         }
@@ -1862,36 +1739,16 @@ void Editor::ProcessMouseInput(EditorContext ctx)
             {
                 int dataTilesPerRow = ctx.tilemap.GetTilesetDataWidth() / ctx.tilemap.GetTileWidth();
 
-                // Calculate rotated dimensions
                 int rotatedWidth = (m_MultiTileRotation == 90 || m_MultiTileRotation == 270) ? m_SelectedTileHeight : m_SelectedTileWidth;
                 int rotatedHeight = (m_MultiTileRotation == 90 || m_MultiTileRotation == 270) ? m_SelectedTileWidth : m_SelectedTileHeight;
+                float tileRotation = GetCompensatedTileRotation();
 
                 for (int dy = 0; dy < rotatedHeight; ++dy)
                 {
                     for (int dx = 0; dx < rotatedWidth; ++dx)
                     {
-                        // Calculate source tile coordinates based on rotation
                         int sourceDx, sourceDy;
-                        if (m_MultiTileRotation == 0)
-                        {
-                            sourceDx = dx;
-                            sourceDy = dy;
-                        }
-                        else if (m_MultiTileRotation == 90)
-                        {
-                            sourceDx = m_SelectedTileWidth - 1 - dy;
-                            sourceDy = dx;
-                        }
-                        else if (m_MultiTileRotation == 180)
-                        {
-                            sourceDx = m_SelectedTileWidth - 1 - dx;
-                            sourceDy = m_SelectedTileHeight - 1 - dy;
-                        }
-                        else // 270 degrees
-                        {
-                            sourceDx = dy;
-                            sourceDy = m_SelectedTileHeight - 1 - dx;
-                        }
+                        CalculateRotatedSourceTile(dx, dy, sourceDx, sourceDy);
 
                         int placeX = tileX + dx;
                         int placeY = tileY + dy;
@@ -1900,13 +1757,6 @@ void Editor::ProcessMouseInput(EditorContext ctx)
                         if (placeX >= 0 && placeX < ctx.tilemap.GetMapWidth() &&
                             placeY >= 0 && placeY < ctx.tilemap.GetMapHeight())
                         {
-                            // For 90 and 270, flip the texture rotation by 180 to compensate for coordinate system
-                            float tileRotation = static_cast<float>(m_MultiTileRotation);
-                            if (m_MultiTileRotation == 90 || m_MultiTileRotation == 270)
-                            {
-                                tileRotation = static_cast<float>((m_MultiTileRotation + 180) % 360);
-                            }
-
                             ctx.tilemap.SetLayerTile(placeX, placeY, m_CurrentLayer, sourceTileID);
                             ctx.tilemap.SetLayerRotation(placeX, placeY, m_CurrentLayer, tileRotation);
                         }
@@ -1929,13 +1779,7 @@ void Editor::ProcessMouseInput(EditorContext ctx)
                 if (tileX >= 0 && tileX < ctx.tilemap.GetMapWidth() &&
                     tileY >= 0 && tileY < ctx.tilemap.GetMapHeight())
                 {
-                    // Calculate rotation
-                    float tileRotation = static_cast<float>(m_MultiTileRotation);
-                    if (m_MultiTileRotation == 90 || m_MultiTileRotation == 270)
-                    {
-                        tileRotation = static_cast<float>((m_MultiTileRotation + 180) % 360);
-                    }
-
+                    float tileRotation = GetCompensatedTileRotation();
                     ctx.tilemap.SetLayerTile(tileX, tileY, m_CurrentLayer, m_SelectedTileStartID);
                     ctx.tilemap.SetLayerRotation(tileX, tileY, m_CurrentLayer, tileRotation);
 
@@ -1954,35 +1798,24 @@ void Editor::ProcessMouseInput(EditorContext ctx)
         if (m_PlacingParticleZone && m_ParticleZoneEditMode)
         {
             auto st = ScreenToTileCoords(ctx, mouseX, mouseY);
-            float worldX = st.worldX;
-            float worldY = st.worldY;
-
-            // Get start and end tile indices
-            int startTileX = static_cast<int>(m_ParticleZoneStart.x / ctx.tilemap.GetTileWidth());
-            int startTileY = static_cast<int>(m_ParticleZoneStart.y / ctx.tilemap.GetTileHeight());
-            int endTileX = static_cast<int>(std::floor(worldX / ctx.tilemap.GetTileWidth()));
-            int endTileY = static_cast<int>(std::floor(worldY / ctx.tilemap.GetTileHeight()));
-
-            // Calculate min & max tile indices to handle any drag direction
-            int minTileX = std::min(startTileX, endTileX);
-            int maxTileX = std::max(startTileX, endTileX);
-            int minTileY = std::min(startTileY, endTileY);
-            int maxTileY = std::max(startTileY, endTileY);
-
-            // Zone spans from left edge of min tile to right edge of max tile
-            float zoneX = static_cast<float>(minTileX * ctx.tilemap.GetTileWidth());
-            float zoneY = static_cast<float>(minTileY * ctx.tilemap.GetTileHeight());
-            float zoneW = static_cast<float>((maxTileX - minTileX + 1) * ctx.tilemap.GetTileWidth());
-            float zoneH = static_cast<float>((maxTileY - minTileY + 1) * ctx.tilemap.GetTileHeight());
+            auto zr = CalculateParticleZoneRect(st.worldX, st.worldY,
+                                                ctx.tilemap.GetTileWidth(), ctx.tilemap.GetTileHeight());
 
             // Create the zone
             ParticleZone zone;
-            zone.position = glm::vec2(zoneX, zoneY);
-            zone.size = glm::vec2(zoneW, zoneH);
+            zone.position = glm::vec2(zr.x, zr.y);
+            zone.size = glm::vec2(zr.w, zr.h);
             zone.type = m_CurrentParticleType;
             zone.enabled = true;
 
             // Auto-detect noProjection from tiles
+            int tw = ctx.tilemap.GetTileWidth();
+            int th = ctx.tilemap.GetTileHeight();
+            int minTileX = static_cast<int>(zr.x / tw);
+            int minTileY = static_cast<int>(zr.y / th);
+            int maxTileX = minTileX + static_cast<int>(zr.w / tw) - 1;
+            int maxTileY = minTileY + static_cast<int>(zr.h / th) - 1;
+
             bool hasNoProjection = m_ParticleNoProjection; // Start with manual setting
             if (!hasNoProjection)
             {
@@ -2007,7 +1840,7 @@ void Editor::ProcessMouseInput(EditorContext ctx)
 
             const char *typeNames[] = {"Firefly", "Rain", "Snow", "Fog", "Sparkles", "Wisp", "Lantern", "Sunshine"};
             std::cout << "Created " << typeNames[static_cast<int>(m_CurrentParticleType)]
-                      << " zone at (" << zoneX << ", " << zoneY << ") size " << zoneW << "x" << zoneH;
+                      << " zone at (" << zr.x << ", " << zr.y << ") size " << zr.w << "x" << zr.h;
             if (hasNoProjection)
                 std::cout << " [noProjection]";
             std::cout << std::endl;
@@ -2121,4 +1954,86 @@ void Editor::HandleScroll(double yoffset, EditorContext ctx)
             m_TilePickerTargetOffsetY = std::max(minOffsetY, std::min(maxOffsetY, m_TilePickerTargetOffsetY));
         }
     }
+}
+
+void Editor::CalculateRotatedSourceTile(int dx, int dy, int& sourceDx, int& sourceDy) const
+{
+    if (m_MultiTileRotation == 0)
+    {
+        sourceDx = dx;
+        sourceDy = dy;
+    }
+    else if (m_MultiTileRotation == 90)
+    {
+        sourceDx = m_SelectedTileWidth - 1 - dy;
+        sourceDy = dx;
+    }
+    else if (m_MultiTileRotation == 180)
+    {
+        sourceDx = m_SelectedTileWidth - 1 - dx;
+        sourceDy = m_SelectedTileHeight - 1 - dy;
+    }
+    else // 270 degrees
+    {
+        sourceDx = dy;
+        sourceDy = m_SelectedTileHeight - 1 - dx;
+    }
+}
+
+float Editor::GetCompensatedTileRotation() const
+{
+    float tileRotation = static_cast<float>(m_MultiTileRotation);
+    if (m_MultiTileRotation == 90 || m_MultiTileRotation == 270)
+        tileRotation = static_cast<float>((m_MultiTileRotation + 180) % 360);
+    return tileRotation;
+}
+
+void Editor::SetLayerFlagAtTile(EditorContext ctx, int tileX, int tileY,
+                                void (Tilemap::*setter)(int, int, size_t, bool),
+                                const std::string& flagName)
+{
+    if (tileX < 0 || tileX >= ctx.tilemap.GetMapWidth() ||
+        tileY < 0 || tileY >= ctx.tilemap.GetMapHeight())
+        return;
+
+    bool shiftHeld = (glfwGetKey(ctx.window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                      glfwGetKey(ctx.window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+
+    if (shiftHeld)
+    {
+        int layer = m_CurrentLayer;
+        int count = FloodFill(ctx.tilemap, tileX, tileY,
+            [&](int cx, int cy) {
+                return ctx.tilemap.GetLayerTile(cx, cy, layer) >= 0 ||
+                       ctx.tilemap.GetTileAnimation(cx, cy, layer) >= 0;
+            },
+            [&](int cx, int cy) { (ctx.tilemap.*setter)(cx, cy, layer, true); });
+        std::cout << "Set " << flagName << " on " << count << " connected tiles (layer " << (layer + 1) << ")" << std::endl;
+    }
+    else
+    {
+        (ctx.tilemap.*setter)(tileX, tileY, m_CurrentLayer, true);
+        std::cout << "Set " << flagName << " at (" << tileX << ", " << tileY << ") layer " << (m_CurrentLayer + 1) << std::endl;
+    }
+}
+
+Editor::TileZoneRect Editor::CalculateParticleZoneRect(float worldX, float worldY,
+                                                       int tileWidth, int tileHeight) const
+{
+    int startTileX = static_cast<int>(m_ParticleZoneStart.x / tileWidth);
+    int startTileY = static_cast<int>(m_ParticleZoneStart.y / tileHeight);
+    int endTileX = static_cast<int>(std::floor(worldX / tileWidth));
+    int endTileY = static_cast<int>(std::floor(worldY / tileHeight));
+
+    int minTileX = std::min(startTileX, endTileX);
+    int maxTileX = std::max(startTileX, endTileX);
+    int minTileY = std::min(startTileY, endTileY);
+    int maxTileY = std::max(startTileY, endTileY);
+
+    return {
+        static_cast<float>(minTileX * tileWidth),
+        static_cast<float>(minTileY * tileHeight),
+        static_cast<float>((maxTileX - minTileX + 1) * tileWidth),
+        static_cast<float>((maxTileY - minTileY + 1) * tileHeight)
+    };
 }

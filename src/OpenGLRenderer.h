@@ -235,20 +235,6 @@ private:
 
     /// @}
 
-    /// @name Perspective State
-    /// @{
-
-    bool m_PerspectiveEnabled;     ///< Whether any perspective mode is active.
-    bool m_PerspectiveSuspended;   ///< Temporarily disabled for sprites/NPCs.
-    float m_HorizonY;              ///< Screen Y of vanishing point.
-    float m_HorizonScale;          ///< Scale factor at horizon (0-1).
-    float m_ScreenHeight;          ///< Viewport height for calculations.
-    float m_SphereRadius;          ///< Globe projection radius.
-    IRenderer::ProjectionMode m_ProjectionMode;  ///< Current projection mode.
-    IRenderer::PerspectiveState m_Persp;         ///< Full perspective state.
-
-    PerspectiveState GetPerspectiveState() const override { return m_Persp; }
-
     /// @}
 
     /// @name Text Batching
