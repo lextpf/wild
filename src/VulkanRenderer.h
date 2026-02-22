@@ -133,6 +133,25 @@ public:
     int GetDrawCallCount() const override { return m_DrawCallCount; }
 
 private:
+    /// @name Sprite Helpers
+    /// @{
+    struct SpriteVertex
+    {
+        float pos[2];
+        float tex[2];
+    };
+
+    static void BuildQuadVertices(SpriteVertex outVertices[6],
+                                  const glm::vec2 corners[4],
+                                  const glm::vec2 texCoords[4]);
+
+    bool SubmitQuad(VkDescriptorSet descriptorSet,
+                    const SpriteVertex vertices[6],
+                    glm::vec3 spriteColor, float spriteAlpha,
+                    bool useColorOnly = false,
+                    glm::vec4 colorOnly = glm::vec4(0.0f));
+    /// @}
+
     /// @name Performance Metrics
     /// @{
     int m_DrawCallCount = 0;             ///< Draw calls this frame.
