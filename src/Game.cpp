@@ -108,6 +108,7 @@ bool Game::Initialize()
     // Set callbacks
     glfwSetScrollCallback(m_Window, ScrollCallback);
     glfwSetFramebufferSizeCallback(m_Window, FramebufferSizeCallback);
+    glfwSetWindowRefreshCallback(m_Window, WindowRefreshCallback);
 
     // Sleep 2 seconds after each draw call, set to true to enable
     SetDebugDrawSleep(m_Window, false);
@@ -139,7 +140,7 @@ bool Game::Initialize()
         glViewport(0, 0, m_ScreenWidth, m_ScreenHeight);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glfwSwapInterval(0); // VSync: 0 = disabled, 1 = enabled
     }
 
@@ -544,11 +545,18 @@ void Game::Update(float deltaTime)
 
     bool arrowKeysPressed = arrowUp || arrowDown || arrowLeft || arrowRight;
 
-    // Compute desired camera follow target based on the player's **tile center**
-    // This keeps the camera aligned to the grid while keeping the player centered.
+    // Camera follow target: use actual player position while moving for smooth tracking,
+    // and tile center when idle so the camera settles on the grid.
+    glm::vec2 playerCamPos = m_Player.GetPosition();
+    glm::vec2 playerVisualCenter = glm::vec2(playerCamPos.x, playerCamPos.y - PlayerCharacter::HITBOX_HEIGHT);
+    glm::vec2 smoothTarget = playerVisualCenter - glm::vec2(worldWidth / 2.0f, worldHeight / 2.0f);
+
     glm::vec2 playerBottomTileCenter = m_Player.GetCurrentTileCenter();
-    glm::vec2 playerVisualCenter = glm::vec2(playerBottomTileCenter.x, playerBottomTileCenter.y - PlayerCharacter::HITBOX_HEIGHT);
-    glm::vec2 snappedTarget = playerVisualCenter - glm::vec2(worldWidth / 2.0f, worldHeight / 2.0f);
+    glm::vec2 tileVisualCenter = glm::vec2(playerBottomTileCenter.x, playerBottomTileCenter.y - PlayerCharacter::HITBOX_HEIGHT);
+    glm::vec2 gridTarget = tileVisualCenter - glm::vec2(worldWidth / 2.0f, worldHeight / 2.0f);
+
+    // While WASD is held, follow the player directly; otherwise settle onto the grid
+    glm::vec2 snappedTarget = wasdPressed ? smoothTarget : gridTarget;
 
     // Camera movement modes:
     // - Free camera (Space toggle): Arrow keys pan freely, camera ignores player
@@ -657,8 +665,8 @@ void Game::Update(float deltaTime)
         // Smoothly move camera towards follow target if we have one
         if (m_HasCameraFollowTarget)
         {
-            // Smooth camera follow reaches target in ~1 second
-            float alpha = expApproachAlpha(deltaTime, 1.0f);
+            // Smooth camera follow
+            float alpha = expApproachAlpha(deltaTime, 0.6f);
 
             glm::vec2 newPos = m_CameraPosition + (m_CameraFollowTarget - m_CameraPosition) * alpha;
             // Lerp          = |------ a -----| + |--------------- (b - a) ---------------| *   t
@@ -1367,6 +1375,7 @@ bool Game::SwitchRenderer(RendererAPI api)
     glfwSetWindowUserPointer(m_Window, this);
     glfwSetScrollCallback(m_Window, ScrollCallback);
     glfwSetFramebufferSizeCallback(m_Window, FramebufferSizeCallback);
+    glfwSetWindowRefreshCallback(m_Window, WindowRefreshCallback);
 
     // Create new renderer
     m_Renderer.reset(CreateRenderer(m_RendererAPI, m_Window));
@@ -1392,7 +1401,7 @@ bool Game::SwitchRenderer(RendererAPI api)
         // Standard alpha blending
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         // Uncapped FPS, potentially tearing
         glfwSwapInterval(0);
     }
@@ -1497,6 +1506,17 @@ void Game::FramebufferSizeCallback(GLFWwindow *window, int width, int height)
     {
         // Now we can call member functions
         game->OnFramebufferResized(width, height);
+    }
+}
+
+void Game::WindowRefreshCallback(GLFWwindow *window)
+{
+    // Called by the OS when the window needs repainting (e.g. during resize drag).
+    // Re-renders the scene so the user sees game content instead of white fill.
+    Game *game = static_cast<Game *>(glfwGetWindowUserPointer(window));
+    if (game)
+    {
+        game->Render();
     }
 }
 

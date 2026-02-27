@@ -1318,7 +1318,7 @@ void VulkanRenderer::BeginFrame()
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = m_SwapchainExtent;
 
-    VkClearValue clearColor = {{{0.2f, 0.3f, 0.3f, 1.0f}}};
+    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 

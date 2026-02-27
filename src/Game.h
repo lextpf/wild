@@ -360,6 +360,11 @@ private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
     /**
+     * @brief GLFW window refresh callback - redraws during resize drag.
+     */
+    static void WindowRefreshCallback(GLFWwindow* window);
+
+    /**
      * @name Game Entities
      * @brief Core game objects.
      * @{

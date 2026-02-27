@@ -162,38 +162,58 @@ void Game::RenderDialogueTreeBox()
     float boxX = (worldWidth - boxWidth) * 0.5f;
     float boxY = worldHeight - boxHeight - (10.0f * z);
 
-    // Main background - dark grey, semi-transparent
-    glm::vec4 bgColor(0.18f, 0.16f, 0.14f, 0.85f);
-    m_Renderer->DrawColoredRect(glm::vec2(boxX, boxY), glm::vec2(boxWidth, boxHeight), bgColor);
+    // Main background - dark, semi-transparent, with rounded corners via staircase strips
+    glm::vec4 bgColor(0.22f, 0.21f, 0.20f, 0.92f);
+    float r = 3.0f * z; // Corner radius
+    float s = 1.0f * z; // Step size (1 pixel per step)
+    // Row 0 (top/bottom outermost): inset by r on each side
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + r, boxY), glm::vec2(boxWidth - r * 2, s), bgColor);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + r, boxY + boxHeight - s), glm::vec2(boxWidth - r * 2, s), bgColor);
+    // Row 1: inset by 2px
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + 2 * s, boxY + s), glm::vec2(boxWidth - 4 * s, s), bgColor);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + 2 * s, boxY + boxHeight - 2 * s), glm::vec2(boxWidth - 4 * s, s), bgColor);
+    // Row 2: inset by 1px
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + s, boxY + 2 * s), glm::vec2(boxWidth - 2 * s, s), bgColor);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + s, boxY + boxHeight - 3 * s), glm::vec2(boxWidth - 2 * s, s), bgColor);
+    // Center body: full width
+    m_Renderer->DrawColoredRect(glm::vec2(boxX, boxY + r), glm::vec2(boxWidth, boxHeight - r * 2), bgColor);
 
-    // Outer border - off-white
-    float borderWidth = 2.0f * z;
-    glm::vec4 borderColorOuter(0.92f, 0.9f, 0.85f, 1.0f);
-    m_Renderer->DrawColoredRect(glm::vec2(boxX, boxY), glm::vec2(boxWidth, borderWidth), borderColorOuter);                           // Top
-    m_Renderer->DrawColoredRect(glm::vec2(boxX, boxY + boxHeight - borderWidth), glm::vec2(boxWidth, borderWidth), borderColorOuter); // Bottom
-    m_Renderer->DrawColoredRect(glm::vec2(boxX, boxY), glm::vec2(borderWidth, boxHeight), borderColorOuter);                          // Left
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - borderWidth, boxY), glm::vec2(borderWidth, boxHeight), borderColorOuter); // Right
+    // Outer border - muted, subtle, following the rounded shape
+    float bw = 1.0f * z;
+    glm::vec4 borderColorOuter(0.50f, 0.48f, 0.45f, 0.8f);
+    // Top edge (inset by r)
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + r, boxY), glm::vec2(boxWidth - r * 2, bw), borderColorOuter);
+    // Bottom edge (inset by r)
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + r, boxY + boxHeight - bw), glm::vec2(boxWidth - r * 2, bw), borderColorOuter);
+    // Left edge (inset by r vertically)
+    m_Renderer->DrawColoredRect(glm::vec2(boxX, boxY + r), glm::vec2(bw, boxHeight - r * 2), borderColorOuter);
+    // Right edge (inset by r vertically)
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - bw, boxY + r), glm::vec2(bw, boxHeight - r * 2), borderColorOuter);
+    // Corner steps: top-left
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + s, boxY + 2 * s), glm::vec2(bw, s), borderColorOuter);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + 2 * s, boxY + s), glm::vec2(bw, s), borderColorOuter);
+    // Corner steps: top-right
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - s - bw, boxY + 2 * s), glm::vec2(bw, s), borderColorOuter);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - 2 * s - bw, boxY + s), glm::vec2(bw, s), borderColorOuter);
+    // Corner steps: bottom-left
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + s, boxY + boxHeight - 3 * s), glm::vec2(bw, s), borderColorOuter);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + 2 * s, boxY + boxHeight - 2 * s), glm::vec2(bw, s), borderColorOuter);
+    // Corner steps: bottom-right
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - s - bw, boxY + boxHeight - 3 * s), glm::vec2(bw, s), borderColorOuter);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - 2 * s - bw, boxY + boxHeight - 2 * s), glm::vec2(bw, s), borderColorOuter);
 
-    // Inner border - off-white
-    float innerBorderOffset = 3.0f * z;
-    float innerBorderWidth = 1.0f * z;
-    glm::vec4 borderColorInner(0.85f, 0.82f, 0.78f, 0.7f);
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + innerBorderOffset, boxY + innerBorderOffset),
-                                glm::vec2(boxWidth - innerBorderOffset * 2, innerBorderWidth), borderColorInner); // Top
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + innerBorderOffset, boxY + boxHeight - innerBorderOffset - innerBorderWidth),
-                                glm::vec2(boxWidth - innerBorderOffset * 2, innerBorderWidth), borderColorInner); // Bottom
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + innerBorderOffset, boxY + innerBorderOffset),
-                                glm::vec2(innerBorderWidth, boxHeight - innerBorderOffset * 2), borderColorInner); // Left
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - innerBorderOffset - innerBorderWidth, boxY + innerBorderOffset),
-                                glm::vec2(innerBorderWidth, boxHeight - innerBorderOffset * 2), borderColorInner); // Right
-
-    // Corner decorations - off-white
-    float cornerSize = 5.0f * z;
-    glm::vec4 cornerColor(0.9f, 0.88f, 0.82f, 1.0f);
-    m_Renderer->DrawColoredRect(glm::vec2(boxX - 1.0f * z, boxY - 1.0f * z), glm::vec2(cornerSize, cornerSize), cornerColor);                                                  // Top-left
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - cornerSize + 1.0f * z, boxY - 1.0f * z), glm::vec2(cornerSize, cornerSize), cornerColor);                          // Top-right
-    m_Renderer->DrawColoredRect(glm::vec2(boxX - 1.0f * z, boxY + boxHeight - cornerSize + 1.0f * z), glm::vec2(cornerSize, cornerSize), cornerColor);                         // Bottom-left
-    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - cornerSize + 1.0f * z, boxY + boxHeight - cornerSize + 1.0f * z), glm::vec2(cornerSize, cornerSize), cornerColor); // Bottom-right
+    // Inner border - subtle accent, following the rounded shape
+    float ibo = 3.0f * z; // inner border offset
+    float ibw = 1.0f * z;
+    glm::vec4 borderColorInner(0.42f, 0.40f, 0.37f, 0.5f);
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + ibo + r, boxY + ibo),
+                                glm::vec2(boxWidth - ibo * 2 - r * 2, ibw), borderColorInner); // Top
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + ibo + r, boxY + boxHeight - ibo - ibw),
+                                glm::vec2(boxWidth - ibo * 2 - r * 2, ibw), borderColorInner); // Bottom
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + ibo, boxY + ibo + r),
+                                glm::vec2(ibw, boxHeight - ibo * 2 - r * 2), borderColorInner); // Left
+    m_Renderer->DrawColoredRect(glm::vec2(boxX + boxWidth - ibo - ibw, boxY + ibo + r),
+                                glm::vec2(ibw, boxHeight - ibo * 2 - r * 2), borderColorInner); // Right
 
     float padding = 10.0f * z;
     float textScale = 0.18f * z;
@@ -225,18 +245,35 @@ void Game::RenderDialogueTreeBox()
         float nameX = boxX + padding - namePadding;
         float nameY = currentY - speakerAscent - 2.0f * z;
 
-        // Nameplate background - muted gold
-        glm::vec4 nameBg(0.72f, 0.58f, 0.22f, 1.0f);
-        m_Renderer->DrawColoredRect(glm::vec2(nameX, nameY), glm::vec2(nameWidth, nameHeight), nameBg);
+        // Nameplate background - darker muted gold, with rounded corners
+        glm::vec4 nameBg(0.38f, 0.36f, 0.30f, 0.9f);
+        float nr = 2.0f * z; // Nameplate corner radius
+        float ns = 1.0f * z;
+        // Top/bottom outermost row: inset by nr
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nr, nameY), glm::vec2(nameWidth - nr * 2, ns), nameBg);
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nr, nameY + nameHeight - ns), glm::vec2(nameWidth - nr * 2, ns), nameBg);
+        // Intermediate row: inset by 1px
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + ns, nameY + ns), glm::vec2(nameWidth - 2 * ns, ns), nameBg);
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + ns, nameY + nameHeight - 2 * ns), glm::vec2(nameWidth - 2 * ns, ns), nameBg);
+        // Center body: full width
+        m_Renderer->DrawColoredRect(glm::vec2(nameX, nameY + nr), glm::vec2(nameWidth, nameHeight - nr * 2), nameBg);
 
-        // Nameplate border - off-white
-        glm::vec4 nameBorder(0.85f, 0.82f, 0.78f, 0.7f);
-        m_Renderer->DrawColoredRect(glm::vec2(nameX, nameY), glm::vec2(nameWidth, 1.0f * z), nameBorder);
-        m_Renderer->DrawColoredRect(glm::vec2(nameX, nameY + nameHeight - 1.0f * z), glm::vec2(nameWidth, 1.0f * z), nameBorder);
-        m_Renderer->DrawColoredRect(glm::vec2(nameX, nameY), glm::vec2(1.0f * z, nameHeight), nameBorder);
-        m_Renderer->DrawColoredRect(glm::vec2(nameX + nameWidth - 1.0f * z, nameY), glm::vec2(1.0f * z, nameHeight), nameBorder);
+        // Nameplate border - subtle, following rounded shape
+        glm::vec4 nameBorder(0.50f, 0.48f, 0.44f, 0.5f);
+        float nb = 1.0f * z;
+        // Top/bottom edges inset by nr
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nr, nameY), glm::vec2(nameWidth - nr * 2, nb), nameBorder);
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nr, nameY + nameHeight - nb), glm::vec2(nameWidth - nr * 2, nb), nameBorder);
+        // Left/right edges inset by nr
+        m_Renderer->DrawColoredRect(glm::vec2(nameX, nameY + nr), glm::vec2(nb, nameHeight - nr * 2), nameBorder);
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nameWidth - nb, nameY + nr), glm::vec2(nb, nameHeight - nr * 2), nameBorder);
+        // Corner steps
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + ns, nameY + ns), glm::vec2(nb, ns), nameBorder);                              // TL
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nameWidth - ns - nb, nameY + ns), glm::vec2(nb, ns), nameBorder);              // TR
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + ns, nameY + nameHeight - 2 * ns), glm::vec2(nb, ns), nameBorder);              // BL
+        m_Renderer->DrawColoredRect(glm::vec2(nameX + nameWidth - ns - nb, nameY + nameHeight - 2 * ns), glm::vec2(nb, ns), nameBorder); // BR
 
-        glm::vec3 speakerColor(1.0f, 0.9f, 0.5f);
+        glm::vec3 speakerColor(0.85f, 0.75f, 0.40f);
         m_Renderer->DrawText(node->speaker, glm::vec2(boxX + padding, currentY - 1.0f * z), speakerScale, speakerColor, outlineSize, textAlpha);
         speakerHeight = lineHeight + 4.0f * z;
         currentY += speakerHeight;
@@ -307,7 +344,7 @@ void Game::RenderDialogueTreeBox()
     }
 
     // Render dialogue text lines
-    glm::vec3 textColor(0.95f, 0.93f, 0.88f);
+    glm::vec3 textColor(0.82f, 0.80f, 0.75f);
     for (int i = 0; i < linesToShow && (startLine + i) < totalLines; ++i)
     {
         m_Renderer->DrawText(allLines[startLine + i], glm::vec2(boxX + padding, currentY), textScale, textColor, outlineSize, textAlpha);
@@ -375,7 +412,7 @@ void Game::RenderDialogueTreeBox()
             }
 
             std::string prefix = "   ";
-            glm::vec3 optionColor = isSelected ? glm::vec3(1.0f, 0.9f, 0.5f) : glm::vec3(0.75f, 0.72f, 0.68f);
+            glm::vec3 optionColor = isSelected ? glm::vec3(0.85f, 0.75f, 0.40f) : glm::vec3(0.58f, 0.55f, 0.50f);
 
             // Check if this option gives a quest
             bool givesQuest = false;

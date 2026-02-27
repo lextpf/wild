@@ -57,7 +57,7 @@ PlayerCharacter::PlayerCharacter()
       m_LastInputY(0)
 {
     m_Position = glm::vec2(200.0f, 150.0f);
-    m_Speed = 100.0f;
+    m_Speed = 80.0f;
 }
 
 PlayerCharacter::~PlayerCharacter() = default;
@@ -1546,7 +1546,7 @@ void PlayerCharacter::Move(glm::vec2 direction, float deltaTime, const Tilemap *
     if (m_IsBicycling)
         currentSpeed *= 2.0f;
     else if (m_IsRunning)
-        currentSpeed *= 1.5f;
+        currentSpeed *= 1.9f;
 
     bool sprintMode = (m_IsRunning || m_IsBicycling);
     glm::vec2 desiredMovement = normalizedDir * currentSpeed * deltaTime;
@@ -1952,14 +1952,14 @@ glm::vec2 PlayerCharacter::ApplyLaneSnapping(
     glm::vec2 bottomCenterPos = GetCurrentTileCenter(static_cast<float>(tilemap->GetTileWidth()));
     glm::vec2 offsetToCenter = bottomCenterPos - m_Position;
 
-    constexpr float laneSettleTime = 0.15f;
+    constexpr float laneSettleTime = 0.3f;
     float alpha = CalculateFollowAlpha(deltaTime, laneSettleTime);
 
     bool movingHorizontal = std::abs(normalizedDir.x) > std::abs(normalizedDir.y);
 
-    // Optional: keep correction small per frame so it can ratchet into tight gaps.
+    // Keep correction small per frame so it can ratchet into tight gaps.
     auto clampCorr = [](float c)
-    { return std::clamp(c, -2.0f, 2.0f); };
+    { return std::clamp(c, -1.2f, 1.2f); };
 
     if (movingHorizontal)
     {
@@ -2094,7 +2094,13 @@ void PlayerCharacter::HandleIdleSnap(float deltaTime, const Tilemap *tilemap,
     }
     else
     {
-        // Reset snap progress when we're already at center
+        // Close enough to center - snap exactly to avoid fractional positions
+        if (tilemap &&
+            !CollidesWithTilesStrict(targetCenter, tilemap, 0, 0, false) &&
+            !CollidesWithNPC(targetCenter, npcPositions))
+        {
+            m_Position = targetCenter;
+        }
         m_SnapProgress = 1.0f;
     }
 
