@@ -135,6 +135,7 @@ bool Game::Initialize()
             std::cerr << "Failed to initialize GLAD" << std::endl;
             return false;
         }
+        Texture::AdvanceOpenGLContextGeneration();
 
         // OpenGL settings
         glViewport(0, 0, m_ScreenWidth, m_ScreenHeight);
@@ -1396,6 +1397,7 @@ bool Game::SwitchRenderer(RendererAPI api)
             std::cerr << "Failed to initialize GLAD during renderer switch" << std::endl;
             return false;
         }
+        Texture::AdvanceOpenGLContextGeneration();
         // This maps normalized device coordinates to the full framebuffer size.
         glViewport(0, 0, m_ScreenWidth, m_ScreenHeight);
         // Standard alpha blending

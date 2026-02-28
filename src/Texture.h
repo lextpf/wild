@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
+#include <vector>
 
 #include <glad/glad.h>
 #include <vulkan/vulkan.h>
@@ -232,6 +234,16 @@ public:
      */
     void RecreateOpenGLTexture();
 
+    /**
+     * @brief Advance global OpenGL context generation after creating a new GL context.
+     */
+    static void AdvanceOpenGLContextGeneration();
+
+    /**
+     * @brief Get active OpenGL context generation.
+     */
+    static std::uint64_t GetCurrentOpenGLContextGeneration();
+
     /// @}
 
     /// @name Vulkan Operations
@@ -313,6 +325,8 @@ public:
     /// @{
 
     unsigned int m_OpenGLID{0};  ///< OpenGL texture name (0 = invalid)
+    void *m_OpenGLContextTag{nullptr};  ///< GLFW context that created m_OpenGLID
+    std::uint64_t m_OpenGLContextGeneration{0};  ///< Logical OpenGL context generation
 
     /// @}
 
@@ -332,10 +346,10 @@ public:
     /// @brief CPU-side storage and metadata.
     /// @{
 
-    int m_Width{0};                       ///< Image width in pixels
-    int m_Height{0};                      ///< Image height in pixels
-    int m_Channels{0};                    ///< Color channels (1=R, 3=RGB, 4=RGBA)
-    unsigned char *m_ImageData{nullptr};  ///< CPU pixel buffer (retained for recreation)
+    int m_Width{0};                                ///< Image width in pixels
+    int m_Height{0};                               ///< Image height in pixels
+    int m_Channels{0};                             ///< Color channels (1=R, 3=RGB, 4=RGBA)
+    std::vector<unsigned char> m_ImageData;        ///< CPU pixel buffer (retained for recreation)
 
     /// @}
 
@@ -353,6 +367,8 @@ private:
      * @param flipY Unused (flip is handled before this call).
      */
     void CreateOpenGLTexture(unsigned char *data, bool flipY);
+
+    static std::uint64_t s_CurrentOpenGLContextGeneration;
 
     /// @}
 };

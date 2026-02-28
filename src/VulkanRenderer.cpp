@@ -223,23 +223,8 @@ void VulkanRenderer::Shutdown()
         }
         m_UploadedTextures.clear();
 
-        // Cleanup texture cache
-        // Skip resources that reference the white texture (avoid double-destroy)
-        for (auto &[id, resources] : m_TextureCache)
-        {
-            if (resources.imageView != VK_NULL_HANDLE && resources.imageView != m_WhiteTextureImageView)
-            {
-                vkDestroyImageView(m_Device, resources.imageView, nullptr);
-            }
-            if (resources.image != VK_NULL_HANDLE && resources.image != m_WhiteTextureImage)
-            {
-                vkDestroyImage(m_Device, resources.image, nullptr);
-            }
-            if (resources.memory != VK_NULL_HANDLE && resources.memory != m_WhiteTextureImageMemory)
-            {
-                vkFreeMemory(m_Device, resources.memory, nullptr);
-            }
-        }
+        // Texture cache stores non-owning references to Texture-managed Vulkan resources.
+        // DestroyVulkanTexture() above already released owned resources, so only clear cache.
         m_TextureCache.clear();
 
         // Cleanup texture sampler

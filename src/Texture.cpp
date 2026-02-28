@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <cstring>
+#include <utility>
 
 // stb_image is a header-only library - this define tells it to include the implementation
 // Only define this in ONE .cpp file to avoid duplicate symbol errors
@@ -11,12 +12,16 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
+std::uint64_t Texture::s_CurrentOpenGLContextGeneration = 0;
+
 Texture::Texture()
     : m_Width(0)                              // Image width in pixels (0 until loaded)
     , m_Height(0)                             // Image height in pixels (0 until loaded)
     , m_Channels(0)                           // Color channels: 3=RGB, 4=RGBA (0 until loaded)
-    , m_ImageData(nullptr)                    // CPU-side pixel buffer (retained for re-upload)
+    , m_ImageData()                           // CPU-side pixel buffer (retained for re-upload)
     , m_OpenGLID(0)                           // OpenGL texture handle (0 = not uploaded)
+    , m_OpenGLContextTag(nullptr)             // Context that owns m_OpenGLID
+    , m_OpenGLContextGeneration(0)            // Context generation that owns m_OpenGLID
     , m_VulkanImage(VK_NULL_HANDLE)           // Vulkan image handle (device-local memory)
     , m_VulkanImageMemory(VK_NULL_HANDLE)     // Vulkan memory backing the image
     , m_VulkanImageView(VK_NULL_HANDLE)       // Vulkan image view for shader sampling
@@ -32,8 +37,10 @@ Texture::Texture(Texture &&other) noexcept
     : m_Width(other.m_Width)
     , m_Height(other.m_Height)
     , m_Channels(other.m_Channels)
-    , m_ImageData(other.m_ImageData)
+    , m_ImageData(std::move(other.m_ImageData))
     , m_OpenGLID(other.m_OpenGLID)
+    , m_OpenGLContextTag(other.m_OpenGLContextTag)
+    , m_OpenGLContextGeneration(other.m_OpenGLContextGeneration)
     , m_VulkanImage(other.m_VulkanImage)
     , m_VulkanImageMemory(other.m_VulkanImageMemory)
     , m_VulkanImageView(other.m_VulkanImageView)
@@ -43,8 +50,9 @@ Texture::Texture(Texture &&other) noexcept
     // Null out the source object's resources so its destructor won't free them.
     // We now own these resources exclusively.
     other.m_Width = other.m_Height = other.m_Channels = 0;
-    other.m_ImageData = nullptr;
     other.m_OpenGLID = 0;
+    other.m_OpenGLContextTag = nullptr;
+    other.m_OpenGLContextGeneration = 0;
     other.m_VulkanImage = VK_NULL_HANDLE;
     other.m_VulkanImageMemory = VK_NULL_HANDLE;
     other.m_VulkanImageView = VK_NULL_HANDLE;
@@ -60,27 +68,29 @@ Texture &Texture::operator=(Texture &&other) noexcept
     {
         // First, clean up any resources we currently own
         // Check for valid GL context - during shutdown the context may already be gone
-        if (m_OpenGLID != 0 && glfwGetCurrentContext() != nullptr)
+        GLFWwindow *currentContext = glfwGetCurrentContext();
+        if (m_OpenGLID != 0 && currentContext != nullptr &&
+            m_OpenGLContextGeneration == s_CurrentOpenGLContextGeneration)
         {
             glDeleteTextures(1, &m_OpenGLID);
         }
         m_OpenGLID = 0;
+        m_OpenGLContextTag = nullptr;
+        m_OpenGLContextGeneration = 0;
         if (m_VulkanDevice != VK_NULL_HANDLE)
         {
             DestroyVulkanTexture(m_VulkanDevice);
         }
-        if (m_ImageData)
-        {
-            delete[] m_ImageData;
-            m_ImageData = nullptr;
-        }
+        m_ImageData.clear();
 
         // Now steal the other object's resources
         m_Width = other.m_Width;
         m_Height = other.m_Height;
         m_Channels = other.m_Channels;
-        m_ImageData = other.m_ImageData;
+        m_ImageData = std::move(other.m_ImageData);
         m_OpenGLID = other.m_OpenGLID;
+        m_OpenGLContextTag = other.m_OpenGLContextTag;
+        m_OpenGLContextGeneration = other.m_OpenGLContextGeneration;
         m_VulkanImage = other.m_VulkanImage;
         m_VulkanImageMemory = other.m_VulkanImageMemory;
         m_VulkanImageView = other.m_VulkanImageView;
@@ -89,8 +99,9 @@ Texture &Texture::operator=(Texture &&other) noexcept
 
         // Null out the source so its destructor doesn't double-free
         other.m_Width = other.m_Height = other.m_Channels = 0;
-        other.m_ImageData = nullptr;
         other.m_OpenGLID = 0;
+        other.m_OpenGLContextTag = nullptr;
+        other.m_OpenGLContextGeneration = 0;
         other.m_VulkanImage = VK_NULL_HANDLE;
         other.m_VulkanImageMemory = VK_NULL_HANDLE;
         other.m_VulkanImageView = VK_NULL_HANDLE;
@@ -105,11 +116,15 @@ Texture::~Texture()
     // OpenGL textures must be deleted while the GL context is still valid.
     // During application shutdown, GLFW may destroy the context before our
     // destructor runs, so we check glfwGetCurrentContext() to avoid crashes.
-    if (m_OpenGLID != 0 && glfwGetCurrentContext() != nullptr)
+    GLFWwindow *currentContext = glfwGetCurrentContext();
+    if (m_OpenGLID != 0 && currentContext != nullptr &&
+        m_OpenGLContextGeneration == s_CurrentOpenGLContextGeneration)
     {
         glDeleteTextures(1, &m_OpenGLID);
-        m_OpenGLID = 0;
     }
+    m_OpenGLID = 0;
+    m_OpenGLContextTag = nullptr;
+    m_OpenGLContextGeneration = 0;
 
     // Vulkan resources must be destroyed in a specific order and require the device handle
     if (m_VulkanDevice != VK_NULL_HANDLE)
@@ -118,11 +133,7 @@ Texture::~Texture()
     }
 
     // Free CPU-side image data last
-    if (m_ImageData)
-    {
-        delete[] m_ImageData;
-        m_ImageData = nullptr;
-    }
+    m_ImageData.clear();
 }
 
 bool Texture::LoadFromFile(const std::string &path)
@@ -140,16 +151,28 @@ bool Texture::LoadFromFile(const std::string &path)
         return false;
     }
 
+    m_ImageData.clear();
+
     // Keep a CPU copy of the image data. This allows us to:
     // 1. Recreate the OpenGL texture after a context switch
     // 2. Create a Vulkan texture later (deferred creation)
     // 3. Support multiple graphics backends from the same source
     size_t dataSize = m_Width * m_Height * m_Channels;
-    m_ImageData = new unsigned char[dataSize];
-    memcpy(m_ImageData, data, dataSize);
+    m_ImageData.resize(dataSize);
+    memcpy(m_ImageData.data(), data, dataSize);
 
-    // Create the OpenGL texture immediately - we have a valid context during loading
-    CreateOpenGLTexture(data, true);
+    // Create OpenGL texture immediately only if a context is active.
+    // In Vulkan mode there is no GL context; keep CPU data and upload later.
+    if (glfwGetCurrentContext() != nullptr)
+    {
+        CreateOpenGLTexture(data, true);
+    }
+    else
+    {
+        m_OpenGLID = 0;
+        m_OpenGLContextTag = nullptr;
+        m_OpenGLContextGeneration = 0;
+    }
 
     // Vulkan texture creation is deferred - it requires device, physical device,
     // command pool, and queue handles that we don't have access to here.
@@ -169,45 +192,50 @@ bool Texture::LoadFromData(unsigned char *data, int width, int height, int chann
         return false;
     }
 
+    m_ImageData.clear();
+
     m_Width = width;
     m_Height = height;
     m_Channels = channels;
 
     size_t dataSize = width * height * channels;
-    m_ImageData = new unsigned char[dataSize];
+    m_ImageData.resize(dataSize);
 
     // Handle vertical flip if requested (needed for OpenGL coordinate system)
     unsigned char *finalData = data;
-    unsigned char *flippedData = nullptr;
+    std::vector<unsigned char> flippedData;
 
     if (flipY)
     {
         // Create a flipped copy by copying rows in reverse order
-        flippedData = new unsigned char[dataSize];
+        flippedData.resize(dataSize);
         for (int y = 0; y < height; ++y)
         {
             int srcY = height - 1 - y;  // Source row from bottom
-            memcpy(flippedData + y * width * channels,
+            memcpy(flippedData.data() + y * width * channels,
                    data + srcY * width * channels,
                    width * channels);
         }
-        finalData = flippedData;
+        finalData = flippedData.data();
         // Store the flipped version as our CPU copy
-        memcpy(m_ImageData, finalData, dataSize);
+        memcpy(m_ImageData.data(), finalData, dataSize);
     }
     else
     {
         // No flip needed - just copy directly
-        memcpy(m_ImageData, data, dataSize);
+        memcpy(m_ImageData.data(), data, dataSize);
     }
 
-    // Create GL texture from the (possibly flipped) data
-    CreateOpenGLTexture(finalData, flipY);
-
-    // Clean up temporary flip buffer if we created one
-    if (flippedData)
+    // Create GL texture from the (possibly flipped) data only if a context is active.
+    if (glfwGetCurrentContext() != nullptr)
     {
-        delete[] flippedData;
+        CreateOpenGLTexture(finalData, flipY);
+    }
+    else
+    {
+        m_OpenGLID = 0;
+        m_OpenGLContextTag = nullptr;
+        m_OpenGLContextGeneration = 0;
     }
 
     return true;
@@ -217,6 +245,8 @@ void Texture::CreateOpenGLTexture(unsigned char *data, bool flipY)
 {
     // Generate a new texture object and bind it for configuration
     glGenTextures(1, &m_OpenGLID);
+    m_OpenGLContextTag = reinterpret_cast<void *>(glfwGetCurrentContext());
+    m_OpenGLContextGeneration = s_CurrentOpenGLContextGeneration;
     glBindTexture(GL_TEXTURE_2D, m_OpenGLID);
 
     // Determine the appropriate OpenGL format based on channel count
@@ -273,22 +303,51 @@ void Texture::RecreateOpenGLTexture()
     // This is called after an OpenGL context switch (e.g., switching renderers)
     // The old texture ID is invalid in the new context, so we recreate it
 
-    if (!m_ImageData)
+    if (m_ImageData.empty())
     {
         std::cerr << "Cannot recreate OpenGL texture: no image data" << std::endl;
         return;
     }
 
-    // Delete the old texture if it exists (may be invalid anyway after context switch)
-    if (m_OpenGLID != 0)
+    GLFWwindow *currentContext = glfwGetCurrentContext();
+    if (currentContext == nullptr)
+    {
+        std::cerr << "Cannot recreate OpenGL texture: no active OpenGL context" << std::endl;
+        m_OpenGLID = 0;
+        m_OpenGLContextTag = nullptr;
+        m_OpenGLContextGeneration = 0;
+        return;
+    }
+
+    // Delete old texture only if it belongs to the current context.
+    // After renderer hot-swap, stale IDs from the previous context may collide
+    // with live IDs in the new context and must not be deleted.
+    if (m_OpenGLID != 0 && currentContext != nullptr &&
+        m_OpenGLContextGeneration == s_CurrentOpenGLContextGeneration)
     {
         glDeleteTextures(1, &m_OpenGLID);
-        m_OpenGLID = 0;
     }
+    m_OpenGLID = 0;
+    m_OpenGLContextTag = nullptr;
+    m_OpenGLContextGeneration = 0;
 
     // Recreate from our stored CPU copy
     // Pass flipY=false because m_ImageData is already in the correct orientation
-    CreateOpenGLTexture(m_ImageData, false);
+    CreateOpenGLTexture(m_ImageData.data(), false);
+}
+
+void Texture::AdvanceOpenGLContextGeneration()
+{
+    ++s_CurrentOpenGLContextGeneration;
+    if (s_CurrentOpenGLContextGeneration == 0)
+    {
+        s_CurrentOpenGLContextGeneration = 1;
+    }
+}
+
+std::uint64_t Texture::GetCurrentOpenGLContextGeneration()
+{
+    return s_CurrentOpenGLContextGeneration;
 }
 
 void Texture::CreateVulkanTexture(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue)
@@ -300,7 +359,7 @@ void Texture::CreateVulkanTexture(VkDevice device, VkPhysicalDevice physicalDevi
     // 4. Create a sampler (how to filter/wrap the texture)
     // 5. Upload pixel data via a staging buffer
 
-    if (!m_ImageData)
+    if (m_ImageData.empty())
     {
         std::cerr << "Cannot create Vulkan texture: no image data" << std::endl;
         return;
@@ -482,7 +541,7 @@ void Texture::CreateVulkanTexture(VkDevice device, VkPhysicalDevice physicalDevi
     // and handles the Y-axis difference via UV coordinate flipping in the renderer.
     void *data;
     vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-    memcpy(data, m_ImageData, imageSize);
+    memcpy(data, m_ImageData.data(), imageSize);
     vkUnmapMemory(device, stagingBufferMemory);
 
     // Now we need to issue GPU commands to:

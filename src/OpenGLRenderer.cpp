@@ -374,9 +374,12 @@ void OpenGLRenderer::Clear(float r, float g, float b, float a)
 
 void OpenGLRenderer::UploadTexture(const Texture &texture)
 {
-    // When switching renderers, the OpenGL context is recreated and old texture IDs are invalid.
-    // Recreate the texture from stored image data if needed.
-    const_cast<Texture &>(texture).RecreateOpenGLTexture();
+    // Recreate only if the texture does not belong to the active GL context generation.
+    const std::uint64_t currentGen = Texture::GetCurrentOpenGLContextGeneration();
+    if (texture.GetID() == 0 || texture.m_OpenGLContextGeneration != currentGen)
+    {
+        const_cast<Texture &>(texture).RecreateOpenGLTexture();
+    }
 }
 
 void OpenGLRenderer::SetupQuad()
@@ -509,9 +512,19 @@ void OpenGLRenderer::DrawSpriteRegion(const Texture &texture, glm::vec2 position
     }
 
     unsigned int texID = texture.GetID();
+    const std::uint64_t currentGen = Texture::GetCurrentOpenGLContextGeneration();
+    if (texture.m_OpenGLContextGeneration != currentGen || texID == 0)
+    {
+        const_cast<Texture &>(texture).RecreateOpenGLTexture();
+        texID = texture.GetID();
+        if (texID == 0)
+            return;
+    }
 
-    // Texture change forces a flush, sprites with different textures can't be batched
-    if (m_CurrentBatchTexture != 0 && m_CurrentBatchTexture != texID)
+    // Texture change forces a flush, sprites with different textures can't be batched.
+    // Use batch-content check instead of m_CurrentBatchTexture!=0 so an invalid
+    // texture ID (0) cannot contaminate subsequent sprites in the same batch.
+    if (!m_BatchVertices.empty() && m_CurrentBatchTexture != texID)
     {
         FlushBatch();
     }
@@ -607,9 +620,20 @@ void OpenGLRenderer::DrawSpriteAtlas(const Texture &texture, glm::vec2 position,
         FlushRectBatch();
 
     unsigned int texID = texture.GetID();
+    const std::uint64_t currentGen = Texture::GetCurrentOpenGLContextGeneration();
+    if (texture.m_OpenGLContextGeneration != currentGen || texID == 0)
+    {
+        const_cast<Texture &>(texture).RecreateOpenGLTexture();
+        texID = texture.GetID();
+        if (texID == 0)
+            return;
+    }
 
-    // Flush particle batch if texture or blend mode changed
-    if (m_CurrentParticleTexture != 0 && (m_CurrentParticleTexture != texID || m_ParticleBatchAdditive != additive))
+    // Flush particle batch if texture or blend mode changed.
+    // Same rule as sprite batch: once vertices exist, texture mismatch must flush
+    // even if previous texture ID was 0.
+    if (!m_ParticleBatchVertices.empty() &&
+        (m_CurrentParticleTexture != texID || m_ParticleBatchAdditive != additive))
     {
         FlushParticleBatch();
     }
@@ -667,6 +691,15 @@ void OpenGLRenderer::FlushBatch()
 {
     if (m_BatchVertices.empty())
         return;
+
+    // Texture ID 0 is invalid for sprite sampling in core profile.
+    // Drop this batch instead of accidentally sampling a previously bound texture.
+    if (m_CurrentBatchTexture == 0)
+    {
+        m_BatchVertices.clear();
+        m_CurrentBatchTexture = 0;
+        return;
+    }
 
     glUseProgram(m_ShaderProgram);
 
@@ -783,9 +816,18 @@ void OpenGLRenderer::DrawWarpedQuad(const Texture& texture, const glm::vec2 corn
         FlushParticleBatch();
 
     unsigned int texID = texture.GetID();
+    const std::uint64_t currentGen = Texture::GetCurrentOpenGLContextGeneration();
+    if (texture.m_OpenGLContextGeneration != currentGen || texID == 0)
+    {
+        const_cast<Texture &>(texture).RecreateOpenGLTexture();
+        texID = texture.GetID();
+        if (texID == 0)
+            return;
+    }
 
-    // Flush sprite batch if texture changed
-    if (m_CurrentBatchTexture != 0 && m_CurrentBatchTexture != texID)
+    // Flush sprite batch if texture changed.
+    // Do not special-case texture 0, or stale/invalid IDs can leak into the batch.
+    if (!m_BatchVertices.empty() && m_CurrentBatchTexture != texID)
     {
         FlushBatch();
     }
@@ -910,6 +952,13 @@ void OpenGLRenderer::FlushParticleBatch()
     // color/alpha for effects like fading, color variation, and glow intensity
     if (m_ParticleBatchVertices.empty())
         return;
+
+    if (m_CurrentParticleTexture == 0)
+    {
+        m_ParticleBatchVertices.clear();
+        m_CurrentParticleTexture = 0;
+        return;
+    }
 
     glUseProgram(m_ShaderProgram);
 

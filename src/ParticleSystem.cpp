@@ -72,9 +72,9 @@ void ParticleSystem::BuildAtlas()
             sources[i].height = temp.m_Height;
             size_t dataSize = temp.m_Width * temp.m_Height * temp.m_Channels;
             sources[i].pixels.resize(dataSize);
-            if (temp.m_ImageData)
+            if (!temp.m_ImageData.empty())
             {
-                memcpy(sources[i].pixels.data(), temp.m_ImageData, dataSize);
+                memcpy(sources[i].pixels.data(), temp.m_ImageData.data(), dataSize);
                 // Convert to RGBA if needed
                 if (temp.m_Channels == 3)
                 {
