@@ -62,7 +62,7 @@
  * |         Type |     Check      | Use Case                    |
  * |--------------|----------------|-----------------------------|
  * |     FLAG_SET |   HasFlag()    | Show if quest accepted      |
- * | FLAG_NOT_SET |   HasFlag()    | Show if quest not yet taken |
+ * | FLAG_NOT_SET |  !HasFlag()    | Show if quest not yet taken |
  * |  FLAG_EQUALS | GetFlagValue() | Check specific state        |
  *
  * @section quest_flags Quest Flag Naming

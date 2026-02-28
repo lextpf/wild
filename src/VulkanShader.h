@@ -55,7 +55,8 @@ public:
      *
      * @param device Vulkan logical device handle.
      * @param code   SPIR-V bytecode as 32-bit words.
-     * @return VkShaderModule handle, or VK_NULL_HANDLE on failure.
+     * @return VkShaderModule handle.
+     * @throws std::runtime_error If code is empty or module creation fails.
      *
      * @par Example
      * @code

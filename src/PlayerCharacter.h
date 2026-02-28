@@ -16,7 +16,7 @@
  * Determines which sprite sheet to use and animation timing:
  * - IDLE: Standing still, uses walking sheet frame 0
  * - WALK: Walking animation at base speed
- * - RUN: Running animation at 60% of normal frame duration
+ * - RUN: Running animation at 50% of normal frame duration (2x faster)
  */
 enum class AnimationType
 {
@@ -63,9 +63,9 @@ enum class CharacterType
  * @endcode
  *
  * @par Movement
- * - Walking: 100 px/s (1.0x)
- * - Running: 150 px/s (1.5x)
- * - Bicycle: 200 px/s (2.0x)
+ * - Walking: 80 px/s (1.0x base)
+ * - Running: 152 px/s (1.9x)
+ * - Bicycle: 160 px/s (2.0x)
  *
  * @par Collision
  * - Strict mode: Full 16x16 hitbox check
@@ -74,7 +74,7 @@ enum class CharacterType
  * - Lane snapping: Aligns to tile centers during cardinal movement
  *
  * @par Animation
- * Walk cycle: [1, 0, 2, 0] at 0.15s/frame (walk) or 0.09s/frame (run)
+ * Walk cycle: [1, 0, 2, 0] at 0.15s/frame (walk) or 0.075s/frame (run)
  */
 class PlayerCharacter : public GameCharacter
 {
@@ -128,7 +128,7 @@ public:
      * @brief Load the bicycle sprite sheet.
      *
      * Same format as walking sprite sheet but with cycling poses.
-     * Optional; bicycle mode falls back to running if not available.
+     * Must be loaded before enabling bicycle mode.
      *
      * @param path Path to the bicycle sprite sheet PNG file.
      * @return true if loaded successfully, false on error.
@@ -325,7 +325,7 @@ private:
      * @name Movement State
      * @{
      */
-    bool m_IsRunning;                   ///< Running mode flag (1.5x speed)
+    bool m_IsRunning;                   ///< Running mode flag (1.9x speed)
     bool m_IsBicycling;                 ///< Bicycle mode flag (2.0x speed)
     bool m_IsUsingCopiedAppearance;     ///< True if using copied NPC appearance
     glm::vec2 m_LastSafeTileCenter;     ///< Last valid tile center (for stuck recovery)

@@ -118,8 +118,8 @@
  * For a 1280x720 screen with top-left origin:
  * - @f$ l=0, \; r=1280, \; t=0, \; b=720 @f$
  * - @f$ (640, 360) \rightarrow (0, 0) @f$ (center)
- * - @f$ (0, 0) \rightarrow (-1, -1) @f$ (top-left)
- * - @f$ (1280, 720) \rightarrow (+1, +1) @f$ (bottom-right)
+ * - @f$ (0, 0) \rightarrow (-1, +1) @f$ (top-left)
+ * - @f$ (1280, 720) \rightarrow (+1, -1) @f$ (bottom-right)
  *
  * @section renderer_uv Texture Coordinates
  * UV coordinates map pixel positions to the 0-1 range the GPU expects:
@@ -174,9 +174,9 @@ public:
      * Prepares the GPU for drawing. Must be called before any draw calls.
      * 
      * @par OpenGL
-     * - Clear color/depth buffers
-     * - Bind default framebuffer
-     * 
+     * - Reset batch state (vertices, textures, draw call count)
+     * - Buffer clearing is handled separately via Clear()
+     *
      * @par Vulkan
      * - Acquire swapchain image
      * - Begin command buffer recording
@@ -719,11 +719,11 @@ public:
     /**
      * @brief Check if this renderer requires Y-axis flipping for textures.
      *
-     * OpenGL uses bottom-left origin for textures, so tilesets that are
-     * pre-flipped during loading require flipY=true when sampling.
-     * Vulkan uses top-left origin, so no flipping is needed.
+     * Both OpenGL and Vulkan backends return true to maintain consistent
+     * UV conventions. Tilesets are pre-flipped during loading and require
+     * flipY=true when sampling.
      *
-     * @return true for OpenGL (needs Y-flip), false for Vulkan (no flip)
+     * @return true for both OpenGL and Vulkan (both use Y-flip)
      */
     virtual bool RequiresYFlip() const = 0;
 

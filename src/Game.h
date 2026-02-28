@@ -40,9 +40,8 @@
  * @endcode
  * 
  * @par Frame Timing
- * Delta time can be clamped to prevent physics explosions (e.g. after
- * debugger pauses); the current implementation does not clamp yet. See
- * Run() for the integration point.
+ * Delta time is clamped to 0.1s (MAX_DELTA_TIME) to prevent physics
+ * explosions after debugger pauses or window drag stalls. See Run().
  * 
  * @par Game Modes
  * The game supports multiple modes:

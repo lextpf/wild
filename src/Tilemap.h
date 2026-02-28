@@ -62,7 +62,7 @@ struct NoProjectionStructure
 struct TileLayer
 {
     std::string name;                  ///< Human-readable layer name
-    std::vector<int> tiles;            ///< Tile IDs in row-major order (-1 or 0 = empty)
+    std::vector<int> tiles;            ///< Tile IDs in row-major order (-1 = empty)
     std::vector<float> rotation;       ///< Rotation in degrees per tile
     std::vector<bool> noProjection;    ///< Tiles that bypass 3D projection
     std::vector<int> structureId;      ///< Per-tile structure ID (-1 = auto flood-fill, 0+ = belongs to structure)
@@ -126,31 +126,38 @@ struct AnimatedTile
  * @author Alex (https://github.com/lextpf)
  *
  * The Tilemap class is the primary world representation, managing:
- * - **8 tile layers** (4 background, 4 foreground) with configurable depth ordering
+ * - **10 tile layers** (5 background, 5 foreground) with configurable depth ordering
  * - **Collision detection** for player movement
  * - **Navigation mesh** for NPC pathfinding
  * - **Per-tile rotation** for visual variety
- * - **JSON serialization** for map editing and persistence
+ * - **JSON serialization** using a `dynamicLayers` format
  *
  * @par Layer Architecture
- * The tilemap uses 8 layers rendered around player/NPC entities:
+ * The tilemap uses 10 dynamic layers rendered around player/NPC entities:
  *
- * | Layer | Name            | Purpose                    |
- * |-------|-----------------|----------------------------|
- * | 0     | Ground          | Base terrain               |
- * | 1     | Ground Detail   | Grass, paths, decorations  |
- * | 2-3   | Objects         | Buildings, rocks, trees    |
- * | 4-5   | Foreground      | Elements in front of NPCs  |
- * | 6-7   | Overlay         | UI elements, weather       |
+ * | Layer | Name            | Render Order | Purpose                    |
+ * |-------|-----------------|--------------|----------------------------|
+ * | 0     | Ground          | 0            | Base terrain               |
+ * | 1     | Ground Detail   | 10           | Grass, paths, decorations  |
+ * | 2     | Objects         | 20           | Buildings, rocks, trees    |
+ * | 3     | Objects2        | 30           | Additional objects         |
+ * | 4     | Objects3        | 40           | Additional objects         |
+ * | 5     | Foreground      | 100          | Elements in front of NPCs  |
+ * | 6     | Foreground2     | 110          | Additional foreground      |
+ * | 7     | Overlay         | 120          | Overlay effects            |
+ * | 8     | Overlay2        | 130          | Additional overlay         |
+ * | 9     | Overlay3        | 140          | Top-most overlay           |
  *
  * @par Depth Sorting Visualization
  * @code
- *              Layer 7 Overlay2     <- Top (front)
- *              Layer 6 Overlay
- *              Layer 5 Foreground2
- *              Layer 4 Foreground
+ *              Layer 9 Overlay3     <- Top (front)
+ *              Layer 8 Overlay2
+ *              Layer 7 Overlay
+ *              Layer 6 Foreground2
+ *              Layer 5 Foreground
  *              ---- Player -------
  *              ---- NPCs ---------
+ *              Layer 4 Objects3
  *              Layer 3 Objects2
  *              Layer 2 Objects
  *              Layer 1 Ground Detail
@@ -167,7 +174,7 @@ struct AnimatedTile
  * @f]
  * 
  * Where (tileX, tileY) are the tile's coordinates in the tileset texture.
- * A tileID of 0 typically represents an empty/transparent tile.
+ * A tileID of -1 represents an empty/transparent tile.
  * 
  * @par UV Coordinate Calculation
  * For a tile at tileset position (tx, ty):
@@ -224,16 +231,22 @@ struct AnimatedTile
  * @endcode
  * 
  * @par Sparse Storage Format
- * When serialized to JSON, only non-zero tiles are stored:
+ * When serialized to JSON, only non-empty tiles (tileID != -1) are stored
+ * within each entry of the `dynamicLayers` array:
  * @code{.json}
  * {
- *   "layer1": {
- *     "42": 15,    // Tile at index 42 = tile ID 15
- *     "100": 23    // Tile at index 100 = tile ID 23
- *   }
+ *   "dynamicLayers": [
+ *     {
+ *       "name": "Ground",
+ *       "tiles": {
+ *         "42": 15,    // Tile at index 42 = tile ID 15
+ *         "100": 23    // Tile at index 100 = tile ID 23
+ *       }
+ *     }
+ *   ]
  * }
  * @endcode
- * 
+ *
  * This significantly reduces file size for large, sparse maps.
  * 
  * @see CollisionMap, NavigationMap, ColumnProxy
@@ -407,7 +420,6 @@ public:
     /** @} */
 
     /**
-    /**
      * @name Accessors
      * @brief Query tilemap properties.
      * @{
@@ -489,7 +501,7 @@ public:
      * @brief Get no-projection flag at tile coordinates for a specific layer.
      * @param x Tile X coordinate.
      * @param y Tile Y coordinate.
-     * @param layer Layer index (0-based, 0 to layer_count-1).
+     * @param layer Layer index (1-based; internally converted to 0-based).
      * @return true if tile should bypass 3D projection on that layer.
      */
     bool GetNoProjection(int x, int y, int layer = 1) const;
@@ -659,17 +671,20 @@ public:
      *   "version": 2,
      *   "width": 64,
      *   "height": 64,
-     *   "layer1": { "index": tileID, ... },
-     *   "layer2": { ... },
+     *   "dynamicLayers": [
+     *     { "name": "Ground", "renderOrder": 0, "tiles": { "index": tileID, ... } },
+     *     { "name": "Ground Detail", "renderOrder": 10, "tiles": { ... } },
+     *     ...
+     *   ],
      *   "collision": [index1, index2, ...],
      *   "navigation": [index1, index2, ...],
      *   "npcs": [
      *     { "type": "BW2_NPC1", "x": 10, "y": 5, "dialogue": "Hello!" }
      *   ],
-     *   "player": { "x": 5, "y": 5 }
+     *   "player": { "tileX": 5, "tileY": 5 }
      * }
      * @endcode
-     * 
+     *
      * @param filename Output JSON file path.
      * @param npcs Optional NPC list to save.
      * @param playerTileX Player tile X (-1 to skip).
@@ -944,7 +959,7 @@ private:
 
     /// @name Dynamic Layers
     /// @{
-    std::vector<TileLayer> m_Layers;  ///< All tile layers (8 layers: 4 background, 4 foreground)
+    std::vector<TileLayer> m_Layers;  ///< All tile layers (10 layers: 5 background, 5 foreground)
     /// @}
 
     /// @name Collision and Navigation

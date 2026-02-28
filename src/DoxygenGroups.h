@@ -41,7 +41,7 @@
  * The Core module provides the foundational infrastructure for the game:
  * 
  * @par Responsibilities
- * - **Game Loop**: Implements a fixed-timestep game loop with variable rendering
+ * - **Game Loop**: Implements a variable-timestep game loop
  * - **State Management**: Handles transitions between game modes
  * - **System Orchestration**: Coordinates updates across all subsystems
  * - **Resource Lifetime**: Manages initialization and shutdown of game resources
@@ -185,20 +185,22 @@
  * The World module manages the static game environment and provides spatial queries.
  * 
  * @par Tilemap System
- * The tilemap uses an 8-layer architecture for depth sorting:
+ * The tilemap uses a 10-layer architecture for depth sorting:
  *
- * | Layer | Name          | Collision | Render Order |
- * |-------|---------------|-----------|--------------|
- * | 0     | Ground        | Yes       | First        |
- * | 1     | Ground Detail | No        | Second       |
- * | 2     | Objects       | No        | Third        |
- * | 3     | Objects2      | No        | Fourth       |
- * | -     | NPCs          | -         | (Y-sorted)   |
- * | -     | Player        | -         | (Y-sorted)   |
- * | 4     | Foreground    | No        | Fifth        |
- * | 5     | Foreground2   | No        | Sixth        |
- * | 6     | Overlay       | No        | Seventh      |
- * | 7     | Overlay2      | No        | Last         |
+ * | Layer | Name          | Render Order | Purpose             |
+ * |-------|---------------|--------------|---------------------|
+ * | 0     | Ground        | 0            | Base terrain        |
+ * | 1     | Ground Detail | 10           | Paths, decorations  |
+ * | 2     | Objects       | 20           | Buildings, rocks    |
+ * | 3     | Objects2      | 30           | Additional objects  |
+ * | 4     | Objects3      | 40           | Additional objects  |
+ * | -     | NPCs          | (Y-sorted)   |                     |
+ * | -     | Player        | (Y-sorted)   |                     |
+ * | 5     | Foreground    | 100          | In front of NPCs    |
+ * | 6     | Foreground2   | 110          | Additional fg       |
+ * | 7     | Overlay       | 120          | Overlay effects     |
+ * | 8     | Overlay2      | 130          | Additional overlay  |
+ * | 9     | Overlay3      | 140          | Top-most overlay    |
  * 
  * @par Tile Indexing
  * Tiles are stored in row-major order:
@@ -257,11 +259,11 @@
  * 
  * @par Movement Modes
  * Player supports three movement modes with different speeds:
- * | Mode     | Speed Multiplier |
- * |----------|------------------|
- * | Walking  | 1.0x             |
- * | Running  | 1.5x             |
- * | Bicycle  | 2.0x             |
+ * | Mode     | Speed  | Multiplier |
+ * |----------|--------|------------|
+ * | Walking  | 80     | 1.0x       |
+ * | Running  | 152    | 1.9x       |
+ * | Bicycle  | 160    | 2.0x       |
  * 
  * @see PlayerCharacter, NonPlayerCharacter
  */
@@ -291,7 +293,7 @@
  * |      Key      |             Action               |
  * |---------------|----------------------------------|
  * |    W/A/S/D    | Move player (8-directional)      |
- * |     Shift     | Run (1.5x speed)                 |
+ * |     Shift     | Run (1.9x speed)                 |
  * |       B       | Toggle bicycle mode (2.0x speed) |
  * |       F       | Talk to NPC (when facing one)    |
  * |       X       | Copy/restore NPC appearance      |
@@ -310,9 +312,9 @@
  * @par Movement Modes
  * |  Mode   |  Speed   |       Collision        |
  * |---------|----------|------------------------|
- * | Walking | 100 px/s | Strict (full hitbox)   |
- * | Running | 150 px/s | Relaxed (center point) |
- * | Bicycle | 200 px/s | Relaxed (center point) |
+ * | Walking |  80 px/s | Strict (full hitbox)   |
+ * | Running | 152 px/s | Relaxed (center point) |
+ * | Bicycle | 160 px/s | Relaxed (center point) |
  *
  * Diagonal movement is normalized to prevent faster speed:
  * @f[
@@ -323,7 +325,7 @@
  * |     Key      |                Action                 |
  * |--------------|---------------------------------------|
  * |      E       | Toggle editor mode                    |
- * |     1-8      | Select tilemap layer (1-4 bg, 5-8 fg) |
+ * |     1-0      | Select tilemap layer (1-5 bg, 6-0 fg) |
  * |      T       | Toggle tile picker                    |
  * |      R       | Rotate selection 90 deg               |
  * |    Delete    | Remove tile at cursor                 |
@@ -332,11 +334,11 @@
  * |      M       | Toggle navigation editing             |
  * |      N       | Toggle NPC placement                  |
  * |      H       | Toggle elevation editing              |
- * |      B       | Toggle billboard projection           |
- * |      Y       | Toggle Y-sort editing                 |
+ * |      B       | Toggle no-projection editing          |
+ * |      Y       | Toggle Y-sort-plus editing            |
+ * |      O       | Toggle Y-sort-minus editing           |
  * |      J       | Toggle particle zone editing          |
  * |      K       | Toggle animated tile editing          |
- * |      X       | Toggle corner cut blocking on tile    |
  * |    , / .     | Cycle types (NPC/particle/anim)       |
  * |  Left Click  | Place tile/NPC/zone                   |
  * | Right Click  | Toggle collision/navigation           |
@@ -354,6 +356,7 @@
  * |   F4    | Toggle 3D globe effect                                  |
  * |   F5    | Cycle time of day (day/evening/night/morning)           |
  * | Up/Down | Adjust 3D globe intensity                               |
+ * |    X    | Toggle corner cut blocking on tile (debug mode only)    |
  *
  * @par Key Debouncing
  * Toggle keys use a flag pattern to prevent repeated triggers:

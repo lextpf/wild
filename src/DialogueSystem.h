@@ -27,8 +27,8 @@ struct DialogueCondition
      */
     enum class Type
     {
-        FLAG_SET,      ///< Check if flag exists and is truthy
-        FLAG_NOT_SET,  ///< Check if flag is missing or falsy
+        FLAG_SET,      ///< Check if flag key exists (any value)
+        FLAG_NOT_SET,  ///< Check if flag key does not exist
         FLAG_EQUALS    ///< Check if flag equals a specific string value
     };
 
@@ -241,12 +241,12 @@ struct DialogueNode
  *
  * @par Condition Syntax ("when" field)
  * Conditions control when choices are visible:
- * | Syntax         | Description                    |
- * |----------------|--------------------------------|
- * | `flag`         | Show if flag is set (truthy)   |
- * | `!flag`        | Show if flag is NOT set        |
- * | `flag=value`   | Show if flag equals value      |
- * | `a & b`        | Multiple conditions (AND)      |
+ * | Syntax         | Description                     |
+ * |----------------|---------------------------------|
+ * | `flag`         | Show if flag key exists         |
+ * | `!flag`        | Show if flag key does not exist |
+ * | `flag=value`   | Show if flag equals value       |
+ * | `a & b`        | Multiple conditions (AND)       |
  *
  * @par Consequence Syntax ("do" field)
  * Consequences modify game state when a choice is selected:
@@ -255,7 +255,7 @@ struct DialogueNode
  * | `"flag"`            | Set flag to true                    |
  * | `"-flag"`           | Clear/remove flag                   |
  * | `"flag=value"`      | Set flag to specific value          |
- * | `"accepted_x:desc"` | Set flag + quest description        |
+ * | `"accepted_x:desc"` | Set flag to true                    |
  *
  * @see DialogueManager for runtime dialogue control
  * @see GameStateManager for flag storage and evaluation

@@ -87,6 +87,8 @@ struct EditorContext
  * |   H | Elevation Edit     | Paint elevation value            | Clear elevation              |
  * |   J | Particle Zone Edit | Drag to create zone              | Remove zone                  |
  * |   K | Animation Edit     | Apply animation to tile          | Remove animation             |
+ * |   Y | Y-Sort-Plus Edit   | Set Y-sort-plus flag             | Clear Y-sort-plus flag       |
+ * |   O | Y-Sort-Minus Edit  | Set Y-sort-minus flag            | Clear Y-sort-minus flag      |
  * |   - | Default            | Place selected tile (drag)       | Toggle collision (drag)      |
  *
  * @par Per-Frame Pipeline

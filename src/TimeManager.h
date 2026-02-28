@@ -135,9 +135,8 @@ enum class WeatherState
  * @par Usage Example
  * @code
  * TimeManager time;
- * time.Initialize();
- * time.SetDayDuration(600.0f);  // 10 minutes per day
- * time.SetTime(6.0f);           // Start at sunrise
+ * time.Initialize();  // Default: 24s per day (fast cycle)
+ * time.SetTime(6.0f); // Start at sunrise
  *
  * // In game loop:
  * time.Update(deltaTime);
@@ -164,7 +163,7 @@ public:
     /**
      * @brief Construct TimeManager with default values.
      *
-     * Initial state: time=12:00, dayDuration=600s, timeScale=1.0, Clear weather.
+     * Initial state: time=12:00, dayDuration=24s, timeScale=1.0, Clear weather.
      */
     TimeManager();
 
@@ -266,7 +265,9 @@ public:
      * - 4 = Full Moon (brightest)
      * - 6 = Last Quarter (half)
      *
-     * @return Phase index 0-7.
+     * @return Phase index 0-7 when day count is non-negative.
+     *         May return negative values if day count is negative
+     *         (C++ signed modulo preserves sign).
      */
     int GetMoonPhase() const;
 
@@ -393,8 +394,8 @@ public:
     /**
      * @brief Set the current time directly.
      *
-     * Automatically wraps values outside 0-24 range and updates
-     * day count accordingly.
+     * Automatically wraps values outside 0-24 range.
+     * Does not modify the day count.
      *
      * @param hours Time in hours (0.0-24.0).
      */
@@ -403,7 +404,9 @@ public:
     /**
      * @brief Advance time by a specified amount.
      *
-     * Handles day rollover if advancing past midnight.
+     * Wraps time via SetTime (does not update day count for normal
+     * midnight crossings or negative advances). Only adds to day count
+     * when advancing by 24+ hours at once.
      *
      * @param hours Hours to advance (can be negative to go back).
      */

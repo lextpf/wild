@@ -17,7 +17,7 @@ struct GLFWwindow;
 
 /**
  * @class VulkanRenderer
- * @brief Vulkan 1.2 implementation of the IRenderer interface.
+ * @brief Vulkan 1.0 implementation of the IRenderer interface.
  * @author Alex (https://github.com/lextpf)
  * @ingroup Rendering
  *
@@ -27,7 +27,7 @@ struct GLFWwindow;
  * @section vk_features Vulkan Features Used
  * | Feature              | Version | Usage                          |
  * |----------------------|---------|--------------------------------|
- * | Core API             | 1.2     | Modern explicit GPU control    |
+ * | Core API             | 1.0     | Explicit GPU control           |
  * | Swapchain            | KHR     | Double-buffered presentation   |
  * | Descriptor Sets      | 1.0     | Texture binding                |
  * | Push Constants       | 1.0     | Per-draw uniforms              |

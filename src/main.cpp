@@ -17,7 +17,7 @@
  *  ============================================================================================  *
  * 
  *      A 2.5D game engine featuring dual graphics backends (OpenGL 4.6 &
- *      Vulkan 1.4), dynamic day/night cycles, tile-based worlds, NPC
+ *      Vulkan 1.0), dynamic day/night cycles, tile-based worlds, NPC
  *      pathfinding, and a built-in level editor.
  *
  *    ----------------------------------------------------------------------
